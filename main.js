@@ -23,7 +23,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
-  ObsidianCommentsPlugin: () => ObsidianCommentsPlugin
+  ObsidianCommentsPlugin: () => ObsidianCommentsPlugin,
+  default: () => main_default
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
@@ -603,3 +604,4 @@ var ObsidianCommentsSettingTab = class extends import_obsidian.PluginSettingTab 
     );
   }
 };
+var main_default = ObsidianCommentsPlugin;

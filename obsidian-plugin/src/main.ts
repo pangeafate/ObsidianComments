@@ -324,3 +324,6 @@ class ObsidianCommentsSettingTab extends PluginSettingTab {
       );
   }
 }
+
+// Default export required by Obsidian
+export default ObsidianCommentsPlugin;
