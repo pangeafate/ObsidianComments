@@ -1,0 +1,36 @@
+/* Obsidian Comments Plugin Styles */
+
+.obsidian-comments-share-button {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-s);
+  padding: var(--size-2-2) var(--size-4-2);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.obsidian-comments-share-button:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.obsidian-comments-notification {
+  position: fixed;
+  top: var(--size-4-4);
+  right: var(--size-4-4);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: var(--size-4-2);
+  box-shadow: var(--shadow-l);
+  z-index: var(--layer-popover);
+}
+
+.obsidian-comments-notification.success {
+  border-left: 3px solid var(--color-green);
+}
+
+.obsidian-comments-notification.error {
+  border-left: 3px solid var(--color-red);
+}
