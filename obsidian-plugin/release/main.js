@@ -187,21 +187,21 @@ var ShareManager = class {
   constructor(apiClient) {
     this.apiClient = apiClient;
   }
-  async addShareMetadata(content, shareId, sharedAt) {
+  async addShareMetadata(content, shareUrl, sharedAt) {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
     if (match) {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const newFrontmatter = `${existingFrontmatter}
-shareId: ${shareId}
+shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
-      const newFrontmatter = `shareId: ${shareId}
+      const newFrontmatter = `shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
@@ -218,7 +218,7 @@ ${content}`;
     const frontmatter = match[1];
     const contentWithoutFrontmatter = content.substring(match[0].length);
     const lines = frontmatter.split("\n").filter(
-      (line) => !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
     );
     if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
       return contentWithoutFrontmatter;
@@ -240,15 +240,16 @@ ${contentWithoutFrontmatter}`;
       if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
         return false;
       }
-      return frontmatter.includes("shareId:") && frontmatter.split("\n").some((line) => {
+      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:")) && frontmatter.split("\n").some((line) => {
+        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
-        return shareIdMatch && shareIdMatch[1].trim() !== "";
+        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "";
       });
     } catch (error) {
       return false;
     }
   }
-  getShareId(content) {
+  getShareUrl(content) {
     try {
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const match = content.match(frontmatterRegex);
@@ -259,6 +260,32 @@ ${contentWithoutFrontmatter}`;
       if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
         return null;
       }
+      const lines = frontmatter.split("\n");
+      for (const line of lines) {
+        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
+        if (shareUrlMatch) {
+          const shareUrl = shareUrlMatch[1].trim();
+          return shareUrl === "" ? null : shareUrl;
+        }
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+  getShareId(content) {
+    try {
+      const shareUrl = this.getShareUrl(content);
+      if (shareUrl) {
+        const match = shareUrl.match(/\/share\/([^\/]+)$/);
+        return match ? match[1] : null;
+      }
+      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+      const fmMatch = content.match(frontmatterRegex);
+      if (!fmMatch) {
+        return null;
+      }
+      const frontmatter = fmMatch[1];
       const lines = frontmatter.split("\n");
       for (const line of lines) {
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
@@ -286,7 +313,7 @@ ${contentWithoutFrontmatter}`;
       const shareResponse = await this.apiClient.shareNote(content);
       const updatedContent = await this.addShareMetadata(
         content,
-        shareResponse.shareId,
+        shareResponse.shareUrl,
         shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
       );
       return {
