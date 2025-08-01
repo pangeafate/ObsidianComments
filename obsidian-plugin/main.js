@@ -479,6 +479,97 @@ var ObsidianCommentsPlugin = class extends import_obsidian.Plugin {
       })
     );
     await this.updateSharingStatus();
+    this.registerPropertyWidget();
+  }
+  registerPropertyWidget() {
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+    this.registerEvent(
+      this.app.metadataCache.on("changed", () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+    setTimeout(() => this.addShareIcons(), 500);
+  }
+  addShareIcons() {
+    let count = 0;
+    const timer = setInterval(() => {
+      var _a;
+      count++;
+      if (count > 8) {
+        clearInterval(timer);
+        return;
+      }
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile)
+        return;
+      const cache = this.app.metadataCache.getFileCache(activeFile);
+      const shareUrl = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.shareUrl;
+      if (!shareUrl)
+        return;
+      document.querySelectorAll(`div.metadata-property[data-property-key="shareUrl"]`).forEach((propertyEl) => {
+        const valueEl = propertyEl.querySelector("div.metadata-property-value");
+        if (!valueEl)
+          return;
+        if (valueEl.querySelector("div.obsidian-comments-icons"))
+          return;
+        const iconsEl = document.createElement("div");
+        iconsEl.classList.add("obsidian-comments-icons");
+        iconsEl.style.display = "inline-flex";
+        iconsEl.style.gap = "4px";
+        iconsEl.style.marginLeft = "8px";
+        const reshareIcon = document.createElement("span");
+        reshareIcon.classList.add("clickable-icon");
+        reshareIcon.setAttribute("aria-label", "Re-share note");
+        reshareIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(reshareIcon, "upload-cloud");
+        reshareIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await this.shareCurrentNote();
+        });
+        iconsEl.appendChild(reshareIcon);
+        const copyIcon = document.createElement("span");
+        copyIcon.classList.add("clickable-icon");
+        copyIcon.setAttribute("aria-label", "Copy share URL");
+        copyIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(copyIcon, "copy");
+        copyIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await navigator.clipboard.writeText(shareUrl);
+          new import_obsidian.Notice("Share URL copied to clipboard");
+        });
+        iconsEl.appendChild(copyIcon);
+        const openIcon = document.createElement("span");
+        openIcon.classList.add("clickable-icon");
+        openIcon.setAttribute("aria-label", "Open in browser");
+        openIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(openIcon, "external-link");
+        openIcon.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.open(shareUrl, "_blank");
+        });
+        iconsEl.appendChild(openIcon);
+        const deleteIcon = document.createElement("span");
+        deleteIcon.classList.add("clickable-icon");
+        deleteIcon.setAttribute("aria-label", "Unshare note");
+        deleteIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(deleteIcon, "trash");
+        deleteIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (confirm("Are you sure you want to unshare this note?")) {
+            const content = await this.app.vault.read(activeFile);
+            const updatedContent = await this.shareManager.unshareNote(content);
+            await this.app.vault.modify(activeFile, updatedContent);
+            new import_obsidian.Notice("Note unshared");
+          }
+        });
+        iconsEl.appendChild(deleteIcon);
+        valueEl.appendChild(iconsEl);
+      });
+    }, 50);
   }
   async shareCurrentNote() {
     const activeFile = this.app.workspace.getActiveFile();

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { validateNoteContent } from '../middleware/validation';
+import { NoteModel } from '../db/models/Note';
 
 export const notesRouter = Router();
 
@@ -9,60 +10,113 @@ notesRouter.post('/share', requireAuth, validateNoteContent, async (req, res) =>
   const { content } = req.body;
   const userId = req.user?.id;
   
-  // Generate unique share ID
-  const shareId = generateShareId();
-  const shareUrl = `${req.protocol}://${req.get('host')}/share/${shareId}`;
-  
-  // TODO: Save to database
-  
-  res.status(201).json({
-    shareId,
-    shareUrl,
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    // Generate unique share ID
+    let shareId: string;
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    // Ensure unique shareId
+    do {
+      shareId = generateShareId();
+      attempts++;
+      if (attempts > maxAttempts) {
+        return res.status(500).json({ error: 'Failed to generate unique share ID' });
+      }
+    } while (await NoteModel.exists(shareId));
+    
+    const shareUrl = `${req.protocol}://${req.get('host')}/share/${shareId}`;
+    
+    // Save to database
+    const note = await NoteModel.create({
+      shareId,
+      content,
+      ownerId: userId
+    });
+    
+    res.status(201).json({
+      shareId: note.shareId,
+      shareUrl,
+      createdAt: note.createdAt,
+      permissions: 'edit'
+    });
+  } catch (error) {
+    console.error('Error creating share:', error);
+    res.status(500).json({ error: 'Failed to create share' });
+  }
 });
 
 // Get shared note
 notesRouter.get('/:token', async (req, res) => {
   const { token } = req.params;
   
-  // TODO: Fetch from database
-  if (token === 'invalid-share-id') {
-    return res.status(404).json({ error: 'Shared note not found' });
+  try {
+    // Fetch from database
+    const note = await NoteModel.getByShareId(token);
+    
+    if (!note) {
+      return res.status(404).json({ error: 'Shared note not found' });
+    }
+    
+    const isAuthenticated = !!req.headers.authorization;
+    const userId = req.user?.id;
+    const isOwner = userId && note.ownerId === userId;
+    
+    res.json({
+      shareId: note.shareId,
+      content: note.content,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+      version: note.version,
+      permissions: {
+        canEdit: isOwner || !note.ownerId, // Owner can edit, or anyone if no owner
+        canComment: isAuthenticated,
+        isOwner: isOwner
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching note:', error);
+    res.status(500).json({ error: 'Failed to fetch shared note' });
   }
-  
-  const isAuthenticated = !!req.headers.authorization;
-  
-  res.json({
-    shareId: token,
-    content: '# Test Note\n\nThis is a test note.',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    permissions: {
-      canEdit: isAuthenticated,
-      canComment: isAuthenticated,
-    },
-  });
 });
 
 // Update shared note
 notesRouter.put('/:token', requireAuth, validateNoteContent, async (req, res) => {
   const { token } = req.params;
   const { content, version } = req.body;
+  const userId = req.user?.id;
   
-  // TODO: Implement version control
-  if (version === 1) {
-    return res.status(409).json({
-      error: 'Version conflict',
-      currentVersion: 2,
+  try {
+    // Check if note exists and get current version
+    const existingNote = await NoteModel.getByShareId(token);
+    if (!existingNote) {
+      return res.status(404).json({ error: 'Shared note not found' });
+    }
+    
+    // Check version for optimistic locking (if provided)
+    if (version && existingNote.version !== version) {
+      return res.status(409).json({
+        error: 'Version conflict',
+        currentVersion: existingNote.version,
+      });
+    }
+    
+    // Update the note
+    const updatedNote = await NoteModel.update(token, content, userId);
+    
+    res.json({
+      shareId: updatedNote.shareId,
+      updatedAt: updatedNote.updatedAt,
+      version: updatedNote.version,
     });
+  } catch (error) {
+    console.error('Error updating note:', error);
+    if (error instanceof Error && error.message === 'Note not found or access denied') {
+      res.status(403).json({ error: 'Access denied or note not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to update shared note' });
+    }
   }
-  
-  res.json({
-    shareId: token,
-    updatedAt: new Date().toISOString(),
-    version: 2,
-  });
 });
 
 // Delete shared note
@@ -70,12 +124,19 @@ notesRouter.delete('/:token', requireAuth, async (req, res) => {
   const { token } = req.params;
   const userId = req.user?.id;
   
-  // TODO: Check ownership
-  if (req.headers.authorization !== 'Bearer owner-token') {
-    return res.status(403).json({ error: 'Only the owner can delete this share' });
+  try {
+    // Delete the note (checks ownership internally)
+    const deleted = await NoteModel.delete(token, userId);
+    
+    if (!deleted) {
+      return res.status(403).json({ error: 'Only the owner can delete this share or note not found' });
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    res.status(500).json({ error: 'Failed to delete shared note' });
   }
-  
-  res.status(204).send();
 });
 
 // Get comments (protected endpoint for auth middleware test)

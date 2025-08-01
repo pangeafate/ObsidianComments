@@ -12,6 +12,11 @@ export const config = {
   
   database: {
     url: process.env.DATABASE_URL || 'postgresql://localhost:5432/obsidian_comments',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    name: process.env.DB_NAME || 'obsidian_comments',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'password',
     ssl: process.env.DATABASE_SSL === 'true',
   },
   

@@ -5,7 +5,7 @@
  * Will be expanded as tests require more functionality.
  */
 
-import { App, Plugin, PluginManifest, TFile, Notice, Menu, PluginSettingTab, Setting } from 'obsidian';
+import { App, Plugin, PluginManifest, TFile, Notice, Menu, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import { ApiClient } from './api-client';
 import { ShareManager } from './share-manager';
 import { SettingsManager, DEFAULT_SETTINGS } from './settings';
@@ -83,6 +83,121 @@ export class ObsidianCommentsPlugin extends Plugin {
 
     // Initial status update
     await this.updateSharingStatus();
+
+    // Register property widget for shareUrl
+    this.registerPropertyWidget();
+  }
+
+  registerPropertyWidget(): void {
+    // Watch for active file changes to add share icons
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+
+    // Also watch for metadata changes
+    this.registerEvent(
+      this.app.metadataCache.on('changed', () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+
+    // Initial check
+    setTimeout(() => this.addShareIcons(), 500);
+  }
+
+  addShareIcons(): void {
+    let count = 0;
+    const timer = setInterval(() => {
+      count++;
+      if (count > 8) {
+        clearInterval(timer);
+        return;
+      }
+
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile) return;
+
+      // Check if the file has a shareUrl in frontmatter
+      const cache = this.app.metadataCache.getFileCache(activeFile);
+      const shareUrl = cache?.frontmatter?.shareUrl;
+      if (!shareUrl) return;
+
+      // Find the shareUrl property in the DOM
+      document.querySelectorAll(`div.metadata-property[data-property-key="shareUrl"]`)
+        .forEach(propertyEl => {
+          const valueEl = propertyEl.querySelector('div.metadata-property-value');
+          if (!valueEl) return;
+
+          // Check if icons are already added
+          if (valueEl.querySelector('div.obsidian-comments-icons')) return;
+
+          // Create icons container
+          const iconsEl = document.createElement('div');
+          iconsEl.classList.add('obsidian-comments-icons');
+          iconsEl.style.display = 'inline-flex';
+          iconsEl.style.gap = '4px';
+          iconsEl.style.marginLeft = '8px';
+
+          // Re-share button
+          const reshareIcon = document.createElement('span');
+          reshareIcon.classList.add('clickable-icon');
+          reshareIcon.setAttribute('aria-label', 'Re-share note');
+          reshareIcon.style.cursor = 'pointer';
+          setIcon(reshareIcon, 'upload-cloud');
+          reshareIcon.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await this.shareCurrentNote();
+          });
+          iconsEl.appendChild(reshareIcon);
+
+          // Copy button
+          const copyIcon = document.createElement('span');
+          copyIcon.classList.add('clickable-icon');
+          copyIcon.setAttribute('aria-label', 'Copy share URL');
+          copyIcon.style.cursor = 'pointer';
+          setIcon(copyIcon, 'copy');
+          copyIcon.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await navigator.clipboard.writeText(shareUrl);
+            new Notice('Share URL copied to clipboard');
+          });
+          iconsEl.appendChild(copyIcon);
+
+          // Open external button
+          const openIcon = document.createElement('span');
+          openIcon.classList.add('clickable-icon');
+          openIcon.setAttribute('aria-label', 'Open in browser');
+          openIcon.style.cursor = 'pointer';
+          setIcon(openIcon, 'external-link');
+          openIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(shareUrl, '_blank');
+          });
+          iconsEl.appendChild(openIcon);
+
+          // Delete button
+          const deleteIcon = document.createElement('span');
+          deleteIcon.classList.add('clickable-icon');
+          deleteIcon.setAttribute('aria-label', 'Unshare note');
+          deleteIcon.style.cursor = 'pointer';
+          setIcon(deleteIcon, 'trash');
+          deleteIcon.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to unshare this note?')) {
+              const content = await this.app.vault.read(activeFile);
+              const updatedContent = await this.shareManager.unshareNote(content);
+              await this.app.vault.modify(activeFile, updatedContent);
+              new Notice('Note unshared');
+            }
+          });
+          iconsEl.appendChild(deleteIcon);
+
+          // Add icons to the value element
+          valueEl.appendChild(iconsEl);
+        });
+    }, 50);
   }
 
   async shareCurrentNote(): Promise<void> {

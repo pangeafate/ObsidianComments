@@ -1,0 +1,37 @@
+.App {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.home-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  text-align: center;
+}
+
+.home-page h1 {
+  color: #24292e;
+  font-size: 48px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.home-page p {
+  color: #586069;
+  font-size: 18px;
+  margin-bottom: 12px;
+  max-width: 600px;
+}
+
+.home-page code {
+  background-color: #f6f8fa;
+  border-radius: 3px;
+  font-size: 85%;
+  margin: 0;
+  padding: 2px 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
