@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, optionalAuth } from '../middleware/auth';
 import { validateNoteContent } from '../middleware/validation';
 import { NoteModel } from '../db/models/Note';
 
 export const notesRouter = Router();
 
-// Create a new share
-notesRouter.post('/share', requireAuth, validateNoteContent, async (req, res) => {
+// Create a new share (anonymous sharing allowed)
+notesRouter.post('/share', optionalAuth, validateNoteContent, async (req, res) => {
   const { content } = req.body;
   const userId = req.user?.id;
   
@@ -46,8 +46,8 @@ notesRouter.post('/share', requireAuth, validateNoteContent, async (req, res) =>
   }
 });
 
-// Get shared note
-notesRouter.get('/:token', async (req, res) => {
+// Get shared note (authentication optional for viewing)
+notesRouter.get('/:token', optionalAuth, async (req, res) => {
   const { token } = req.params;
   
   try {

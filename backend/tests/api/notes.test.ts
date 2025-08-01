@@ -47,15 +47,62 @@ describe('Notes API Endpoints', () => {
       expect(response.body.shareUrl).toContain(response.body.shareId);
     });
 
-    test('should reject share without authentication', async () => {
-      // This test will FAIL until auth middleware is implemented
+    test('should allow anonymous sharing and create note without auth', async () => {
+      // Mock the database calls
+      mockNoteModel.exists.mockResolvedValue(false);
+      mockNoteModel.create.mockImplementation(async (noteData) => ({
+        id: 1,
+        shareId: noteData.shareId,
+        content: noteData.content,
+        ownerId: undefined, // Anonymous share
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+        version: 1,
+        isActive: true
+      }));
+
       const response = await request(app)
         .post('/api/notes/share')
         .send({ content: 'Test content' })
-        .expect(401);
+        .expect(201);
 
       expect(response.body).toMatchObject({
-        error: 'Authentication required',
+        shareId: expect.any(String),
+        shareUrl: expect.stringContaining('http'),
+        createdAt: expect.any(String),
+        permissions: 'edit'
+      });
+    });
+
+    test('should allow anonymous note sharing from Obsidian plugin', async () => {
+      // GREEN: This test should pass after removing auth requirement
+      // Mock the database calls
+      mockNoteModel.exists.mockResolvedValue(false);
+      mockNoteModel.create.mockImplementation(async (noteData) => ({
+        id: 1,
+        shareId: noteData.shareId,
+        content: noteData.content,
+        ownerId: undefined, // Anonymous share
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+        version: 1,
+        isActive: true
+      }));
+
+      const response = await request(app)
+        .post('/api/notes/share')
+        .send({ content: '# Test Note from Obsidian\n\nThis should work without auth.' })
+        .set('Origin', 'app://obsidian.md')
+        .set('Content-Type', 'application/json')
+        .set('User-Agent', 'ObsidianComments/1.0.0')
+        // No Authorization header - should work now
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        shareId: expect.any(String),
+        shareUrl: expect.stringContaining('http'),
+        createdAt: expect.any(String),
+        permissions: 'edit'
       });
     });
 
