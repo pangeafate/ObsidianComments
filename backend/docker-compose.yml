@@ -7,14 +7,32 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://obsidian_user:${DB_PASSWORD}@postgres:5432/obsidian_comments
-      - JWT_SECRET=${JWT_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - NODE_ENV=development
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=obsidian_comments
+      - DB_USER=postgres
+      - DB_PASSWORD=localtest123
+      - DATABASE_URL=postgresql://postgres:localtest123@postgres:5432/obsidian_comments
+      - DATABASE_SSL=false
+      - JWT_SECRET=test-jwt-secret-for-local-development-min-32-chars
+      - JWT_EXPIRES_IN=30d
+      - GOOGLE_CLIENT_ID=test-google-client-id
+      - GOOGLE_CLIENT_SECRET=test-google-client-secret
+      - GOOGLE_REDIRECT_URI=http://localhost:3001/api/auth/google/callback
+      - FRONTEND_URL=http://localhost:5173
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=dev
+      - MAX_NOTE_SIZE_MB=10
+      - MAX_SHARES_PER_USER=100
+      - SHARE_TOKEN_LENGTH=12
+      - SESSION_SECRET=test-session-secret-for-local-development
+      - SESSION_MAX_AGE_DAYS=30
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,15 +45,15 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_DB=obsidian_comments
-      - POSTGRES_USER=obsidian_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=localtest123
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U obsidian_user -d obsidian_comments"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d obsidian_comments"]
       interval: 10s
       timeout: 5s
       retries: 5
