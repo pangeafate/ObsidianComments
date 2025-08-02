@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/174</span>
+                <span class='fraction'>0/183</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/174</span>
+                <span class='fraction'>0/183</span>
             </div>
         
             
@@ -236,7 +236,25 @@
 <a name='L171'></a><a href='#L171'>171</a>
 <a name='L172'></a><a href='#L172'>172</a>
 <a name='L173'></a><a href='#L173'>173</a>
-<a name='L174'></a><a href='#L174'>174</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -434,9 +452,10 @@
 <span class="cstat-no" title="statement not covered" >    const initializeConnection = async () =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      try {</span>
 <span class="cstat-no" title="statement not covered" >        await actions.connect();</span>
-<span class="cstat-no" title="statement not covered" >        setIsLoading(false);</span>
 <span class="cstat-no" title="statement not covered" >      } catch (error) {</span>
 <span class="cstat-no" title="statement not covered" >        console.error('Failed to connect:', error);</span>
+<span class="cstat-no" title="statement not covered" >        // Error will be handled by the context via connection-status event</span>
+<span class="cstat-no" title="statement not covered" >      } finally {</span>
 <span class="cstat-no" title="statement not covered" >        setIsLoading(false);</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    };</span>
@@ -459,8 +478,8 @@
 <span class="cstat-no" title="statement not covered" >    return (</span>
 <span class="cstat-no" title="statement not covered" >      &lt;div className="h-screen flex items-center justify-center bg-gray-50"&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;div className="text-center"&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"&gt;&lt;/div&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;p className="text-gray-600"&gt;Connecting to collaboration server...&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"&gt;&lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;p className="text-sm text-gray-600"&gt;Connecting...&lt;/p&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >    );</span>
@@ -478,21 +497,29 @@
 <span class="cstat-no" title="statement not covered" >  // Show connection error if failed to connect</span>
 <span class="cstat-no" title="statement not covered" >  if (!state.isConnected &amp;&amp; state.error) {</span>
 <span class="cstat-no" title="statement not covered" >    return (</span>
-<span class="cstat-no" title="statement not covered" >      &lt;div className="h-screen flex items-center justify-center bg-gray-50"&gt;</span>
-<span class="cstat-no" title="statement not covered" >        &lt;div className="text-center max-w-md"&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;div className="text-red-500 mb-4"&gt;</span>
-<span class="cstat-no" title="statement not covered" >            &lt;svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;div className="h-screen flex items-center justify-center bg-gray-50 p-4"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;div className="text-center max-w-sm"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div className="text-red-500 mb-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;svg className="w-10 h-10 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"&gt;</span>
 <span class="cstat-no" title="statement not covered" >              &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.728-.833-2.498 0L4.316 15.5c-.77.833.192 2.5 1.732 2.5z" /&gt;</span>
 <span class="cstat-no" title="statement not covered" >            &lt;/svg&gt;</span>
 <span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;h2 className="text-xl font-semibold text-gray-900 mb-2"&gt;Connection Failed&lt;/h2&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;p className="text-gray-600 mb-4"&gt;{state.error}&lt;/p&gt;</span>
-<span class="cstat-no" title="statement not covered" >          &lt;button</span>
-<span class="cstat-no" title="statement not covered" >            onClick={() =&gt; actions.connect()}</span>
-<span class="cstat-no" title="statement not covered" >            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"</span>
-<span class="cstat-no" title="statement not covered" >          &gt;</span>
-<span class="cstat-no" title="statement not covered" >            Try Again</span>
-<span class="cstat-no" title="statement not covered" >          &lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;h2 className="text-lg font-semibold text-gray-900 mb-2"&gt;Connection Failed&lt;/h2&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;p className="text-sm text-gray-600 mb-4"&gt;{state.error}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div className="space-y-2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;button</span>
+<span class="cstat-no" title="statement not covered" >              onClick={() =&gt; actions.retry()}</span>
+<span class="cstat-no" title="statement not covered" >              className="w-full bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 transition-colors"</span>
+<span class="cstat-no" title="statement not covered" >            &gt;</span>
+<span class="cstat-no" title="statement not covered" >              Try Again</span>
+<span class="cstat-no" title="statement not covered" >            &lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;button</span>
+<span class="cstat-no" title="statement not covered" >              onClick={() =&gt; window.location.reload()}</span>
+<span class="cstat-no" title="statement not covered" >              className="w-full bg-gray-300 text-gray-700 px-4 py-2 text-sm rounded hover:bg-gray-400 transition-colors"</span>
+<span class="cstat-no" title="statement not covered" >            &gt;</span>
+<span class="cstat-no" title="statement not covered" >              Refresh Page</span>
+<span class="cstat-no" title="statement not covered" >            &lt;/button&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >    );</span>
@@ -589,7 +616,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-02T11:21:11.575Z
+                at 2025-08-02T13:43:27.643Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">46.62% </span>
+                <span class="strong">44.78% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>145/311</span>
+                <span class='fraction'>146/326</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">30.76% </span>
+                <span class="strong">29.62% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>8/26</span>
+                <span class='fraction'>8/27</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">46.62% </span>
+                <span class="strong">44.78% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>145/311</span>
+                <span class='fraction'>146/326</span>
             </div>
         
             
@@ -481,7 +481,24 @@
 <a name='L416'></a><a href='#L416'>416</a>
 <a name='L417'></a><a href='#L417'>417</a>
 <a name='L418'></a><a href='#L418'>418</a>
-<a name='L419'></a><a href='#L419'>419</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L419'></a><a href='#L419'>419</a>
+<a name='L420'></a><a href='#L420'>420</a>
+<a name='L421'></a><a href='#L421'>421</a>
+<a name='L422'></a><a href='#L422'>422</a>
+<a name='L423'></a><a href='#L423'>423</a>
+<a name='L424'></a><a href='#L424'>424</a>
+<a name='L425'></a><a href='#L425'>425</a>
+<a name='L426'></a><a href='#L426'>426</a>
+<a name='L427'></a><a href='#L427'>427</a>
+<a name='L428'></a><a href='#L428'>428</a>
+<a name='L429'></a><a href='#L429'>429</a>
+<a name='L430'></a><a href='#L430'>430</a>
+<a name='L431'></a><a href='#L431'>431</a>
+<a name='L432'></a><a href='#L432'>432</a>
+<a name='L433'></a><a href='#L433'>433</a>
+<a name='L434'></a><a href='#L434'>434</a>
+<a name='L435'></a><a href='#L435'>435</a>
+<a name='L436'></a><a href='#L436'>436</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -636,6 +653,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -823,6 +841,22 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-yes">4x</span>
@@ -1061,6 +1095,7 @@ interface CollaborationContextType {
   actions: {
     connect: () =&gt; Promise&lt;void&gt;;
     disconnect: () =&gt; void;
+    retry: () =&gt; Promise&lt;void&gt;;
     joinShare: (shareId: string, contributorName: string) =&gt; void;
     leaveShare: () =&gt; void;
     sendTextChange: (operation: any[], operationId: string, baseVersion: number) =&gt; void;
@@ -1242,6 +1277,22 @@ export function CollaborationProvider({ children }: CollaborationProviderProps) 
       dispatch({ type: 'RESET_STATE' });
     },
 &nbsp;
+    retry: <span class="fstat-no" title="function not covered" >async () =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      dispatch({</span>
+<span class="cstat-no" title="statement not covered" >        type: 'SET_CONNECTION_STATUS',</span>
+<span class="cstat-no" title="statement not covered" >        payload: { connected: false, connecting: true }</span>
+<span class="cstat-no" title="statement not covered" >      });</span>
+<span class="cstat-no" title="statement not covered" >      try {</span>
+<span class="cstat-no" title="statement not covered" >        await webSocketManager.retry();</span>
+<span class="cstat-no" title="statement not covered" >      } catch (error) {</span>
+<span class="cstat-no" title="statement not covered" >        dispatch({</span>
+<span class="cstat-no" title="statement not covered" >          type: 'SET_CONNECTION_STATUS',</span>
+<span class="cstat-no" title="statement not covered" >          payload: { connected: false, connecting: false, error: (error as Error).message }</span>
+<span class="cstat-no" title="statement not covered" >        });</span>
+<span class="cstat-no" title="statement not covered" >        throw error;</span>
+<span class="cstat-no" title="statement not covered" >      }</span>
+<span class="cstat-no" title="statement not covered" >    },</span>
+&nbsp;
     joinShare: (shareId: string, contributorName: string) =&gt; {
       dispatch({ type: 'SET_SHARE_ID', payload: shareId });
       dispatch({ type: 'SET_CONTRIBUTOR_NAME', payload: contributorName });
@@ -1324,7 +1375,7 @@ export function useCollaboration() {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-02T11:21:11.575Z
+                at 2025-08-02T13:43:27.643Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

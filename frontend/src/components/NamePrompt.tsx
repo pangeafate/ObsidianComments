@@ -1,6 +1,9 @@
 // Component for prompting anonymous users to enter their name
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { UserIcon, CheckIcon } from 'lucide-react';
+import { Button } from './ui/Button';
 
 interface NamePromptProps {
   onSubmit: (name: string) => void;
@@ -21,27 +24,41 @@ export function NamePrompt({ onSubmit }: NamePromptProps) {
   };
 
   return (
-    <div className="max-w-sm w-full mx-auto p-4">
-      <div className="bg-white rounded-lg shadow-lg p-6">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="max-w-sm w-full mx-auto p-4"
+    >
+      <div className="bg-white rounded-xl shadow-large border border-gray-100 p-8">
         {/* Header */}
-        <div className="text-center mb-4">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="text-center mb-6"
+        >
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-medium">
+            <UserIcon className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Join Document
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Join Collaboration
           </h2>
           <p className="text-sm text-gray-600">
-            Enter your name to start collaborating
+            Enter your name to start editing together
           </p>
-        </div>
+        </motion.div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <motion.form 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          onSubmit={handleSubmit} 
+          className="space-y-4"
+        >
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Your Name
             </label>
             <input
@@ -50,59 +67,53 @@ export function NamePrompt({ onSubmit }: NamePromptProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your name..."
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-colors"
               autoFocus
               disabled={isSubmitting}
               maxLength={50}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-2">
               Visible to other collaborators
             </p>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={!name.trim() || isSubmitting}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            loading={isSubmitting}
+            className="w-full"
+            size="lg"
           >
-            {isSubmitting ? (
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
-                Joining...
-              </div>
-            ) : (
-              'Join Collaboration'
-            )}
-          </button>
-        </form>
+            {isSubmitting ? 'Joining...' : 'Join Collaboration'}
+          </Button>
+        </motion.form>
 
         {/* Features list */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <h3 className="text-xs font-medium text-gray-900 mb-2">
-            Features:
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+          className="mt-6 pt-4 border-t border-gray-200"
+        >
+          <h3 className="text-xs font-medium text-gray-900 mb-3">
+            What you can do:
           </h3>
-          <ul className="space-y-1 text-xs text-gray-600">
+          <ul className="space-y-2 text-xs text-gray-600">
             <li className="flex items-center">
-              <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              Real-time editing
+              <CheckIcon className="w-3 h-3 text-success-500 mr-2" />
+              Real-time collaborative editing
             </li>
             <li className="flex items-center">
-              <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              Highlighted changes
+              <CheckIcon className="w-3 h-3 text-success-500 mr-2" />
+              Live cursor tracking
             </li>
             <li className="flex items-center">
-              <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
+              <CheckIcon className="w-3 h-3 text-success-500 mr-2" />
               Comments & discussions
             </li>
           </ul>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -8,7 +8,7 @@ describe('NamePrompt Component', () => {
     const onSubmit = vi.fn();
     render(<NamePrompt onSubmit={onSubmit} />);
     
-    expect(screen.getByText('Join Document')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Join Collaboration' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Enter your name...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Join Collaboration' })).toBeDisabled();
   });
@@ -89,9 +89,9 @@ describe('NamePrompt Component', () => {
     const onSubmit = vi.fn();
     render(<NamePrompt onSubmit={onSubmit} />);
     
-    expect(screen.getByText('Features:')).toBeInTheDocument();
-    expect(screen.getByText('Real-time editing')).toBeInTheDocument();
-    expect(screen.getByText('Highlighted changes')).toBeInTheDocument();
+    expect(screen.getByText('What you can do:')).toBeInTheDocument();
+    expect(screen.getByText('Real-time collaborative editing')).toBeInTheDocument();
+    expect(screen.getByText('Live cursor tracking')).toBeInTheDocument();
     expect(screen.getByText('Comments & discussions')).toBeInTheDocument();
   });
 });

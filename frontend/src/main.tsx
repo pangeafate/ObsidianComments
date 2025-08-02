@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { CollaborationProvider } from './contexts/CollaborationContext';
 import { App } from './components/App';
+import { Toaster } from './components/ui/Toast';
 import './index.css';
 
 // Get share ID from URL path
@@ -44,6 +45,7 @@ if (!shareId) {
     <React.StrictMode>
       <CollaborationProvider>
         <App shareId={shareId} />
+        <Toaster />
       </CollaborationProvider>
     </React.StrictMode>
   );
