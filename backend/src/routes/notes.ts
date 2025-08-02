@@ -5,10 +5,9 @@ import { NoteModel } from '../db/models/Note';
 
 export const notesRouter = Router();
 
-// Create a new share (anonymous sharing allowed)
-notesRouter.post('/share', optionalAuth, validateNoteContent, async (req, res) => {
-  const { content } = req.body;
-  const userId = req.user?.id;
+// Create a new share (anyone can create)
+notesRouter.post('/share', validateNoteContent, async (req, res) => {
+  const { content, contributorName } = req.body;
   
   try {
     // Generate unique share ID
@@ -31,7 +30,7 @@ notesRouter.post('/share', optionalAuth, validateNoteContent, async (req, res) =
     const note = await NoteModel.create({
       shareId,
       content,
-      ownerId: userId
+      creatorName: contributorName
     });
     
     res.status(201).json({
@@ -46,8 +45,8 @@ notesRouter.post('/share', optionalAuth, validateNoteContent, async (req, res) =
   }
 });
 
-// Get shared note (authentication optional for viewing)
-notesRouter.get('/:token', optionalAuth, async (req, res) => {
+// Get shared note (anyone can view)
+notesRouter.get('/:token', async (req, res) => {
   const { token } = req.params;
   
   try {
@@ -58,20 +57,20 @@ notesRouter.get('/:token', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Shared note not found' });
     }
     
-    const isAuthenticated = !!req.headers.authorization;
-    const userId = req.user?.id;
-    const isOwner = userId && note.ownerId === userId;
-    
     res.json({
       shareId: note.shareId,
       content: note.content,
+      creatorName: note.creatorName,
+      lastEditor: note.lastEditorName,
+      editCount: note.editCount,
+      lastChangeSummary: note.lastChangeSummary,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
       version: note.version,
       permissions: {
-        canEdit: isOwner || !note.ownerId, // Owner can edit, or anyone if no owner
-        canComment: isAuthenticated,
-        isOwner: isOwner
+        canEdit: true, // Anyone can edit
+        canComment: true, // Anyone can comment
+        isOwner: false // No ownership concept
       },
     });
   } catch (error) {
@@ -80,11 +79,10 @@ notesRouter.get('/:token', optionalAuth, async (req, res) => {
   }
 });
 
-// Update shared note
-notesRouter.put('/:token', requireAuth, validateNoteContent, async (req, res) => {
+// Update shared note (anyone can edit)
+notesRouter.put('/:token', validateNoteContent, async (req, res) => {
   const { token } = req.params;
-  const { content, version } = req.body;
-  const userId = req.user?.id;
+  const { content, version, contributorName, changeSummary } = req.body;
   
   try {
     // Check if note exists and get current version
@@ -102,58 +100,57 @@ notesRouter.put('/:token', requireAuth, validateNoteContent, async (req, res) =>
     }
     
     // Update the note
-    const updatedNote = await NoteModel.update(token, content, userId);
+    const updatedNote = await NoteModel.update(token, content, contributorName, changeSummary);
     
     res.json({
       shareId: updatedNote.shareId,
+      lastEditor: updatedNote.lastEditorName,
       updatedAt: updatedNote.updatedAt,
       version: updatedNote.version,
     });
   } catch (error) {
     console.error('Error updating note:', error);
-    if (error instanceof Error && error.message === 'Note not found or access denied') {
-      res.status(403).json({ error: 'Access denied or note not found' });
+    if (error instanceof Error && error.message === 'Note not found') {
+      res.status(404).json({ error: 'Note not found' });
     } else {
       res.status(500).json({ error: 'Failed to update shared note' });
     }
   }
 });
 
-// Delete shared note
-notesRouter.delete('/:token', requireAuth, async (req, res) => {
+// Delete shared note (disabled in anonymous system - notes persist forever)
+notesRouter.delete('/:token', async (req, res) => {
   const { token } = req.params;
-  const userId = req.user?.id;
+  const { contributorName } = req.body;
   
   try {
-    // Delete the note (checks ownership internally)
-    const deleted = await NoteModel.delete(token, userId);
+    // In the anonymous system, we don't actually delete notes
+    // They persist forever with full version history
+    const success = await NoteModel.delete(token, contributorName);
     
-    if (!deleted) {
-      return res.status(403).json({ error: 'Only the owner can delete this share or note not found' });
-    }
-    
+    // Always return 204 for backward compatibility
     res.status(204).send();
   } catch (error) {
-    console.error('Error deleting note:', error);
-    res.status(500).json({ error: 'Failed to delete shared note' });
+    console.error('Error with delete request:', error);
+    res.status(204).send(); // Still return success for compatibility
   }
 });
 
-// Get comments (protected endpoint for auth middleware test)
-notesRouter.get('/:token/comments', requireAuth, async (req, res) => {
+// Get comments (anyone can view)
+notesRouter.get('/:token/comments', async (req, res) => {
   res.json({ comments: [] });
 });
 
-// Add comment to shared note
-notesRouter.post('/:token/comments', requireAuth, async (req, res) => {
+// Add comment to shared note (anyone can comment)
+notesRouter.post('/:token/comments', async (req, res) => {
   const { token } = req.params;
-  const { content } = req.body;
+  const { content, contributorName } = req.body;
   
   res.status(201).json({
     id: 'comment-id',
     noteId: token,
     content,
-    userId: req.user?.id,
+    contributorName: contributorName || 'Anonymous',
     createdAt: new Date().toISOString(),
   });
 });
