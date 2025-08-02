@@ -10,6 +10,7 @@ import { rateLimiter } from './middleware/rate-limiter';
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { notesRouter } from './routes/notes';
+import { shareRouter } from './routes/share';
 import { config } from './config';
 import { testConnection } from './db/connection';
 
@@ -72,6 +73,9 @@ app.use('/api', rateLimiter);
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/notes', notesRouter);
+
+// Share routes (for browser viewing)
+app.use('/share', shareRouter);
 
 // Error handling
 app.use(notFoundHandler);
