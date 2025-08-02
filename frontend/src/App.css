@@ -1,37 +1,42 @@
-.App {
-  min-height: 100vh;
-  background-color: #f8f9fa;
-}
-
-.home-page {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 20px;
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
   text-align: center;
 }
 
-.home-page h1 {
-  color: #24292e;
-  font-size: 48px;
-  font-weight: 600;
-  margin-bottom: 16px;
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
-.home-page p {
-  color: #586069;
-  font-size: 18px;
-  margin-bottom: 12px;
-  max-width: 600px;
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.home-page code {
-  background-color: #f6f8fa;
-  border-radius: 3px;
-  font-size: 85%;
-  margin: 0;
-  padding: 2px 4px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
 }

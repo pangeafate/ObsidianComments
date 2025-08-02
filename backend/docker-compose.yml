@@ -1,14 +1,13 @@
-version: '3.8'
 
 services:
   # Backend API
   backend:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       - NODE_ENV=development
-      - PORT=3000
+      - PORT=3001
       - HOST=0.0.0.0
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -23,7 +22,7 @@ services:
       - GOOGLE_CLIENT_SECRET=test-google-client-secret
       - GOOGLE_REDIRECT_URI=http://localhost:3001/api/auth/google/callback
       - FRONTEND_URL=http://localhost:5173
-      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3001
       - RATE_LIMIT_WINDOW_MS=900000
       - RATE_LIMIT_MAX_REQUESTS=100
       - LOG_LEVEL=debug

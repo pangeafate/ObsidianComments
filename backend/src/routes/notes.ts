@@ -118,41 +118,66 @@ notesRouter.put('/:token', validateNoteContent, async (req, res) => {
   }
 });
 
-// Delete shared note (disabled in anonymous system - notes persist forever)
+// Delete shared note (marks as inactive)
 notesRouter.delete('/:token', async (req, res) => {
   const { token } = req.params;
-  const { contributorName } = req.body;
+  const { contributorName } = req.body || {};
   
   try {
-    // In the anonymous system, we don't actually delete notes
-    // They persist forever with full version history
     const success = await NoteModel.delete(token, contributorName);
     
-    // Always return 204 for backward compatibility
+    if (!success) {
+      return res.status(404).json({ error: 'Shared note not found' });
+    }
+    
     res.status(204).send();
   } catch (error) {
-    console.error('Error with delete request:', error);
-    res.status(204).send(); // Still return success for compatibility
+    console.error('Error deleting note:', error);
+    res.status(500).json({ error: 'Failed to delete shared note' });
   }
 });
 
-// Get comments (anyone can view)
-notesRouter.get('/:token/comments', async (req, res) => {
-  res.json({ comments: [] });
+
+// Get version history for a note
+notesRouter.get('/:token/versions', async (req, res) => {
+  const { token } = req.params;
+  
+  try {
+    const versionHistory = await NoteModel.getVersionHistory(token);
+    
+    if (!versionHistory) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+    
+    res.json(versionHistory);
+  } catch (error) {
+    console.error('Error fetching version history:', error);
+    res.status(500).json({ error: 'Failed to fetch version history' });
+  }
 });
 
-// Add comment to shared note (anyone can comment)
-notesRouter.post('/:token/comments', async (req, res) => {
-  const { token } = req.params;
-  const { content, contributorName } = req.body;
+// Get specific version of a note
+notesRouter.get('/:token/versions/:versionNumber', async (req, res) => {
+  const { token, versionNumber } = req.params;
   
-  res.status(201).json({
-    id: 'comment-id',
-    noteId: token,
-    content,
-    contributorName: contributorName || 'Anonymous',
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    // First check if the note exists
+    const noteExists = await NoteModel.exists(token);
+    if (!noteExists) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    const version = await NoteModel.getSpecificVersion(token, parseInt(versionNumber, 10));
+    
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+    
+    res.json(version);
+  } catch (error) {
+    console.error('Error fetching specific version:', error);
+    res.status(500).json({ error: 'Failed to fetch version' });
+  }
 });
 
 // Helper function to generate share IDs

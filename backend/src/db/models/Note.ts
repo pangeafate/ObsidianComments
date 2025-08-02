@@ -173,12 +173,30 @@ export class NoteModel {
     }
   }
 
-  // Notes are never deleted in the new system - they persist with full history
-  // Legacy delete method kept for backward compatibility but doesn't actually delete
+  // Delete a shared note (marks as inactive)
   static async delete(shareId: string, contributorName?: string): Promise<boolean> {
-    // In the new system, we don't delete notes, just return true for compatibility
-    console.log(`Delete requested for ${shareId} by ${contributorName || 'Anonymous'} - ignored in anonymous system`);
-    return true;
+    const query = `
+      UPDATE shares 
+      SET is_active = false,
+          last_editor_name = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE share_id = $2 AND is_active = true
+      RETURNING id
+    `;
+    
+    try {
+      const result = await pool.query(query, [contributorName || 'Anonymous', shareId]);
+      
+      if (result.rows.length === 0) {
+        return false; // Note not found or already deleted
+      }
+      
+      console.log(`Note ${shareId} deleted by ${contributorName || 'Anonymous'}`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      throw new Error('Failed to delete shared note');
+    }
   }
 
   // Get recent notes (replaces getByOwner since there are no owners)
@@ -227,5 +245,111 @@ export class NoteModel {
       console.error('Error checking note existence:', error);
       return false;
     }
+  }
+
+  // Get all versions of a note
+  static async getVersionHistory(shareId: string): Promise<{
+    shareId: string;
+    currentVersion: number;
+    totalVersions: number;
+    versions: Array<{
+      versionNumber: number;
+      contributorName: string;
+      changeSummary: string | null;
+      createdAt: Date;
+      contentPreview: string;
+    }>;
+  } | null> {
+    try {
+      // First check if the note exists
+      const noteExists = await this.exists(shareId);
+      if (!noteExists) {
+        return null;
+      }
+
+      // Get current version from shares table
+      const currentQuery = `
+        SELECT version FROM shares 
+        WHERE share_id = $1 AND is_active = true
+      `;
+      const currentResult = await pool.query(currentQuery, [shareId]);
+      
+      if (currentResult.rows.length === 0) {
+        return null;
+      }
+
+      const currentVersion = currentResult.rows[0].version;
+
+      // Get all versions
+      const versionsQuery = `
+        SELECT version_number, contributor_name, change_summary, created_at, content
+        FROM note_versions 
+        WHERE share_id = $1
+        ORDER BY version_number DESC
+      `;
+      
+      const versionsResult = await pool.query(versionsQuery, [shareId]);
+      
+      const versions = versionsResult.rows.map(row => ({
+        versionNumber: row.version_number,
+        contributorName: row.contributor_name,
+        changeSummary: row.change_summary,
+        createdAt: row.created_at,
+        contentPreview: this.truncateContent(row.content, 200)
+      }));
+
+      return {
+        shareId,
+        currentVersion,
+        totalVersions: versions.length,
+        versions
+      };
+    } catch (error) {
+      console.error('Error fetching version history:', error);
+      throw new Error('Failed to fetch version history');
+    }
+  }
+
+  // Get a specific version of a note
+  static async getSpecificVersion(shareId: string, versionNumber: number): Promise<{
+    versionNumber: number;
+    content: string;
+    contributorName: string;
+    changeSummary: string | null;
+    createdAt: Date;
+  } | null> {
+    try {
+      const query = `
+        SELECT version_number, content, contributor_name, change_summary, created_at
+        FROM note_versions 
+        WHERE share_id = $1 AND version_number = $2
+      `;
+      
+      const result = await pool.query(query, [shareId, versionNumber]);
+      
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        versionNumber: row.version_number,
+        content: row.content,
+        contributorName: row.contributor_name,
+        changeSummary: row.change_summary,
+        createdAt: row.created_at
+      };
+    } catch (error) {
+      console.error('Error fetching specific version:', error);
+      throw new Error('Failed to fetch version');
+    }
+  }
+
+  // Helper method to truncate content for previews
+  private static truncateContent(content: string, maxLength: number): string {
+    if (content.length <= maxLength) {
+      return content;
+    }
+    return content.substring(0, maxLength - 3) + '...';
   }
 }

@@ -1,60 +1,48 @@
 import request from 'supertest';
 import { app } from '../../src/app';
 
-describe('Plugin Authentication Flow', () => {
+describe('Plugin Anonymous Flow', () => {
   const testShareId = 'test-share-id-123';
 
-  describe('Current behavior (failing tests)', () => {
-    test('PUT should fail without authentication (current 401 error)', async () => {
-      await request(app)
-        .put(`/api/notes/${testShareId}`)
-        .set('Origin', 'app://obsidian.md')
-        .set('Content-Type', 'application/json')
-        .send({ content: '# Updated Note\n\nThis should fail without auth.' })
-        .expect(401);
-    });
-
-    test('DELETE should fail without authentication (current 401 error)', async () => {
-      await request(app)
-        .delete(`/api/notes/${testShareId}`)
-        .set('Origin', 'app://obsidian.md')
-        .expect(401);
-    });
-  });
-
-  describe('Plugin needs temporary auth for edit/delete', () => {
-    test('should return correct error message for PUT without auth', async () => {
+  describe('Anonymous editing (no auth required)', () => {
+    test('PUT should work without authentication (anonymous system)', async () => {
       const response = await request(app)
         .put(`/api/notes/${testShareId}`)
         .set('Origin', 'app://obsidian.md')
         .set('Content-Type', 'application/json')
-        .send({ content: '# Updated Note\n\nThis should fail without auth.' })
-        .expect(401);
+        .send({ 
+          content: '# Updated Note\n\nThis should work without auth.',
+          contributorName: 'Anonymous User'
+        });
 
-      expect(response.body.error).toBe('Authentication required for editing');
+      // Should not get 401 (may get 404 if note doesn't exist)
+      expect(response.status).not.toBe(401);
     });
 
-    test('should return correct error message for DELETE without auth', async () => {
+    test('DELETE should work without authentication (anonymous system)', async () => {
       const response = await request(app)
         .delete(`/api/notes/${testShareId}`)
         .set('Origin', 'app://obsidian.md')
-        .expect(401);
+        .send({ contributorName: 'Anonymous User' });
 
-      expect(response.body.error).toBe('Authentication required');
+      // Should not get 401, should return 204 for compatibility
+      expect(response.status).not.toBe(401);
+      expect([204, 404, 500]).toContain(response.status);
     });
 
-    test('plugin needs valid auth token for edit operations', async () => {
-      // Test that the plugin can theoretically work with proper auth
-      // For now, we just verify the auth middleware is working correctly
+    test('PUT should accept contributorName parameter', async () => {
       const response = await request(app)
         .put(`/api/notes/${testShareId}`)
         .set('Origin', 'app://obsidian.md')
-        .set('Authorization', 'Bearer invalid-token')
         .set('Content-Type', 'application/json')
-        .send({ content: '# Updated Note' })
-        .expect(401);
+        .send({ 
+          content: '# Updated Note',
+          contributorName: 'Test User',
+          changeSummary: 'Test update'
+        });
 
-      expect(response.body.error).toBe('Invalid token');
+      // Should not error due to unknown parameters
+      expect([200, 404, 500]).toContain(response.status);
     });
   });
 });

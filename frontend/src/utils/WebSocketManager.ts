@@ -16,9 +16,12 @@ export type WebSocketEventHandler<T = any> = (data: T) => void;
 export class WebSocketManager {
   private socket: Socket | null = null;
   private eventHandlers: Map<string, WebSocketEventHandler[]> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private connectionAttempts = 0;
+  private maxConnectionAttempts = 3;
+  private isConnecting = false;
+  private circuitBreakerOpen = false;
+  private lastAttemptTime = 0;
+  private circuitBreakerTimeout = 60000; // 1 minute
 
   private serverUrl: string;
 
@@ -27,7 +30,7 @@ export class WebSocketManager {
     if (serverUrl) {
       this.serverUrl = serverUrl;
     } else if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-      this.serverUrl = 'http://localhost:3001';
+      this.serverUrl = 'http://localhost:3001'; // Backend runs on 3001 in development
     } else {
       this.serverUrl = 'https://obsidiancomments.lakestrom.com';
     }
@@ -37,21 +40,44 @@ export class WebSocketManager {
   // Connection management
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Check circuit breaker
+      if (this.circuitBreakerOpen) {
+        const timeSinceLastAttempt = Date.now() - this.lastAttemptTime;
+        if (timeSinceLastAttempt < this.circuitBreakerTimeout) {
+          const waitTime = Math.ceil((this.circuitBreakerTimeout - timeSinceLastAttempt) / 1000);
+          reject(new Error(`Connection temporarily unavailable. Try again in ${waitTime} seconds.`));
+          return;
+        } else {
+          // Reset circuit breaker
+          this.circuitBreakerOpen = false;
+          this.connectionAttempts = 0;
+        }
+      }
+
       if (this.socket?.connected) {
         console.log('WebSocket already connected');
         resolve();
         return;
       }
 
-      console.log('Attempting to connect to WebSocket server:', this.serverUrl);
+      if (this.isConnecting) {
+        reject(new Error('Connection already in progress'));
+        return;
+      }
+
+      this.isConnecting = true;
+      this.connectionAttempts++;
+      this.lastAttemptTime = Date.now();
+
+      console.log(`Attempting to connect to WebSocket server (attempt ${this.connectionAttempts}/${this.maxConnectionAttempts}):`, this.serverUrl);
+      
+      // Create socket with minimal reconnection to prevent resource exhaustion
       this.socket = io(this.serverUrl, {
-        transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
-        timeout: 20000,
+        transports: ['polling', 'websocket'],
+        timeout: 10000,
         forceNew: true,
         autoConnect: true,
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
+        reconnection: false, // Disable Socket.IO auto-reconnection - we handle it manually
         upgrade: true
       });
 
@@ -70,36 +96,49 @@ export class WebSocketManager {
       });
 
       this.socket.on('connect', () => {
-        console.log('WebSocket connected');
-        this.reconnectAttempts = 0;
+        console.log('WebSocket connected successfully');
+        this.isConnecting = false;
+        this.connectionAttempts = 0;
+        this.circuitBreakerOpen = false;
         this.emit('connection-status', { connected: true });
         resolve();
       });
 
       this.socket.on('disconnect', (reason) => {
         console.log('WebSocket disconnected:', reason);
+        this.isConnecting = false;
         this.emit('connection-status', { connected: false, reason });
         
-        if (reason === 'io server disconnect') {
-          // Server initiated disconnect, don't reconnect
-          return;
-        }
-        
-        this.handleReconnect();
+        // Don't auto-reconnect - let the app handle reconnection logic
       });
 
       this.socket.on('connect_error', (error: any) => {
         console.error('WebSocket connection error:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        console.error('Error type:', error.type);
-        console.error('Error description:', error.description);
-        console.error('Error context:', error.context);
-        console.error('Error transport:', error.transport);
+        this.isConnecting = false;
+        
+        // Check if we should open circuit breaker
+        if (this.connectionAttempts >= this.maxConnectionAttempts) {
+          this.circuitBreakerOpen = true;
+          console.warn('Circuit breaker opened due to repeated connection failures');
+        }
+        
+        let errorMessage: string;
+        
+        if (error.type === 'TransportError' || error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          errorMessage = 'Server temporarily unavailable. Please wait a moment and try again.';
+        } else if (error.message?.includes('ECONNREFUSED')) {
+          errorMessage = 'Cannot reach collaboration server. Please check your connection.';
+        } else if (error.message?.includes('timeout')) {
+          errorMessage = 'Connection timed out. Please try again.';
+        } else {
+          errorMessage = `Connection failed: ${error.description || error.message || 'Unknown error'}`;
+        }
+          
         this.emit('connection-status', { 
           connected: false, 
-          error: `${error.type || 'Connection Error'}: ${error.description || error.message || 'Unknown error'}` 
+          error: errorMessage
         });
-        reject(error);
+        reject(new Error(errorMessage));
       });
 
       // Set up event listeners
@@ -108,32 +147,31 @@ export class WebSocketManager {
   }
 
   disconnect(): void {
+    this.isConnecting = false;
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
   }
 
-  private handleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
-      this.emit('connection-status', { 
-        connected: false, 
-        error: 'Connection failed after multiple attempts' 
-      });
-      return;
+  // Add a manual retry method for apps to use
+  retry(): Promise<void> {
+    if (this.circuitBreakerOpen) {
+      this.circuitBreakerOpen = false;
+      this.connectionAttempts = 0;
     }
+    return this.connect();
+  }
 
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
-    setTimeout(() => {
-      this.connect().catch(error => {
-        console.error('Reconnection failed:', error);
-      });
-    }, delay);
+  // Get connection state for UI
+  getConnectionState() {
+    return {
+      isConnecting: this.isConnecting,
+      isConnected: this.socket?.connected || false,
+      connectionAttempts: this.connectionAttempts,
+      maxAttempts: this.maxConnectionAttempts,
+      circuitBreakerOpen: this.circuitBreakerOpen
+    };
   }
 
   private setupEventListeners(): void {
