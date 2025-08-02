@@ -65,6 +65,13 @@ export class WebSocketManager {
         return;
       }
 
+      // Prevent excessive connection attempts even before circuit breaker
+      if (this.connectionAttempts >= this.maxConnectionAttempts) {
+        this.circuitBreakerOpen = true;
+        reject(new Error('Maximum connection attempts reached. Please wait before retrying.'));
+        return;
+      }
+
       this.isConnecting = true;
       this.connectionAttempts++;
       this.lastAttemptTime = Date.now();
@@ -120,6 +127,8 @@ export class WebSocketManager {
         if (this.connectionAttempts >= this.maxConnectionAttempts) {
           this.circuitBreakerOpen = true;
           console.warn('Circuit breaker opened due to repeated connection failures');
+          // Stop incrementing attempts when circuit breaker is open
+          this.connectionAttempts = this.maxConnectionAttempts;
         }
         
         let errorMessage: string;
@@ -159,6 +168,7 @@ export class WebSocketManager {
     if (this.circuitBreakerOpen) {
       this.circuitBreakerOpen = false;
       this.connectionAttempts = 0;
+      console.log('Circuit breaker manually reset');
     }
     return this.connect();
   }
