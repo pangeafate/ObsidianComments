@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import { createServer } from 'http';
 import { errorHandler } from './middleware/error-handler';
 import { notFoundHandler } from './middleware/not-found';
 import { rateLimiter } from './middleware/rate-limiter';
@@ -11,11 +12,21 @@ import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { notesRouter } from './routes/notes';
 import { shareRouter } from './routes/share';
+import { commentsRouter } from './routes/comments';
+import { websocketRouter } from './routes/websocket';
 import { config } from './config';
 import { testConnection } from './db/connection';
+import { CollaborationServer } from './websocket/server';
 
-// Create Express app
+// Create Express app and HTTP server
 export const app: Application = express();
+export const httpServer = createServer(app);
+
+// Initialize WebSocket server
+let collaborationServer: CollaborationServer;
+if (config.env !== 'test') {
+  collaborationServer = new CollaborationServer(httpServer);
+}
 
 // Security middleware
 app.use(helmet({
@@ -73,6 +84,8 @@ app.use('/api', rateLimiter);
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/notes', notesRouter);
+app.use('/api/notes', commentsRouter);
+app.use('/api/websocket', websocketRouter);
 
 // Share routes (for browser viewing)
 app.use('/share', shareRouter);
