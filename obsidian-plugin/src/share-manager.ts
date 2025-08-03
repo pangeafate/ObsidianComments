@@ -19,16 +19,20 @@ export class ShareManager {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
 
+    // Extract shareId from shareUrl
+    const shareIdMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+    const shareId = shareIdMatch ? shareIdMatch[1] : '';
+
     if (match) {
       // Content has existing frontmatter
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       
-      const newFrontmatter = `${existingFrontmatter}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      const newFrontmatter = `${existingFrontmatter}\nshareId: ${shareId}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${contentWithoutFrontmatter}`;
     } else {
       // No existing frontmatter
-      const newFrontmatter = `shareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      const newFrontmatter = `shareId: ${shareId}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${content}`;
     }
   }
@@ -124,9 +128,10 @@ export class ShareManager {
     try {
       const shareUrl = this.getShareUrl(content);
       if (shareUrl) {
-        // Extract ID from URL
-        const match = shareUrl.match(/\/share\/([^\/]+)$/);
-        return match ? match[1] : null;
+        // Extract ID from URL - support both /editor/ and /share/ patterns for backward compatibility
+        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+        return editorMatch ? editorMatch[1] : (shareMatch ? shareMatch[1] : null);
       }
 
       // Fallback to old shareId field for backward compatibility
@@ -160,8 +165,13 @@ export class ShareManager {
     if (existingShareId) {
       // Update existing share
       const updateResult = await this.apiClient.updateNote(existingShareId, content);
+      
+      // Get the existing shareUrl from the content or construct it from server URL
+      const existingShareUrl = this.getShareUrl(content);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      
       return {
-        shareUrl: `https://share.obsidiancomments.com/${existingShareId}`,
+        shareUrl,
         shareId: existingShareId,
         updatedContent: content,
         wasUpdate: true

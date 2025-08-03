@@ -1,0 +1,30 @@
+# Production stage - Hocuspocus WebSocket server
+FROM node:18-slim
+
+# Install OpenSSL and other dependencies
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install production dependencies
+COPY packages/hocuspocus/package.json ./
+RUN npm install --only=production
+
+# Copy built application
+COPY packages/hocuspocus/dist ./dist
+
+# Create non-root user
+RUN groupadd -g 1001 nodejs
+RUN useradd -r -u 1001 -g nodejs nodejs
+
+# Change ownership
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+EXPOSE 8082
+
+CMD ["node", "dist/index.js"]

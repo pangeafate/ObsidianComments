@@ -1,7 +1,7 @@
 {
   "id": "obsidian-comments",
   "name": "Obsidian Comments",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "minAppVersion": "1.0.0",
   "description": "Share notes online for collaborative editing with comments. Now with live backend at obsidiancomments.lakestrom.com!",
   "author": "Your Name",

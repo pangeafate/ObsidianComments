@@ -100,9 +100,10 @@ $$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
 
 export const MOCK_SHARE_RESPONSES = {
   success: {
-    shareUrl: 'https://share.obsidiancomments.com/abc123def456',
+    shareUrl: 'https://obsidiancomments.lakestrom.com/editor/abc123def456',
     shareId: 'abc123def456',
-    createdAt: '2024-01-01T00:00:00.000Z'
+    createdAt: '2024-01-01T00:00:00.000Z',
+    permissions: 'edit'
   },
   
   error: {
@@ -118,7 +119,7 @@ export const MOCK_SHARE_RESPONSES = {
 export const MOCK_SETTINGS = {
   default: {
     apiKey: '',
-    serverUrl: 'https://api.obsidiancomments.com',
+    serverUrl: 'https://obsidiancomments.lakestrom.com',
     copyToClipboard: true,
     showNotifications: true,
     defaultPermissions: 'edit'
@@ -126,7 +127,7 @@ export const MOCK_SETTINGS = {
   
   configured: {
     apiKey: 'test-api-key-12345',
-    serverUrl: 'https://api.obsidiancomments.com',
+    serverUrl: 'https://obsidiancomments.lakestrom.com',
     copyToClipboard: true,
     showNotifications: true,
     defaultPermissions: 'edit'

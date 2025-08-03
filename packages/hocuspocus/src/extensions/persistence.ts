@@ -74,10 +74,10 @@ export class PersistenceExtension implements Extension {
         documentId,
         version,
         snapshot: Buffer.from(snapshot),
-        metadata: {
+        metadata: JSON.stringify({
           type: 'auto',
           timestamp: new Date().toISOString()
-        }
+        })
       }
     });
   }

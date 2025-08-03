@@ -190,10 +190,13 @@ var ShareManager = class {
   async addShareMetadata(content, shareUrl, sharedAt) {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
+    const shareIdMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+    const shareId = shareIdMatch ? shareIdMatch[1] : "";
     if (match) {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const newFrontmatter = `${existingFrontmatter}
+shareId: ${shareId}
 shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
@@ -201,7 +204,8 @@ ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
-      const newFrontmatter = `shareUrl: ${shareUrl}
+      const newFrontmatter = `shareId: ${shareId}
+shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
@@ -277,8 +281,9 @@ ${contentWithoutFrontmatter}`;
     try {
       const shareUrl = this.getShareUrl(content);
       if (shareUrl) {
-        const match = shareUrl.match(/\/share\/([^\/]+)$/);
-        return match ? match[1] : null;
+        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+        return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : null;
       }
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const fmMatch = content.match(frontmatterRegex);
@@ -303,8 +308,10 @@ ${contentWithoutFrontmatter}`;
     const existingShareId = this.getShareId(content);
     if (existingShareId) {
       const updateResult = await this.apiClient.updateNote(existingShareId, content);
+      const existingShareUrl = this.getShareUrl(content);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
       return {
-        shareUrl: `https://share.obsidiancomments.com/${existingShareId}`,
+        shareUrl,
         shareId: existingShareId,
         updatedContent: content,
         wasUpdate: true

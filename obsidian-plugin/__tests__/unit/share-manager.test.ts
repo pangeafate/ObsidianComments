@@ -23,6 +23,11 @@ describe('ShareManager', () => {
       deleteShare: jest.fn(),
       listShares: jest.fn(),
       testConnection: jest.fn(),
+      settings: {
+        serverUrl: 'https://obsidiancomments.lakestrom.com',
+        apiKey: 'test-key',
+        timeout: 5000
+      }
     } as any;
     
     // This will FAIL until ShareManager constructor is implemented

@@ -190,10 +190,13 @@ var ShareManager = class {
   async addShareMetadata(content, shareUrl, sharedAt) {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
+    const shareIdMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+    const shareId = shareIdMatch ? shareIdMatch[1] : "";
     if (match) {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const newFrontmatter = `${existingFrontmatter}
+shareId: ${shareId}
 shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
@@ -201,7 +204,8 @@ ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
-      const newFrontmatter = `shareUrl: ${shareUrl}
+      const newFrontmatter = `shareId: ${shareId}
+shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
@@ -277,8 +281,9 @@ ${contentWithoutFrontmatter}`;
     try {
       const shareUrl = this.getShareUrl(content);
       if (shareUrl) {
-        const match = shareUrl.match(/\/share\/([^\/]+)$/);
-        return match ? match[1] : null;
+        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+        return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : null;
       }
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const fmMatch = content.match(frontmatterRegex);
@@ -303,8 +308,10 @@ ${contentWithoutFrontmatter}`;
     const existingShareId = this.getShareId(content);
     if (existingShareId) {
       const updateResult = await this.apiClient.updateNote(existingShareId, content);
+      const existingShareUrl = this.getShareUrl(content);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
       return {
-        shareUrl: `https://share.obsidiancomments.com/${existingShareId}`,
+        shareUrl,
         shareId: existingShareId,
         updatedContent: content,
         wasUpdate: true
@@ -479,6 +486,97 @@ var ObsidianCommentsPlugin = class extends import_obsidian.Plugin {
       })
     );
     await this.updateSharingStatus();
+    this.registerPropertyWidget();
+  }
+  registerPropertyWidget() {
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+    this.registerEvent(
+      this.app.metadataCache.on("changed", () => {
+        setTimeout(() => this.addShareIcons(), 100);
+      })
+    );
+    setTimeout(() => this.addShareIcons(), 500);
+  }
+  addShareIcons() {
+    let count = 0;
+    const timer = setInterval(() => {
+      var _a;
+      count++;
+      if (count > 8) {
+        clearInterval(timer);
+        return;
+      }
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile)
+        return;
+      const cache = this.app.metadataCache.getFileCache(activeFile);
+      const shareUrl = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.shareUrl;
+      if (!shareUrl)
+        return;
+      document.querySelectorAll(`div.metadata-property[data-property-key="shareUrl"]`).forEach((propertyEl) => {
+        const valueEl = propertyEl.querySelector("div.metadata-property-value");
+        if (!valueEl)
+          return;
+        if (valueEl.querySelector("div.obsidian-comments-icons"))
+          return;
+        const iconsEl = document.createElement("div");
+        iconsEl.classList.add("obsidian-comments-icons");
+        iconsEl.style.display = "inline-flex";
+        iconsEl.style.gap = "4px";
+        iconsEl.style.marginLeft = "8px";
+        const reshareIcon = document.createElement("span");
+        reshareIcon.classList.add("clickable-icon");
+        reshareIcon.setAttribute("aria-label", "Re-share note");
+        reshareIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(reshareIcon, "upload-cloud");
+        reshareIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await this.shareCurrentNote();
+        });
+        iconsEl.appendChild(reshareIcon);
+        const copyIcon = document.createElement("span");
+        copyIcon.classList.add("clickable-icon");
+        copyIcon.setAttribute("aria-label", "Copy share URL");
+        copyIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(copyIcon, "copy");
+        copyIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await navigator.clipboard.writeText(shareUrl);
+          new import_obsidian.Notice("Share URL copied to clipboard");
+        });
+        iconsEl.appendChild(copyIcon);
+        const openIcon = document.createElement("span");
+        openIcon.classList.add("clickable-icon");
+        openIcon.setAttribute("aria-label", "Open in browser");
+        openIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(openIcon, "external-link");
+        openIcon.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.open(shareUrl, "_blank");
+        });
+        iconsEl.appendChild(openIcon);
+        const deleteIcon = document.createElement("span");
+        deleteIcon.classList.add("clickable-icon");
+        deleteIcon.setAttribute("aria-label", "Unshare note");
+        deleteIcon.style.cursor = "pointer";
+        (0, import_obsidian.setIcon)(deleteIcon, "trash");
+        deleteIcon.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (confirm("Are you sure you want to unshare this note?")) {
+            const content = await this.app.vault.read(activeFile);
+            const updatedContent = await this.shareManager.unshareNote(content);
+            await this.app.vault.modify(activeFile, updatedContent);
+            new import_obsidian.Notice("Note unshared");
+          }
+        });
+        iconsEl.appendChild(deleteIcon);
+        valueEl.appendChild(iconsEl);
+      });
+    }, 50);
   }
   async shareCurrentNote() {
     const activeFile = this.app.workspace.getActiveFile();

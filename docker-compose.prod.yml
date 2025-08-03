@@ -7,8 +7,8 @@ services:
       dockerfile: packages/docker/Dockerfile.frontend
     container_name: obsidian-frontend
     environment:
-      - VITE_API_URL=http://localhost:8081
-      - VITE_WS_URL=ws://localhost:8082
+      - VITE_API_URL=https://obsidiancomments.lakestrom.com/api
+      - VITE_WS_URL=wss://obsidiancomments.lakestrom.com/ws
     networks:
       - obsidian-network
     depends_on:
@@ -29,6 +29,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  hocuspocus:
+    build:
+      context: ./
+      dockerfile: packages/docker/Dockerfile.hocuspocus
+    container_name: obsidian-hocuspocus
+    environment:
+      - NODE_ENV=production
+      - PORT=8082
+    networks:
+      - obsidian-network
+    ports:
+      - "8082:8082"
 
   postgres:
     image: postgres:15-alpine
