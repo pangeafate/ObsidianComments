@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { publishRouter } from './routes/publish';
+import { notesRouter } from './routes/notes';
+import { authRouter } from './routes/auth';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -24,6 +26,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api', publishRouter);
+app.use('/api/notes', notesRouter);
+app.use('/api/auth', authRouter);
 
 // Error handling
 app.use(errorHandler);

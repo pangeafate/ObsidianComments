@@ -15,7 +15,7 @@ export async function publishDocument(data: PublishRequest): Promise<PublishResu
     data: {
       title: data.title,
       content: data.content,
-      metadata: data.metadata || undefined
+      metadata: data.metadata
     }
   });
 

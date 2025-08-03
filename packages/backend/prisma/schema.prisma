@@ -10,8 +10,8 @@ datasource db {
 model Document {
   id          String   @id @default(cuid())
   title       String
-  content     String   @db.Text
-  metadata    Json?
+  content     String
+  metadata    Json?    // PostgreSQL supports native JSON
   publishedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
@@ -32,7 +32,7 @@ model Version {
   documentId  String
   version     Int
   snapshot    Bytes
-  metadata    Json?
+  metadata    Json?    // PostgreSQL supports native JSON
   createdAt   DateTime @default(now())
   createdBy   String?
   message     String?
@@ -47,14 +47,14 @@ model Comment {
   id          String   @id @default(cuid())
   documentId  String
   threadId    String?
-  content     String   @db.Text
+  content     String
   author      String
   resolved    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   // Position in document (for Yjs integration)
-  position    Json?
+  position    Json?    // PostgreSQL supports native JSON
   
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   

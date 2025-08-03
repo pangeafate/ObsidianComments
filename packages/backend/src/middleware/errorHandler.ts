@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ValidationError } from '../utils/errors';
+import { ValidationError, NotFoundError } from '../utils/errors';
 
 export function errorHandler(
   error: Error,
@@ -9,14 +9,31 @@ export function errorHandler(
 ) {
   if (error instanceof ValidationError) {
     return res.status(400).json({
-      error: 'Validation error',
+      error: error.message,
+      code: 'VALIDATION_ERROR',
       details: error.details
+    });
+  }
+
+  if (error instanceof NotFoundError) {
+    return res.status(404).json({
+      error: error.message,
+      code: 'NOT_FOUND'
+    });
+  }
+
+  // Handle payload too large error from express
+  if (error.name === 'PayloadTooLargeError' || (error as any).type === 'entity.too.large') {
+    return res.status(413).json({
+      error: 'Content too large',
+      code: 'PAYLOAD_TOO_LARGE'
     });
   }
 
   console.error('Unhandled error:', error);
   
   res.status(500).json({
-    error: 'Internal server error'
+    error: 'Internal server error',
+    code: 'INTERNAL_ERROR'
   });
 }

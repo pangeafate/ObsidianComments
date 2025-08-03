@@ -11,6 +11,14 @@ const publishSchema = Joi.object({
   }).optional()
 });
 
+const noteContentSchema = Joi.object({
+  content: Joi.string().required().min(1).max(1000000) // 1MB limit for content
+});
+
+const shareIdSchema = Joi.object({
+  shareId: Joi.string().required().min(1).max(50).pattern(/^[a-zA-Z0-9_-]+$/)
+});
+
 export interface PublishRequest {
   title: string;
   content: string;
@@ -19,6 +27,14 @@ export interface PublishRequest {
     source?: string;
     publishedBy?: string;
   };
+}
+
+export interface NoteContentRequest {
+  content: string;
+}
+
+export interface ShareIdRequest {
+  shareId: string;
 }
 
 export function validatePublishRequest(data: any): PublishRequest {
@@ -31,6 +47,26 @@ export function validatePublishRequest(data: any): PublishRequest {
     }));
     
     throw new ValidationError(details);
+  }
+  
+  return value;
+}
+
+export function validateNoteContent(data: any): NoteContentRequest {
+  const { error, value } = noteContentSchema.validate(data, { abortEarly: false });
+  
+  if (error) {
+    throw new ValidationError('Content is required');
+  }
+  
+  return value;
+}
+
+export function validateShareId(data: any): ShareIdRequest {
+  const { error, value } = shareIdSchema.validate(data, { abortEarly: false });
+  
+  if (error) {
+    throw new ValidationError('Invalid share ID format');
   }
   
   return value;

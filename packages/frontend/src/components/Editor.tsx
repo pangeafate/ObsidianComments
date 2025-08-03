@@ -17,6 +17,8 @@ import { NewNoteButton } from './NewNoteButton';
 import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
+import { documentService, DocumentData } from '../services/documentService';
+import { markdownToProseMirror } from '../utils/markdownConverter';
 
 interface EditorProps {
   documentId: string;
@@ -36,6 +38,35 @@ export function Editor({ documentId }: EditorProps) {
   // Pane states
   const [isCommentsPaneOpen, setIsCommentsPaneOpen] = useState<boolean>(false);
   const [isMyLinksPaneOpen, setIsMyLinksPaneOpen] = useState<boolean>(false);
+
+  // Obsidian document state
+  const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
+  const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
+  const [documentTitle, setDocumentTitle] = useState<string>('Collaborative Editor');
+
+  // Check if document exists in API (created via Obsidian plugin)
+  useEffect(() => {
+    async function checkAndLoadDocument() {
+      try {
+        setIsLoadingDocument(true);
+        const exists = await documentService.checkDocumentExists(documentId);
+        
+        if (exists) {
+          const document = await documentService.loadDocument(documentId);
+          setObsidianDocument(document);
+          setDocumentTitle(document.title);
+        }
+      } catch (error) {
+        console.error('Failed to load document from API:', error);
+        // Fallback to regular collaboration
+        setObsidianDocument(null);
+      } finally {
+        setIsLoadingDocument(false);
+      }
+    }
+
+    checkAndLoadDocument();
+  }, [documentId]);
   
   useEffect(() => {
     if (currentUser) {
@@ -117,6 +148,20 @@ export function Editor({ documentId }: EditorProps) {
     },
   }, [provider, currentUser, userColor]);
 
+  // Initialize editor with Obsidian content when available
+  useEffect(() => {
+    if (editor && obsidianDocument && !isLoadingDocument) {
+      try {
+        const proseMirrorDoc = markdownToProseMirror(obsidianDocument.content);
+        editor.commands.setContent(proseMirrorDoc);
+      } catch (error) {
+        console.error('Failed to convert markdown to ProseMirror:', error);
+        // Fallback to plain text
+        editor.commands.setContent(obsidianDocument.content);
+      }
+    }
+  }, [editor, obsidianDocument, isLoadingDocument]);
+
 
   const handleAddComment = (comment: {
     content: string;
@@ -153,12 +198,22 @@ export function Editor({ documentId }: EditorProps) {
     }
   };
 
+  // Show loading state while checking document
+  if (isLoadingDocument) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">Loading document...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col">
       <UserNamePopup onNameSet={handleNameSet} />
       
       <div className="border-b p-4 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Collaborative Editor</h1>
+        <h1 className="text-xl font-semibold">{documentTitle}</h1>
         <div className="flex items-center gap-4">
           <UserPresence users={users} />
           <ConnectionStatus status={status} />

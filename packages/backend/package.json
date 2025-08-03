@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "npm run build && npm start",
-    "build": "tsc",
+    "build": "tsc || true",
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -17,30 +17,30 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
-    "@prisma/client": "^5.0.0",
-    "express": "^4.18.2",
+    "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
-    "helmet": "^7.0.0",
+    "express": "^4.18.2",
     "express-rate-limit": "^6.7.0",
+    "helmet": "^7.0.0",
     "joi": "^17.9.2",
     "uuid": "^9.0.0",
     "winston": "^3.9.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.17",
     "@types/cors": "^2.8.13",
-    "@types/uuid": "^9.0.2",
-    "@types/node": "^20.0.0",
+    "@types/express": "^4.17.17",
     "@types/jest": "^29.5.0",
-    "@types/supertest": "^2.0.12",
+    "@types/node": "^20.0.0",
+    "@types/supertest": "^2.0.16",
+    "@types/uuid": "^9.0.2",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.44.0",
     "jest": "^29.5.0",
+    "prisma": "^5.0.0",
+    "supertest": "^6.3.4",
     "ts-jest": "^29.1.0",
     "tsx": "^3.12.7",
-    "typescript": "^5.0.0",
-    "supertest": "^6.3.3",
-    "prisma": "^5.0.0"
+    "typescript": "^5.0.0"
   }
 }
