@@ -64,6 +64,18 @@ export function EnhancedCommentPanel({
   const [isCommentInputFocused, setIsCommentInputFocused] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [foldedThreads, setFoldedThreads] = useState<Set<string>>(new Set());
+
+  // Initialize folded threads when comments change
+  useEffect(() => {
+    const threadsWithChildren = new Set<string>();
+    comments.forEach(comment => {
+      if (comments.some(c => c.threadId === comment.id)) {
+        threadsWithChildren.add(comment.id);
+      }
+    });
+    setFoldedThreads(threadsWithChildren);
+  }, [comments]);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Truncate text to 7 words with ellipsis
@@ -75,22 +87,69 @@ export function EnhancedCommentPanel({
     return words.slice(0, maxWords).join(' ') + '...';
   };
 
-  // Group comments by thread
-  const groupCommentsByThread = () => {
-    const parentComments = comments.filter(comment => !comment.threadId);
-    const threadsMap = new Map<string, Comment[]>();
+  // Build hierarchical comment tree
+  const buildCommentTree = () => {
+    const commentMap = new Map<string, Comment & { children: Comment[]; depth: number }>();
     
-    // Group replies by parent comment ID
+    // Initialize all comments with empty children arrays
     comments.forEach(comment => {
-      if (comment.threadId) {
-        if (!threadsMap.has(comment.threadId)) {
-          threadsMap.set(comment.threadId, []);
-        }
-        threadsMap.get(comment.threadId)!.push(comment);
+      commentMap.set(comment.id, { ...comment, children: [], depth: 0 });
+    });
+    
+    // Build parent-child relationships
+    comments.forEach(comment => {
+      if (comment.threadId && commentMap.has(comment.threadId)) {
+        const parent = commentMap.get(comment.threadId)!;
+        const child = commentMap.get(comment.id)!;
+        child.depth = parent.depth + 1;
+        parent.children.push(child);
       }
     });
     
-    return { parentComments, threadsMap };
+    // Return root comments (those without threadId)
+    return comments
+      .filter(comment => !comment.threadId)
+      .map(comment => commentMap.get(comment.id)!)
+      .filter(Boolean);
+  };
+
+  // Count total replies in a thread recursively
+  const countRepliesInThread = (comment: Comment & { children: Comment[] }): number => {
+    return comment.children.reduce((count, child) => {
+      return count + 1 + countRepliesInThread(child);
+    }, 0);
+  };
+
+  // Check if a comment should be visible (not folded)
+  const isCommentVisible = (commentId: string, parentId: string | null): boolean => {
+    if (!parentId) return true; // Root comments are always visible
+    
+    // Check if any ancestor is folded
+    let currentParentId = parentId;
+    while (currentParentId) {
+      if (foldedThreads.has(currentParentId)) {
+        return false;
+      }
+      
+      // Find parent of current parent
+      const parentComment = comments.find(c => c.id === currentParentId);
+      currentParentId = parentComment?.threadId || null;
+    }
+    
+    return true;
+  };
+
+  // Toggle thread folding
+  const toggleThreadFold = (commentId: string) => {
+    setFoldedThreads(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
   };
 
   // Update selection state when editor selection changes
@@ -220,8 +279,151 @@ export function EnhancedCommentPanel({
   // Determine if comment functionality is active
   const isActive = selectionState.hasSelection || capturedSelection !== null;
 
+  // Recursive component for rendering threaded comments
+  const ThreadedComment = ({ 
+    comment, 
+    depth = 0 
+  }: { 
+    comment: Comment & { children: Comment[]; depth: number }; 
+    depth?: number 
+  }) => {
+    const hasChildren = comment.children.length > 0;
+    const isFolded = foldedThreads.has(comment.id);
+    const replyCount = countRepliesInThread(comment);
+    const indentationClass = `ml-${Math.min(depth * 4, 16)}`; // Max 16 for very deep nesting
+    
+    return (
+      <div 
+        key={comment.id} 
+        className={depth > 0 ? indentationClass : ''}
+        data-depth={depth}
+      >
+        <div
+          className={`p-3 rounded-md border ${
+            comment.resolved 
+              ? 'bg-gray-100 border-gray-200 opacity-75' 
+              : depth === 0 ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'
+          }`}
+        >
+          {/* Selected Text Context (only for root comments) */}
+          {depth === 0 && comment.displayText && (
+            <div className="mb-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-sm">
+              <span className="text-yellow-800 font-medium">
+                "{comment.displayText}"
+              </span>
+            </div>
+          )}
+
+          {/* Comment Content */}
+          <div className="space-y-2">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm text-gray-900">
+                  {comment.author}
+                </span>
+                {/* Fold/Unfold Toggle */}
+                {hasChildren && (
+                  <button
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                    onClick={() => toggleThreadFold(comment.id)}
+                    data-testid={`fold-toggle-${comment.id}`}
+                  >
+                    {isFolded ? (
+                      <span className="flex items-center gap-1">
+                        ▶ {replyCount} replies
+                      </span>
+                    ) : (
+                      <span>▼</span>
+                    )}
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex gap-1">
+                {!comment.resolved && (
+                  <>
+                    <button
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                      onClick={() => handleStartReply(comment.id)}
+                    >
+                      Reply
+                    </button>
+                    <button
+                      className="text-xs text-green-600 hover:text-green-800"
+                      onClick={() => onResolveComment(comment.id)}
+                    >
+                      Resolve
+                    </button>
+                  </>
+                )}
+                <button
+                  className="text-xs text-red-600 hover:text-red-800 ml-2"
+                  onClick={() => onDeleteComment(comment.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-700">
+              {comment.content}
+            </p>
+            
+            {comment.resolved && (
+              <div className="text-xs text-green-600 font-medium">
+                ✓ Resolved
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reply Input */}
+        {replyingTo === comment.id && (
+          <div className="mt-2 p-3 bg-gray-50 rounded-md border">
+            <textarea
+              className="w-full p-2 border rounded-md resize-none text-sm"
+              placeholder="Write a reply..."
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={2}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700"
+                onClick={() => handleAddReply(comment.id)}
+                disabled={!replyText.trim()}
+              >
+                Add Reply
+              </button>
+              <button
+                className="px-3 py-1 bg-gray-300 text-gray-700 rounded-md text-xs hover:bg-gray-400"
+                onClick={handleCancelReply}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Recursive Children Rendering */}
+        {hasChildren && !isFolded && (
+          <div className="mt-2 space-y-2">
+            {comment.children.map(child => (
+              <ThreadedComment 
+                key={child.id} 
+                comment={child} 
+                depth={depth + 1} 
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="w-80 border-l bg-gray-50 flex flex-col">
+    <div className="w-full h-full flex flex-col">
       <div className="p-4 border-b">
         <h3 className="font-semibold text-gray-900 mb-4">Comments</h3>
         
@@ -286,153 +488,9 @@ export function EnhancedCommentPanel({
             No comments yet. Select text to add the first comment.
           </div>
         ) : (
-          (() => {
-            const { parentComments, threadsMap } = groupCommentsByThread();
-            
-            return parentComments.map((comment) => (
-              <div key={comment.id} className="space-y-2">
-                {/* Parent Comment */}
-                <div
-                  className={`p-3 rounded-md border ${
-                    comment.resolved 
-                      ? 'bg-gray-100 border-gray-200 opacity-75' 
-                      : 'bg-white border-gray-200'
-                  }`}
-                >
-                  {/* Selected Text Context */}
-                  {comment.displayText && (
-                    <div className="mb-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-sm">
-                      <span className="text-yellow-800 font-medium">
-                        "{comment.displayText}"
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Comment Content */}
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <span className="font-medium text-sm text-gray-900">
-                        {comment.author}
-                      </span>
-                      <div className="flex gap-1">
-                        {!comment.resolved && (
-                          <>
-                            <button
-                              className="text-xs text-blue-600 hover:text-blue-800"
-                              onClick={() => handleStartReply(comment.id)}
-                            >
-                              Reply
-                            </button>
-                            <button
-                              className="text-xs text-green-600 hover:text-green-800"
-                              onClick={() => onResolveComment(comment.id)}
-                            >
-                              Resolve
-                            </button>
-                          </>
-                        )}
-                        <button
-                          className="text-xs text-red-600 hover:text-red-800 ml-2"
-                          onClick={() => onDeleteComment(comment.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <p className="text-sm text-gray-700">
-                      {comment.content}
-                    </p>
-                    
-                    {comment.resolved && (
-                      <div className="text-xs text-green-600 font-medium">
-                        ✓ Resolved
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Reply Input */}
-                {replyingTo === comment.id && (
-                  <div className="ml-4 p-3 bg-gray-50 rounded-md border">
-                    <textarea
-                      className="w-full p-2 border rounded-md resize-none text-sm"
-                      placeholder="Write a reply..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      rows={2}
-                      autoFocus
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700"
-                        onClick={() => handleAddReply(comment.id)}
-                        disabled={!replyText.trim()}
-                      >
-                        Add Reply
-                      </button>
-                      <button
-                        className="px-3 py-1 bg-gray-300 text-gray-700 rounded-md text-xs hover:bg-gray-400"
-                        onClick={handleCancelReply}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Thread Replies */}
-                {threadsMap.has(comment.id) && (
-                  <div className="ml-4 space-y-2">
-                    {threadsMap.get(comment.id)!.map((reply) => (
-                      <div
-                        key={reply.id}
-                        className={`p-3 rounded-md border ${
-                          reply.resolved 
-                            ? 'bg-gray-100 border-gray-200 opacity-75' 
-                            : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between">
-                            <span className="font-medium text-sm text-gray-900">
-                              {reply.author}
-                            </span>
-                            <div className="flex gap-1">
-                              {!reply.resolved && (
-                                <button
-                                  className="text-xs text-green-600 hover:text-green-800"
-                                  onClick={() => onResolveComment(reply.id)}
-                                >
-                                  Resolve
-                                </button>
-                              )}
-                              <button
-                                className="text-xs text-red-600 hover:text-red-800 ml-2"
-                                onClick={() => onDeleteComment(reply.id)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <p className="text-sm text-gray-700">
-                            {reply.content}
-                          </p>
-                          
-                          {reply.resolved && (
-                            <div className="text-xs text-green-600 font-medium">
-                              ✓ Resolved
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ));
-          })()
+          buildCommentTree().map(comment => (
+            <ThreadedComment key={comment.id} comment={comment} depth={0} />
+          ))
         )}
       </div>
     </div>
