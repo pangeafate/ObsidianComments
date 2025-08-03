@@ -3,8 +3,8 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: ./packages/frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: ./
+      dockerfile: packages/docker/Dockerfile.frontend
     container_name: obsidian-frontend
     environment:
       - VITE_API_URL=http://localhost:8081
@@ -16,8 +16,8 @@ services:
 
   backend:
     build:
-      context: ./packages/backend
-      dockerfile: ../docker/Dockerfile.backend
+      context: ./
+      dockerfile: packages/docker/Dockerfile.backend
     container_name: obsidian-backend
     environment:
       - NODE_ENV=production
@@ -55,8 +55,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf
-      - ./docker/ssl:/etc/nginx/ssl
+      - ./packages/docker/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot
     networks:
       - obsidian-network
     depends_on:

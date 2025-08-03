@@ -22,11 +22,13 @@ tar -czf obsidian-comments-deploy.tar.gz \
     packages/docker/ \
     packages/frontend/dist/ \
     packages/frontend/package.json \
+    packages/frontend/package-lock.json \
     packages/backend/dist/ \
     packages/backend/package.json \
+    packages/backend/package-lock.json \
     packages/backend/prisma/ \
     --exclude="*.test.*" \
-    --exclude="node_modules" 2>/dev/null || true
+    --exclude="node_modules"
 
 # Upload to server
 echo "⬆️  Uploading to server..."
@@ -42,9 +44,11 @@ ssh $SERVER << 'EOF'
     # Clean up old deployment
     rm -rf obsidian-comments
     
+    # Create deployment directory
+    mkdir -p obsidian-comments
+    
     # Extract new deployment
-    tar -xzf obsidian-comments-deploy.tar.gz -C /root/
-    mv docker-compose.prod.yml obsidian-comments/
+    tar -xzf obsidian-comments-deploy.tar.gz -C obsidian-comments/
     cd obsidian-comments
     
     # Create SSL directory (will be populated by Let's Encrypt)

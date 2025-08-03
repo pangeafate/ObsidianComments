@@ -9,6 +9,9 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
+// Trust proxy for nginx reverse proxy
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
