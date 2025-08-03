@@ -9,7 +9,7 @@ import { useCollaboration } from '../hooks/useCollaboration';
 import { useComments } from '../hooks/useComments';
 import { UserPresence } from './UserPresence';
 import { ConnectionStatus } from './ConnectionStatus';
-import { CommentPanel } from './CommentPanel';
+import { EnhancedCommentPanel } from './EnhancedCommentPanel';
 import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
@@ -60,7 +60,7 @@ export function Editor({ documentId }: EditorProps) {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-screen p-4',
       },
-      handleTextInput: (view, from, to, text) => {
+      handleTextInput: (_view, from, _to, text) => {
         // Auto-apply track changes to new text input
         if (editor?.commands) {
           setTimeout(() => {
@@ -79,6 +79,8 @@ export function Editor({ documentId }: EditorProps) {
     author: string;
     position: { from: number; to: number } | null;
     threadId: string | null;
+    selectedText?: string;
+    displayText?: string;
   }) => {
     const commentId = `comment-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
@@ -96,23 +98,6 @@ export function Editor({ documentId }: EditorProps) {
     }
   };
 
-  // Handle adding comment to current selection
-  const handleAddCommentToSelection = () => {
-    if (!editor) return;
-    
-    const { from, to } = editor.state.selection;
-    if (from === to) return; // No selection
-    
-    const selectedText = editor.state.doc.textBetween(from, to, ' ');
-    
-    // Trigger comment panel to show add comment form with pre-filled position
-    handleAddComment({
-      content: `Comment on: "${selectedText}"`,
-      author: currentUser,
-      position: { from, to },
-      threadId: null,
-    });
-  };
 
   // Handle removing comment highlight when comment is deleted
   const handleDeleteComment = (commentId: string) => {
@@ -129,13 +114,6 @@ export function Editor({ documentId }: EditorProps) {
       <div className="border-b p-4 flex justify-between items-center">
         <h1 className="text-xl font-semibold">Collaborative Editor</h1>
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleAddCommentToSelection}
-            className="px-3 py-1 bg-yellow-500 text-white rounded-md text-sm hover:bg-yellow-600 transition-colors"
-            disabled={!editor || editor.state.selection.from === editor.state.selection.to}
-          >
-            💬 Comment
-          </button>
           <UserPresence users={users} />
           <ConnectionStatus status={status} />
         </div>
@@ -149,13 +127,16 @@ export function Editor({ documentId }: EditorProps) {
           <EditorContent editor={editor} />
         </div>
         
-        <CommentPanel
-          comments={comments}
-          currentUser={currentUser}
-          onAddComment={handleAddComment}
-          onResolveComment={resolveComment}
-          onDeleteComment={handleDeleteComment}
-        />
+        {editor && (
+          <EnhancedCommentPanel
+            comments={comments}
+            currentUser={currentUser}
+            editor={editor}
+            onAddComment={handleAddComment}
+            onResolveComment={resolveComment}
+            onDeleteComment={handleDeleteComment}
+          />
+        )}
       </div>
     </div>
   );
