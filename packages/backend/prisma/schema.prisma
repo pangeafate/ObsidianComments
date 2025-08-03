@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  metadata    Json?
+  publishedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Yjs document state
+  yjsState    Bytes?
+  
+  // Version tracking
+  versions    Version[]
+  
+  // Comment metadata
+  comments    Comment[]
+  
+  @@map("documents")
+}
+
+model Version {
+  id          String   @id @default(cuid())
+  documentId  String
+  version     Int
+  snapshot    Bytes
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  createdBy   String?
+  message     String?
+  
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, version])
+  @@map("versions")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  documentId  String
+  threadId    String?
+  content     String   @db.Text
+  author      String
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Position in document (for Yjs integration)
+  position    Json?
+  
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  displayName String?
+  color       String?
+  createdAt   DateTime @default(now())
+  lastSeen    DateTime @default(now())
+  
+  @@map("users")
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@obsidian-comments/hocuspocus",
+  "version": "1.0.0",
+  "description": "Hocuspocus collaboration server for ObsidianComments",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "npm run build && npm start",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.0.0",
+    "@hocuspocus/extension-redis": "^2.0.0",
+    "@hocuspocus/extension-database": "^2.0.0",
+    "@hocuspocus/extension-logger": "^2.0.0",
+    "@hocuspocus/extension-throttle": "^2.0.0",
+    "@prisma/client": "^5.0.0",
+    "yjs": "^13.6.0",
+    "y-prosemirror": "^1.2.0",
+    "redis": "^4.6.0",
+    "winston": "^3.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/jest": "^29.5.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.44.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "tsx": "^3.12.7",
+    "typescript": "^5.0.0",
+    "prisma": "^5.0.0"
+  }
+}
