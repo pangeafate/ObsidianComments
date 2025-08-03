@@ -7,10 +7,13 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { useCollaboration } from '../hooks/useCollaboration';
 import { useComments } from '../hooks/useComments';
+import { useLinkTracking } from '../hooks/useLinkTracking';
 import { UserPresence } from './UserPresence';
 import { ConnectionStatus } from './ConnectionStatus';
 import { EnhancedCommentPanel } from './EnhancedCommentPanel';
 import { UserNamePopup } from './UserNamePopup';
+import { MyLinksPane } from './MyLinksPane';
+import { NewNoteButton } from './NewNoteButton';
 import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
@@ -22,13 +25,17 @@ interface EditorProps {
 export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc);
+  
+  // Track this document in user's links
+  useLinkTracking(documentId);
 
   // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
   const [userColor, setUserColor] = useState<string>('');
   
-  // Comments pane state
+  // Pane states
   const [isCommentsPaneOpen, setIsCommentsPaneOpen] = useState<boolean>(false);
+  const [isMyLinksPaneOpen, setIsMyLinksPaneOpen] = useState<boolean>(false);
   
   useEffect(() => {
     if (currentUser) {
@@ -51,6 +58,18 @@ export function Editor({ documentId }: EditorProps) {
 
   const toggleCommentsPane = () => {
     setIsCommentsPaneOpen(!isCommentsPaneOpen);
+    // Close other panes
+    if (!isCommentsPaneOpen) {
+      setIsMyLinksPaneOpen(false);
+    }
+  };
+
+  const toggleMyLinksPane = () => {
+    setIsMyLinksPaneOpen(!isMyLinksPaneOpen);
+    // Close other panes
+    if (!isMyLinksPaneOpen) {
+      setIsCommentsPaneOpen(false);
+    }
   };
 
   const editor = useEditor({
@@ -143,16 +162,29 @@ export function Editor({ documentId }: EditorProps) {
         <div className="flex items-center gap-4">
           <UserPresence users={users} />
           <ConnectionStatus status={status} />
-          <button
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-              isCommentsPaneOpen 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-            onClick={toggleCommentsPane}
-          >
-            Comments
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                isMyLinksPaneOpen 
+                  ? 'bg-purple-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={toggleMyLinksPane}
+            >
+              My Links
+            </button>
+            <NewNoteButton />
+            <button
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                isCommentsPaneOpen 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={toggleCommentsPane}
+            >
+              Comments
+            </button>
+          </div>
         </div>
       </div>
 
@@ -164,9 +196,20 @@ export function Editor({ documentId }: EditorProps) {
           <EditorContent editor={editor} />
         </div>
         
+        {/* My Links Pane */}
+        <div 
+          className={`w-80 border-l bg-gray-50 flex flex-col absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out z-20 ${
+            isMyLinksPaneOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          data-testid="my-links-pane"
+        >
+          <MyLinksPane />
+        </div>
+
+        {/* Comments Pane */}
         {editor && (
           <div 
-            className={`w-80 border-l bg-gray-50 flex flex-col absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out ${
+            className={`w-80 border-l bg-gray-50 flex flex-col absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out z-10 ${
               isCommentsPaneOpen ? 'translate-x-0' : 'translate-x-full'
             }`}
             data-testid="comments-pane"

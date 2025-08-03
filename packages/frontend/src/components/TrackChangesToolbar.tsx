@@ -65,7 +65,7 @@ export function TrackChangesToolbar({ editor }: TrackChangesToolbarProps) {
   // Check if track changes is enabled
   useEffect(() => {
     const trackChangesExt = editor.extensionManager.extensions.find(
-      ext => ext.name === 'trackChanges'
+      ext => ext.name === 'trackChange'
     );
     
     if (trackChangesExt) {
@@ -78,8 +78,23 @@ export function TrackChangesToolbar({ editor }: TrackChangesToolbarProps) {
   };
 
   const handleToggleTrackChanges = () => {
+    // Get current state from extension
+    const trackChangesExt = editor.extensionManager.extensions.find(
+      ext => ext.name === 'trackChange'
+    );
+    
+    const currentlyEnabled = trackChangesExt?.options.enabled !== false;
+    
+    // Toggle the extension
     editor.commands.toggleTrackChanges();
-    setIsTrackChangesEnabled(!isTrackChangesEnabled);
+    
+    // If we're disabling track changes, clear marks at cursor position
+    if (currentlyEnabled) {
+      editor.commands.clearTrackChangesAtCursor();
+    }
+    
+    // Update local state to match extension state
+    setIsTrackChangesEnabled(!currentlyEnabled);
   };
 
   return (

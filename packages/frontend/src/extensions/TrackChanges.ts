@@ -27,6 +27,10 @@ declare module '@tiptap/core' {
        * Add track changes mark to current selection
        */
       addTrackChanges: () => ReturnType;
+      /**
+       * Clear track changes marks at current cursor position
+       */
+      clearTrackChangesAtCursor: () => ReturnType;
     };
   }
 }
@@ -171,6 +175,51 @@ export const TrackChanges = Mark.create<TrackChangesOptions>({
 
           dispatch(state.tr.addMark(from, to, mark));
           return true;
+        },
+
+      clearTrackChangesAtCursor:
+        () =>
+        ({ state, dispatch }) => {
+          if (!dispatch) return false;
+
+          const tr = state.tr;
+          
+          // Clear stored marks so future typing doesn't have track changes
+          const trackChangeMarks = state.storedMarks?.filter(mark => mark.type.name === 'trackChange') || [];
+          
+          // Also check marks at current selection position
+          const { $from } = state.selection;
+          const marksAtPosition = $from.marks().filter(mark => mark.type.name === 'trackChange');
+          
+          let cleared = false;
+          
+          // Remove stored marks
+          if (trackChangeMarks.length > 0) {
+            trackChangeMarks.forEach(mark => {
+              tr.removeStoredMark(mark);
+            });
+            cleared = true;
+          }
+          
+          // Remove marks at position
+          if (marksAtPosition.length > 0) {
+            marksAtPosition.forEach(mark => {
+              tr.removeStoredMark(mark);
+            });
+            cleared = true;
+          }
+          
+          // Ensure no track changes marks are active for future typing
+          tr.setStoredMarks(
+            (state.storedMarks || $from.marks()).filter(mark => mark.type.name !== 'trackChange')
+          );
+          
+          if (cleared) {
+            dispatch(tr);
+            return true;
+          }
+          
+          return false;
         },
     };
   },
