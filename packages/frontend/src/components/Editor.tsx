@@ -23,20 +23,27 @@ export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc);
 
-  // User name state
+  // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
+  const [userColor, setUserColor] = useState<string>('');
   
   // Comments pane state
   const [isCommentsPaneOpen, setIsCommentsPaneOpen] = useState<boolean>(false);
   
   useEffect(() => {
     if (currentUser) {
+      // Generate color once when user is first set
+      const color = userColor || generatePastelColor();
+      if (!userColor) {
+        setUserColor(color);
+      }
+      
       setUser({
         name: currentUser,
-        color: generatePastelColor(),
+        color: color,
       });
     }
-  }, [setUser, currentUser]);
+  }, [setUser, currentUser, userColor]);
 
   const handleNameSet = (name: string) => {
     setCurrentUser(name);
@@ -57,6 +64,10 @@ export function Editor({ documentId }: EditorProps) {
       }),
       ...(provider ? [CollaborationCursor.configure({
         provider: provider,
+        user: currentUser ? {
+          name: currentUser,
+          color: userColor || generatePastelColor(),
+        } : undefined,
       })] : []),
       TaskList,
       TaskItem.configure({
@@ -85,7 +96,7 @@ export function Editor({ documentId }: EditorProps) {
         return false;
       },
     },
-  }, [provider, currentUser]);
+  }, [provider, currentUser, userColor]);
 
 
   const handleAddComment = (comment: {
