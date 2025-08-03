@@ -75,4 +75,4 @@ cypress/videos/
 
 # Prisma
 prisma/migrations/
-!prisma/migrations/.gitkeep
+!prisma/migrations/.gitkeepobsidian-comments-deploy.tar.gz
