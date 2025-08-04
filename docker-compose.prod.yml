@@ -7,8 +7,8 @@ services:
       dockerfile: packages/docker/Dockerfile.frontend
     container_name: obsidian-frontend
     environment:
-      - VITE_API_URL=https://obsidiancomments.lakestrom.com/api
-      - VITE_WS_URL=wss://obsidiancomments.lakestrom.com/ws
+      - VITE_API_URL=https://obsidiancomments.serverado.app
+      - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
     networks:
       - obsidian-network
     depends_on:
@@ -22,12 +22,15 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://obsidian:obsidian_password@postgres:5432/obsidian_comments
-      - FRONTEND_URL=https://obsidiancomments.lakestrom.com
+      - REDIS_URL=redis://redis:6379
+      - FRONTEND_URL=https://obsidiancomments.serverado.app
       - PORT=8081
     networks:
       - obsidian-network
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   hocuspocus:
@@ -38,10 +41,16 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8082
+      - DATABASE_URL=postgresql://obsidian:obsidian_password@postgres:5432/obsidian_comments
+      - REDIS_URL=redis://redis:6379
     networks:
       - obsidian-network
-    ports:
-      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # No external port exposure - only accessible through nginx proxy
 
   postgres:
     image: postgres:15-alpine
@@ -57,6 +66,17 @@ services:
       - obsidian-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U obsidian -d obsidian_comments"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: obsidian-redis
+    networks:
+      - obsidian-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,6 +99,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   obsidian-network:

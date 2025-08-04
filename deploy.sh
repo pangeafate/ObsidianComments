@@ -6,7 +6,7 @@ set -e
 echo "🚀 Starting ObsidianComments deployment..."
 
 # Server details
-SERVER="root@46.101.189.137"
+SERVER="root@138.197.187.49"
 DEPLOY_DIR="/root/obsidian-comments"
 
 # Build locally first
@@ -58,7 +58,7 @@ ssh $SERVER << 'EOF'
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout packages/docker/ssl/key.pem \
         -out packages/docker/ssl/cert.pem \
-        -subj "/C=US/ST=State/L=City/O=Organization/CN=obsidiancomments.lakestrom.com"
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=obsidiancomments.serverado.app"
     
     # Start services
     docker-compose -f docker-compose.prod.yml up -d --build
@@ -78,5 +78,5 @@ EOF
 rm obsidian-comments-deploy.tar.gz
 
 echo "✅ Deployment complete!"
-echo "🌐 Service should be available at: https://obsidiancomments.lakestrom.com"
+echo "🌐 Service should be available at: https://obsidiancomments.serverado.app"
 echo "📊 Check status with: ssh $SERVER 'cd obsidian-comments && docker-compose -f docker-compose.prod.yml ps'"

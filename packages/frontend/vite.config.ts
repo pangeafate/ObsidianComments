@@ -13,6 +13,20 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Use esbuild minifier (default) which doesn't require eval
+    minify: 'esbuild',
+    // Generate source maps as separate files instead of eval
+    sourcemap: false,
+    // Ensure no eval() calls in production bundle
+    rollupOptions: {
+      output: {
+        // Prevent dynamic imports that might use eval
+        format: 'es',
+        manualChunks: undefined,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': '/src',

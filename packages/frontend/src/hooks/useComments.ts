@@ -27,12 +27,17 @@ export interface UseCommentsReturn {
   getThreadComments: (threadId: string) => Comment[];
 }
 
-export function useComments(ydoc: Y.Doc): UseCommentsReturn {
+export function useComments(ydoc: Y.Doc | null): UseCommentsReturn {
   const [comments, setComments] = useState<Comment[]>([]);
-  const commentsMap = ydoc.getMap('comments');
+  const commentsMap = ydoc?.getMap('comments');
 
   // Sync comments from Yjs map
   useEffect(() => {
+    if (!commentsMap) {
+      setComments([]);
+      return;
+    }
+
     const updateComments = () => {
       const commentsList: Comment[] = [];
       commentsMap.forEach((comment) => {
@@ -56,6 +61,8 @@ export function useComments(ydoc: Y.Doc): UseCommentsReturn {
   }, [commentsMap]);
 
   const addComment = useCallback((newComment: NewComment) => {
+    if (!ydoc || !commentsMap) return;
+
     const comment: Comment = {
       ...newComment,
       resolved: false,
@@ -68,6 +75,8 @@ export function useComments(ydoc: Y.Doc): UseCommentsReturn {
   }, [commentsMap, ydoc]);
 
   const resolveComment = useCallback((id: string) => {
+    if (!ydoc || !commentsMap) return;
+    
     const comment = commentsMap.get(id);
     if (comment) {
       ydoc.transact(() => {
@@ -77,6 +86,8 @@ export function useComments(ydoc: Y.Doc): UseCommentsReturn {
   }, [commentsMap, ydoc]);
 
   const deleteComment = useCallback((id: string) => {
+    if (!ydoc || !commentsMap) return;
+    
     ydoc.transact(() => {
       commentsMap.delete(id);
       

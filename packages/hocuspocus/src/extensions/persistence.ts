@@ -2,7 +2,31 @@ import { Extension } from '@hocuspocus/server';
 import { PrismaClient } from '@prisma/client';
 import * as Y from 'yjs';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
+
+// Test database connection on startup
+async function testDatabaseConnection() {
+  try {
+    await prisma.$connect();
+    console.log('✅ Hocuspocus connected to database successfully');
+    
+    // Test basic query
+    const documentCount = await prisma.document.count();
+    console.log(`📊 Found ${documentCount} documents in database`);
+  } catch (error) {
+    console.error('❌ Hocuspocus database connection failed:', error);
+    throw error;
+  }
+}
+
+// Initialize database connection
+testDatabaseConnection().catch(console.error);
 
 export class PersistenceExtension implements Extension {
   async onLoadDocument(data: any) {
@@ -27,7 +51,8 @@ export class PersistenceExtension implements Extension {
         }
       }
     } catch (error) {
-      console.error('Error loading document:', error);
+      console.error(`❌ Error loading document ${documentName}:`, error);
+      console.error('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
     }
 
     return data;
@@ -53,7 +78,8 @@ export class PersistenceExtension implements Extension {
         await this.createSnapshot(documentName, document, updateCount);
       }
     } catch (error) {
-      console.error('Error storing document:', error);
+      console.error(`❌ Error storing document ${documentName}:`, error);
+      console.error('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
     }
 
     return data;

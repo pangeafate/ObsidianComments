@@ -9,7 +9,7 @@ export interface DocumentData {
 }
 
 class DocumentService {
-  private baseUrl = process.env.VITE_API_URL || 'http://localhost:8081';
+  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
   async loadDocument(documentId: string): Promise<DocumentData> {
     try {

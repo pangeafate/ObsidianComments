@@ -7,14 +7,25 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "docker-compose up --build",
+    "dev": "docker-compose -f docker-compose.local.yml up",
+    "dev:old": "docker-compose up --build",
     "build": "docker-compose build",
     "test": "npm run test --workspaces",
     "test:watch": "npm run test:watch --workspaces",
+    "test:unit": "jest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:production": "TEST_URL=https://obsidiancomments.serverado.app playwright test",
     "lint": "npm run lint --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "typecheck": "npm run typecheck --workspaces",
+    "build:local": "VITE_API_URL=http://localhost:3001 VITE_WS_URL=ws://localhost:3001/ws npm run build --prefix packages/frontend",
+    "build:staging": "VITE_API_URL=https://staging.obsidiancomments.serverado.app VITE_WS_URL=wss://staging.obsidiancomments.serverado.app/ws npm run build --prefix packages/frontend",
+    "build:production": "VITE_API_URL=https://obsidiancomments.serverado.app VITE_WS_URL=wss://obsidiancomments.serverado.app/ws npm run build --prefix packages/frontend",
+    "check:pre-deploy": "node scripts/pre-deploy-check.js",
+    "start:local": "./test-local-production.sh"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },

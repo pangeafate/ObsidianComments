@@ -9,7 +9,7 @@ export interface User {
 
 export interface UseCollaborationReturn {
   provider: HocuspocusProvider | null;
-  ydoc: Y.Doc;
+  ydoc: Y.Doc | null;
   users: User[];
   status: 'connecting' | 'connected' | 'disconnected';
   setUser: (user: User) => void;
@@ -18,16 +18,30 @@ export interface UseCollaborationReturn {
 }
 
 export function useCollaboration(documentId: string): UseCollaborationReturn {
-  const [ydoc] = useState(() => new Y.Doc());
+  // Initialize with null to avoid creating Y.Doc in useState (prevents race conditions)
+  const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   useEffect(() => {
+    // Create Y.Doc only once per documentId to prevent "Type already defined" errors
+    const newYdoc = new Y.Doc();
+    // Initialize the content field as XmlFragment for TipTap compatibility
+    newYdoc.getXmlFragment('content');
+    setYdoc(newYdoc);
+    
     const hocuspocusProvider = new HocuspocusProvider({
       url: import.meta.env.VITE_WS_URL || 'ws://localhost:8082',
       name: documentId,
-      document: ydoc,
+      document: newYdoc,
+      token: 'collaboration-token', // Simple token for authentication
+      onAuthenticated: () => {
+        console.log('✅ Hocuspocus authentication successful');
+      },
+      onAuthenticationFailed: ({ reason }) => {
+        console.error('❌ Hocuspocus authentication failed:', reason);
+      },
     });
 
     setProvider(hocuspocusProvider);
@@ -62,8 +76,9 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
       hocuspocusProvider.off('status', handleStatusChange);
       hocuspocusProvider.awareness.off('change', handleAwarenessChange);
       hocuspocusProvider.destroy();
+      newYdoc.destroy();
     };
-  }, [documentId, ydoc]);
+  }, [documentId]); // Only depend on documentId, not ydoc
 
   const setUser = useCallback((user: User) => {
     if (provider) {
@@ -78,8 +93,10 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
   }, [provider]);
 
   const getContent = useCallback(() => {
-    const text = ydoc.getText('content');
-    return text.toString();
+    if (!ydoc) return '';
+    const xmlFragment = ydoc.getXmlFragment('content');
+    // Convert XmlFragment to text representation
+    return xmlFragment.toString();
   }, [ydoc]);
 
   return {

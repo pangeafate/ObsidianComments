@@ -26,7 +26,7 @@ interface EditorProps {
 
 export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
-  const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc);
+  const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
   
   // Track this document in user's links
   useLinkTracking(documentId);
@@ -83,6 +83,7 @@ export function Editor({ documentId }: EditorProps) {
     }
   }, [setUser, currentUser, userColor]);
 
+
   const handleNameSet = (name: string) => {
     setCurrentUser(name);
   };
@@ -108,10 +109,10 @@ export function Editor({ documentId }: EditorProps) {
       StarterKit.configure({
         history: false,
       }),
-      Collaboration.configure({
+      ...(ydoc ? [Collaboration.configure({
         document: ydoc,
         field: 'content',
-      }),
+      })] : []),
       ...(provider ? [CollaborationCursor.configure({
         provider: provider,
         user: currentUser ? {
@@ -137,30 +138,42 @@ export function Editor({ documentId }: EditorProps) {
       },
       handleTextInput: (_view, from, _to, text) => {
         // Auto-apply track changes to new text input
-        if (editor?.commands) {
+        if (editor?.commands && editor.state.doc.nodeSize > from + text.length) {
           setTimeout(() => {
-            editor.commands.setTextSelection({ from, to: from + text.length });
-            editor.commands.addTrackChanges();
+            try {
+              editor.commands.setTextSelection({ from, to: from + text.length });
+              editor.commands.addTrackChanges();
+            } catch (error) {
+              console.warn('Track changes selection failed:', error);
+            }
           }, 0);
         }
         return false;
       },
     },
-  }, [provider, currentUser, userColor]);
+  }, [provider, currentUser, userColor, ydoc]);
 
-  // Initialize editor with Obsidian content when available
+  // Initialize editor with Obsidian content only if Yjs document is empty
   useEffect(() => {
-    if (editor && obsidianDocument && !isLoadingDocument) {
-      try {
-        const proseMirrorDoc = markdownToProseMirror(obsidianDocument.content);
-        editor.commands.setContent(proseMirrorDoc);
-      } catch (error) {
-        console.error('Failed to convert markdown to ProseMirror:', error);
-        // Fallback to plain text
-        editor.commands.setContent(obsidianDocument.content);
+    if (editor && obsidianDocument && !isLoadingDocument && ydoc) {
+      // Only set content if the Yjs document is empty (new document)
+      const yXmlFragment = ydoc.getXmlFragment('content');
+      // Check if the fragment is empty
+      if (yXmlFragment.length === 0) {
+        console.log('📝 Initializing empty Yjs document with API content');
+        try {
+          const proseMirrorDoc = markdownToProseMirror(obsidianDocument.content);
+          editor.commands.setContent(proseMirrorDoc);
+        } catch (error) {
+          console.error('Failed to convert markdown to ProseMirror:', error);
+          // Fallback to plain text
+          editor.commands.setContent(obsidianDocument.content);
+        }
+      } else {
+        console.log('✅ Yjs document has content, skipping API content initialization');
       }
     }
-  }, [editor, obsidianDocument, isLoadingDocument]);
+  }, [editor, obsidianDocument, isLoadingDocument, ydoc]);
 
 
   const handleAddComment = (comment: {

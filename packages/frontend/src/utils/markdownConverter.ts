@@ -184,7 +184,7 @@ function parseInlineContent(text: string): ProseMirrorNode[] {
         content.push({
           type: 'text',
           text: boldText,
-          marks: [{ type: 'strong' }]
+          marks: [{ type: 'bold' }]
         });
         i = endIndex + 2;
         continue;
@@ -199,7 +199,7 @@ function parseInlineContent(text: string): ProseMirrorNode[] {
         content.push({
           type: 'text',
           text: italicText,
-          marks: [{ type: 'em' }]
+          marks: [{ type: 'italic' }]
         });
         i = endIndex + 1;
         continue;
