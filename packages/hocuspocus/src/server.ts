@@ -50,16 +50,14 @@ export function createServer() {
   // Connect to Redis
   redisClient.connect().catch(console.error);
 
-  // Configure Redis extension with client instance
-  const redisExtension = new Redis({
-    redis: redisClient,
-  });
-
+  // TEMPORARY: Use only Database extension to debug persistence
+  console.log('🔧 Configuring Database extension (Redis disabled for debugging)');
+  
   // Configure Database extension for PostgreSQL persistence
   const databaseExtension = new Database({
     // Return a Promise to retrieve data from PostgreSQL
     fetch: async ({ documentName }) => {
-      console.log(`📖 Loading document: ${documentName}`);
+      console.log(`📖 [DATABASE] fetch() called for document: ${documentName}`);
       try {
         const document = await prisma.document.findUnique({
           where: { id: documentName }
@@ -67,10 +65,10 @@ export function createServer() {
 
         if (document) {
           if (document.yjsState) {
-            console.log(`✅ Found existing Yjs state for ${documentName}`);
+            console.log(`✅ [DATABASE] Found existing Yjs state for ${documentName}`);
             return new Uint8Array(document.yjsState);
           } else {
-            console.log(`📝 Initializing Yjs document with content for ${documentName}`);
+            console.log(`📝 [DATABASE] Initializing Yjs document with content for ${documentName}`);
             // Create new Yjs doc with initial content
             const ydoc = new Y.Doc();
             // Use XmlFragment to match frontend TipTap usage
@@ -80,17 +78,17 @@ export function createServer() {
           }
         }
         
-        console.log(`❓ Document ${documentName} not found in database`);
+        console.log(`❓ [DATABASE] Document ${documentName} not found in database`);
         return null;
       } catch (error) {
-        console.error(`❌ Error loading document ${documentName}:`, error);
+        console.error(`❌ [DATABASE] Error loading document ${documentName}:`, error);
         return null;
       }
     },
 
     // Return a Promise to store data to PostgreSQL
     store: async ({ documentName, state }) => {
-      console.log(`💾 Storing document: ${documentName}, size: ${state?.length || 0} bytes`);
+      console.log(`💾 [DATABASE] store() called for document: ${documentName}, size: ${state?.length || 0} bytes`);
       try {
         await prisma.document.update({
           where: { id: documentName },
@@ -99,7 +97,7 @@ export function createServer() {
             updatedAt: new Date()
           }
         });
-        console.log(`✅ Successfully stored document ${documentName}`);
+        console.log(`✅ [DATABASE] Successfully stored document ${documentName}`);
 
         // Create version snapshot every 100 updates
         const updateCount = await prisma.version.count({
@@ -117,10 +115,10 @@ export function createServer() {
               })
             }
           });
-          console.log(`📸 Created snapshot for document ${documentName} (version ${updateCount + 1})`);
+          console.log(`📸 [DATABASE] Created snapshot for document ${documentName} (version ${updateCount + 1})`);
         }
       } catch (error) {
-        console.error(`❌ Error storing document ${documentName}:`, error);
+        console.error(`❌ [DATABASE] Error storing document ${documentName}:`, error);
         console.error('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
       }
     },
@@ -129,8 +127,12 @@ export function createServer() {
   return new Hocuspocus({
     port: parseInt(process.env.PORT || '8082'),
     
-    // Use official Redis + Database extensions for proper persistence
-    extensions: [redisExtension, databaseExtension],
+    // TEMPORARY: Use only Database extension for debugging
+    extensions: [databaseExtension],
+    
+    // Enable debug logging
+    debounce: 2000, // Save to database every 2 seconds instead of default 10
+    maxDebounce: 10000, // Maximum wait time
     
     async onConnect(data: any) {
       console.log(`🔌 Client connected from ${data.socketId}, document: ${data.documentName}`);
@@ -141,10 +143,30 @@ export function createServer() {
       } else {
         console.log(`📊 New document connection for ${data.documentName}`);
       }
+      
+      // Add Y.Doc update listener for debugging
+      if (data.document) {
+        console.log(`🔍 Setting up Y.Doc update listener for ${data.documentName}`);
+        data.document.on('update', (update: Uint8Array, origin: any) => {
+          console.log(`📝 Y.Doc update received for ${data.documentName}, size: ${update.length}, origin: ${origin?.constructor?.name || 'unknown'}`);
+        });
+      }
     },
 
     async onDisconnect(data: any) {
-      console.log(`Client disconnected: ${data.socketId}`);
+      console.log(`🔌 Client disconnected: ${data.socketId}`);
+    },
+
+    async onChange(data: any) {
+      console.log(`📝 Document changed: ${data.documentName}, changes: ${data.update?.length || 0} bytes`);
+    },
+
+    async onStoreDocument(data: any) {
+      console.log(`💾 Storing document: ${data.documentName} to database`);
+    },
+
+    async onLoadDocument(data: any) {
+      console.log(`📖 Loading document: ${data.documentName} from database`);
     },
 
     async onRequest(data: any) {
