@@ -37,7 +37,7 @@ export function useLinkTracking(documentId: string, dynamicTitle?: string) {
 
         // Use dynamic title if provided, otherwise generate from documentId
         const documentTitle = currentTitle || generateDocumentTitle(documentId);
-        const documentUrl = `${window.location.origin}/edit/${documentId}`;
+        const documentUrl = `${window.location.origin}/editor/${documentId}`;
 
         // Check if document already exists in links
         const existingLinkIndex = existingLinks.findIndex(link => link.id === documentId);

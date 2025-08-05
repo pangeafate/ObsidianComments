@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 
 interface Link {
   id: string;
@@ -9,27 +9,58 @@ interface Link {
 
 const LINKS_STORAGE_KEY = 'obsidian-comments-links';
 
-export function MyLinksPane() {
+export interface MyLinksPaneRef {
+  refreshLinks: () => void;
+}
+
+export const MyLinksPane = forwardRef<MyLinksPaneRef>((props, ref) => {
   const [links, setLinks] = useState<Link[]>([]);
   const [copyMessage, setCopyMessage] = useState<string>('');
 
   useEffect(() => {
     loadLinks();
+    
+    // Listen for localStorage changes (from other tabs/windows)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === LINKS_STORAGE_KEY) {
+        console.log('🔄 localStorage changed, reloading links...');
+        loadLinks();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  // Expose refresh function to parent component
+  useImperativeHandle(ref, () => ({
+    refreshLinks: () => {
+      console.log('🔄 Manual refresh requested');
+      loadLinks();
+    }
+  }));
 
   const loadLinks = () => {
     try {
+      console.log('🔍 MyLinksPane: Loading links from localStorage...');
       const storedLinks = localStorage.getItem(LINKS_STORAGE_KEY);
+      console.log('📦 Raw localStorage data:', storedLinks);
+      
       if (storedLinks) {
         const parsedLinks: Link[] = JSON.parse(storedLinks);
+        console.log('📋 Parsed links:', parsedLinks);
         // Sort by most recently accessed
         const sortedLinks = parsedLinks.sort((a, b) => 
           new Date(b.accessedAt).getTime() - new Date(a.accessedAt).getTime()
         );
+        console.log('📊 Setting links state with:', sortedLinks);
         setLinks(sortedLinks);
+      } else {
+        console.log('📭 No links in localStorage, setting empty array');
+        setLinks([]);
       }
     } catch (error) {
-      console.error('Failed to load links from localStorage:', error);
+      console.error('❌ Failed to load links from localStorage:', error);
       setLinks([]);
     }
   };
@@ -63,6 +94,25 @@ export function MyLinksPane() {
     } catch (error) {
       console.error('Failed to copy link:', error);
       setCopyMessage('Failed to copy link');
+      setTimeout(() => {
+        setCopyMessage('');
+      }, 2000);
+    }
+  };
+
+  const deleteLink = (linkId: string) => {
+    try {
+      // Remove the link from the current state
+      const updatedLinks = links.filter(link => link.id !== linkId);
+      setLinks(updatedLinks);
+      
+      // Update localStorage
+      localStorage.setItem(LINKS_STORAGE_KEY, JSON.stringify(updatedLinks));
+      
+      console.log(`🗑️ Link deleted: ${linkId}`);
+    } catch (error) {
+      console.error('Failed to delete link:', error);
+      setCopyMessage('Failed to delete link');
       setTimeout(() => {
         setCopyMessage('');
       }, 2000);
@@ -135,15 +185,28 @@ export function MyLinksPane() {
                       {formatRelativeTime(link.accessedAt)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => copyIndividualLink(link.url)}
-                    className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded"
-                    title="Copy link"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => copyIndividualLink(link.url)}
+                      className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                      title="Copy link"
+                      aria-label="Copy link"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => deleteLink(link.id)}
+                      className="delete-link-btn p-1 text-gray-400 hover:text-red-600 rounded"
+                      title="Delete link"
+                      aria-label="Delete link"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -163,4 +226,4 @@ export function MyLinksPane() {
       )}
     </div>
   );
-}
+});

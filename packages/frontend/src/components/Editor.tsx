@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
@@ -12,7 +12,7 @@ import { UserPresence } from './UserPresence';
 import { ConnectionStatus } from './ConnectionStatus';
 import { EnhancedCommentPanel } from './EnhancedCommentPanel';
 import { UserNamePopup } from './UserNamePopup';
-import { MyLinksPane } from './MyLinksPane';
+import { MyLinksPane, MyLinksPaneRef } from './MyLinksPane';
 import { NewNoteButton } from './NewNoteButton';
 import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
@@ -32,6 +32,9 @@ interface EditorProps {
 export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
+  
+  // Refs
+  const myLinksPaneRef = useRef<MyLinksPaneRef>(null);
   
   // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
@@ -107,10 +110,15 @@ export function Editor({ documentId }: EditorProps) {
   };
 
   const toggleMyLinksPane = () => {
-    setIsMyLinksPaneOpen(!isMyLinksPaneOpen);
-    // Close other panes
-    if (!isMyLinksPaneOpen) {
+    const wasOpen = isMyLinksPaneOpen;
+    setIsMyLinksPaneOpen(!wasOpen);
+    
+    // Close other panes when opening
+    if (!wasOpen) {
       setIsCommentsPaneOpen(false);
+      // Refresh links when opening the pane
+      console.log('🔄 Opening My Links pane, refreshing data...');
+      myLinksPaneRef.current?.refreshLinks();
     }
   };
 
@@ -402,7 +410,7 @@ export function Editor({ documentId }: EditorProps) {
           }`}
           data-testid="my-links-pane"
         >
-          <MyLinksPane />
+          <MyLinksPane ref={myLinksPaneRef} />
         </div>
 
         {/* Comments Pane */}
