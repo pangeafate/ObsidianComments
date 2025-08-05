@@ -33,9 +33,6 @@ export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
   
-  // Track this document in user's links with dynamic title
-  useLinkTracking(documentId, documentTitle);
-
   // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
   const [userColor, setUserColor] = useState<string>('');
@@ -48,6 +45,9 @@ export function Editor({ documentId }: EditorProps) {
   const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
   const [documentTitle, setDocumentTitle] = useState<string>('Collaborative Editor');
+  
+  // Track this document in user's links with dynamic title (AFTER documentTitle is initialized)
+  useLinkTracking(documentId, documentTitle);
   
   // Auto-save state
   const [lastSavedContent, setLastSavedContent] = useState<string>('');

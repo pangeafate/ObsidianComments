@@ -52,7 +52,7 @@
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 60000
+        "timeout": 30000
       },
       {
         "outputDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results",
@@ -68,7 +68,7 @@
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 60000
+        "timeout": 30000
       },
       {
         "outputDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results",
@@ -84,7 +84,7 @@
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 60000
+        "timeout": 30000
       }
     ],
     "shard": null,
@@ -100,260 +100,167 @@
   },
   "suites": [
     {
-      "title": "pre-deployment-fixes.spec.js",
-      "file": "pre-deployment-fixes.spec.js",
+      "title": "debug-service-issues.spec.js",
+      "file": "debug-service-issues.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Pre-Deployment Fixes",
-          "file": "pre-deployment-fixes.spec.js",
-          "line": 23,
+          "title": "Debug Service Issues",
+          "file": "debug-service-issues.spec.js",
+          "line": 13,
           "column": 6,
-          "specs": [],
-          "suites": [
+          "specs": [
             {
-              "title": "1. My Links Dynamic Title Display",
-              "file": "pre-deployment-fixes.spec.js",
-              "line": 36,
-              "column": 8,
-              "specs": [
+              "title": "should identify specific error causes",
+              "ok": true,
+              "tags": [],
+              "tests": [
                 {
-                  "title": "should show documents with their actual titles in My Links pane",
-                  "ok": false,
-                  "tags": [],
-                  "tests": [
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
                     {
-                      "timeout": 60000,
-                      "annotations": [],
-                      "expectedStatus": "passed",
-                      "projectId": "chromium",
-                      "projectName": "chromium",
-                      "results": [
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1139,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "workerIndex": 0,
-                          "parallelIndex": 0,
-                          "status": "failed",
-                          "duration": 11321,
-                          "error": {
-                            "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n",
-                            "stack": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16",
-                            "location": {
-                              "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                              "column": 16,
-                              "line": 32
-                            },
-                            "snippet": "  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                                "column": 16,
-                                "line": 32
-                              },
-                              "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n\n  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16"
-                            }
-                          ],
-                          "stdout": [
-                            {
-                              "text": "📝 Testing with document ID: test-doc-1754392283913-281ibbussv2\n"
-                            }
-                          ],
-                          "stderr": [],
-                          "retry": 0,
-                          "startTime": "2025-08-05T11:11:22.507Z",
-                          "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-chromium/test-failed-1.png"
-                            },
-                            {
-                              "name": "video",
-                              "contentType": "video/webm",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-chromium/video.webm"
-                            },
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-chromium/trace.zip"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                            "column": 16,
-                            "line": 32
-                          }
+                          "text": "🔍 Identifying specific error causes...\n"
+                        },
+                        {
+                          "text": "\n🚨 ERROR SUMMARY:\n"
+                        },
+                        {
+                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "✅ No errors detected - app should be working correctly\n"
                         }
                       ],
-                      "status": "unexpected"
-                    }
-                  ],
-                  "id": "fa162f1122383cc64f9e-f090c089b8d88782ab82",
-                  "file": "pre-deployment-fixes.spec.js",
-                  "line": 37,
-                  "column": 5
-                },
-                {
-                  "title": "should show documents with their actual titles in My Links pane",
-                  "ok": false,
-                  "tags": [],
-                  "tests": [
-                    {
-                      "timeout": 60000,
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-05T11:34:23.286Z",
                       "annotations": [],
-                      "expectedStatus": "passed",
-                      "projectId": "firefox",
-                      "projectName": "firefox",
-                      "results": [
-                        {
-                          "workerIndex": 1,
-                          "parallelIndex": 1,
-                          "status": "failed",
-                          "duration": 11283,
-                          "error": {
-                            "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n",
-                            "stack": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16",
-                            "location": {
-                              "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                              "column": 16,
-                              "line": 32
-                            },
-                            "snippet": "  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                                "column": 16,
-                                "line": 32
-                              },
-                              "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n\n  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16"
-                            }
-                          ],
-                          "stdout": [
-                            {
-                              "text": "📝 Testing with document ID: test-doc-1754392284000-1nk42ls1n72\n"
-                            }
-                          ],
-                          "stderr": [],
-                          "retry": 0,
-                          "startTime": "2025-08-05T11:11:22.507Z",
-                          "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-firefox/test-failed-1.png"
-                            },
-                            {
-                              "name": "video",
-                              "contentType": "video/webm",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-firefox/video.webm"
-                            },
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-firefox/trace.zip"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                            "column": 16,
-                            "line": 32
-                          }
-                        }
-                      ],
-                      "status": "unexpected"
+                      "attachments": []
                     }
                   ],
-                  "id": "fa162f1122383cc64f9e-a14c6653249031f2a4ca",
-                  "file": "pre-deployment-fixes.spec.js",
-                  "line": 37,
-                  "column": 5
-                },
-                {
-                  "title": "should show documents with their actual titles in My Links pane",
-                  "ok": false,
-                  "tags": [],
-                  "tests": [
-                    {
-                      "timeout": 60000,
-                      "annotations": [],
-                      "expectedStatus": "passed",
-                      "projectId": "webkit",
-                      "projectName": "webkit",
-                      "results": [
-                        {
-                          "workerIndex": 2,
-                          "parallelIndex": 2,
-                          "status": "failed",
-                          "duration": 10389,
-                          "error": {
-                            "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n",
-                            "stack": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16",
-                            "location": {
-                              "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                              "column": 16,
-                              "line": 32
-                            },
-                            "snippet": "  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |"
-                          },
-                          "errors": [
-                            {
-                              "location": {
-                                "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                                "column": 16,
-                                "line": 32
-                              },
-                              "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror') to be visible\u001b[22m\n\n\n  30 |     \n  31 |     // Wait for editor to load\n> 32 |     await page.waitForSelector('.ProseMirror', { timeout: 10000 });\n     |                ^\n  33 |     await page.waitForTimeout(2000); // Allow collaborative setup\n  34 |   });\n  35 |\n    at /Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js:32:16"
-                            }
-                          ],
-                          "stdout": [
-                            {
-                              "text": "📝 Testing with document ID: test-doc-1754392282901-c9t3mgn8x0t\n"
-                            }
-                          ],
-                          "stderr": [],
-                          "retry": 0,
-                          "startTime": "2025-08-05T11:11:22.507Z",
-                          "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "screenshot",
-                              "contentType": "image/png",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-webkit/test-failed-1.png"
-                            },
-                            {
-                              "name": "video",
-                              "contentType": "video/webm",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-webkit/video.webm"
-                            },
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results/pre-deployment-fixes-Pre-D-5ba24-ual-titles-in-My-Links-pane-webkit/trace.zip"
-                            }
-                          ],
-                          "errorLocation": {
-                            "file": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e/pre-deployment-fixes.spec.js",
-                            "column": 16,
-                            "line": 32
-                          }
-                        }
-                      ],
-                      "status": "unexpected"
-                    }
-                  ],
-                  "id": "fa162f1122383cc64f9e-aaca5dfc28aed3a4ac3c",
-                  "file": "pre-deployment-fixes.spec.js",
-                  "line": 37,
-                  "column": 5
+                  "status": "expected"
                 }
-              ]
+              ],
+              "id": "f3e553686b2c6eeb36b4-64d09aa9c4d75072b108",
+              "file": "debug-service-issues.spec.js",
+              "line": 202,
+              "column": 3
+            },
+            {
+              "title": "should identify specific error causes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1631,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🔍 Identifying specific error causes...\n"
+                        },
+                        {
+                          "text": "\n🚨 ERROR SUMMARY:\n"
+                        },
+                        {
+                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "✅ No errors detected - app should be working correctly\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-05T11:34:23.286Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f3e553686b2c6eeb36b4-111688841b68be065c0e",
+              "file": "debug-service-issues.spec.js",
+              "line": 202,
+              "column": 3
+            },
+            {
+              "title": "should identify specific error causes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1319,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🔍 Identifying specific error causes...\n"
+                        },
+                        {
+                          "text": "\n🚨 ERROR SUMMARY:\n"
+                        },
+                        {
+                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
+                        },
+                        {
+                          "text": "✅ No errors detected - app should be working correctly\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-08-05T11:34:23.286Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f3e553686b2c6eeb36b4-232618060b245370c063",
+              "file": "debug-service-issues.spec.js",
+              "line": 202,
+              "column": 3
             }
           ]
         }
@@ -362,11 +269,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-08-05T11:11:22.248Z",
-    "duration": 12278.556999999999,
-    "expected": 0,
+    "startTime": "2025-08-05T11:34:23.042Z",
+    "duration": 2505.576,
+    "expected": 3,
     "skipped": 0,
-    "unexpected": 3,
+    "unexpected": 0,
     "flaky": 0
   }
 }
