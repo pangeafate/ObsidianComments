@@ -7,46 +7,8 @@ export const extractSmartTitle = (htmlContent: string): string => {
   }
 
   try {
-    // Parse HTML content to extract text
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlContent, 'text/html');
-    
-    // Get all text content without HTML tags
-    const textContent = doc.body.textContent || doc.body.innerText || '';
-    
-    // Split into lines and find first non-empty line
-    const lines = textContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-    
-    if (lines.length === 0) {
-      return `New Document ${new Date().toLocaleDateString()}`;
-    }
-    
-    // Use first meaningful line as title
-    let title = lines[0];
-    
-    // Clean up the title
-    title = title
-      .replace(/^#+\s*/, '') // Remove markdown headers (# ## ###)
-      .replace(/^\*+\s*/, '') // Remove bullet points (* **)  
-      .replace(/^\d+\.\s*/, '') // Remove numbered lists (1. 2.)
-      .replace(/^[-•]\s*/, '') // Remove dashes and bullets
-      .trim();
-    
-    // Limit title length for display
-    if (title.length > 60) {
-      title = title.substring(0, 57) + '...';
-    }
-    
-    // Fallback if title is empty or too short
-    if (title.length < 3) {
-      return `New Document ${new Date().toLocaleDateString()}`;
-    }
-    
-    console.log('📝 Smart title extracted:', title);
-    return title;
+    // Use the simple version which properly handles line breaks
+    return extractSmartTitleSimple(htmlContent);
     
   } catch (error) {
     console.error('❌ Smart title extraction failed:', error);
