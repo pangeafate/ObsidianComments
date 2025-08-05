@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global background fix for consistent gray theme */
+body {
+  background-color: #f3f4f6; /* bg-gray-100 */
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  background-color: #f3f4f6; /* bg-gray-100 */
+  min-height: 100vh;
+}
+
 /* Tiptap Editor Styles */
 .ProseMirror {
   outline: none;

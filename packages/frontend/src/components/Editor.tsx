@@ -23,6 +23,7 @@ import { markdownToProseMirror } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
 import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
 import { extractSmartTitle } from '../utils/smartTitle';
+import { generateUserColor } from '../utils/userColors';
 
 interface EditorProps {
   documentId: string;
@@ -32,8 +33,8 @@ export function Editor({ documentId }: EditorProps) {
   const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
   
-  // Track this document in user's links
-  useLinkTracking(documentId);
+  // Track this document in user's links with dynamic title
+  useLinkTracking(documentId, documentTitle);
 
   // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
@@ -79,8 +80,8 @@ export function Editor({ documentId }: EditorProps) {
   
   useEffect(() => {
     if (currentUser) {
-      // Generate color once when user is first set
-      const color = userColor || generatePastelColor();
+      // Generate consistent color based on user name to match track changes
+      const color = userColor || generateUserColor(currentUser);
       if (!userColor) {
         setUserColor(color);
       }
@@ -126,7 +127,7 @@ export function Editor({ documentId }: EditorProps) {
         provider: provider,
         user: currentUser ? {
           name: currentUser,
-          color: userColor || generatePastelColor(),
+          color: userColor || generateUserColor(currentUser),
         } : undefined,
       })] : []),
       TaskList,
@@ -143,7 +144,7 @@ export function Editor({ documentId }: EditorProps) {
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose max-w-none focus:outline-none min-h-screen p-4',
+        class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
       },
       handleTextInput: (_view, from, _to, text) => {
         // Auto-apply track changes to new text input
@@ -352,10 +353,10 @@ export function Editor({ documentId }: EditorProps) {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col bg-gray-100">
       <UserNamePopup onNameSet={handleNameSet} />
       
-      <div className="border-b p-4 flex justify-between items-center">
+      <div className="border-b bg-white p-4 flex justify-between items-center">
         <h1 className="text-xl font-semibold">{documentTitle}</h1>
         <div className="flex items-center gap-4">
           <UserPresence users={users} />
@@ -389,8 +390,8 @@ export function Editor({ documentId }: EditorProps) {
       {/* Track Changes Toolbar */}
       {editor && <TrackChangesToolbar editor={editor} />}
       
-      <div className="flex-1 flex relative">
-        <div className="flex-1 overflow-auto">
+      <div className="flex-1 flex relative bg-gray-100">
+        <div className="flex-1 overflow-auto bg-gray-100">
           <EditorContent editor={editor} />
         </div>
         
@@ -427,7 +428,3 @@ export function Editor({ documentId }: EditorProps) {
   );
 }
 
-function generatePastelColor(): string {
-  const hue = Math.floor(Math.random() * 360);
-  return `hsl(${hue}, 70%, 85%)`;
-}

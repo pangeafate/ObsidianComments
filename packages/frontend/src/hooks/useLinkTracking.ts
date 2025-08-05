@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface Link {
   id: string;
@@ -9,12 +9,14 @@ interface Link {
 
 const LINKS_STORAGE_KEY = 'obsidian-comments-links';
 
-export function useLinkTracking(documentId: string) {
+export function useLinkTracking(documentId: string, dynamicTitle?: string) {
+  const lastTrackedTitleRef = useRef<string>('');
+
   useEffect(() => {
     // Only track if we have a valid document ID
     if (!documentId) return;
 
-    const trackCurrentDocument = () => {
+    const trackCurrentDocument = (currentTitle?: string) => {
       try {
         // Get existing links
         const existingLinksJson = localStorage.getItem(LINKS_STORAGE_KEY);
@@ -33,17 +35,18 @@ export function useLinkTracking(documentId: string) {
           }
         }
 
-        // Generate document title
-        const documentTitle = generateDocumentTitle(documentId);
-        const documentUrl = `${window.location.origin}/editor/${documentId}`;
+        // Use dynamic title if provided, otherwise generate from documentId
+        const documentTitle = currentTitle || generateDocumentTitle(documentId);
+        const documentUrl = `${window.location.origin}/edit/${documentId}`;
 
         // Check if document already exists in links
         const existingLinkIndex = existingLinks.findIndex(link => link.id === documentId);
         
         if (existingLinkIndex >= 0) {
-          // Update existing link's access time
+          // Update existing link's access time and title
           existingLinks[existingLinkIndex] = {
             ...existingLinks[existingLinkIndex],
+            title: documentTitle, // Always update title with latest content
             accessedAt: new Date().toISOString(),
           };
         } else {
@@ -63,14 +66,40 @@ export function useLinkTracking(documentId: string) {
 
         // Save back to localStorage
         localStorage.setItem(LINKS_STORAGE_KEY, JSON.stringify(trimmedLinks));
+        
+        console.log(`📝 Link tracked: "${documentTitle}" for document ${documentId}`);
       } catch (error) {
         console.error('Failed to track document link:', error);
       }
     };
 
     // Track the document when the hook is initialized
-    trackCurrentDocument();
+    trackCurrentDocument(dynamicTitle);
   }, [documentId]);
+
+  // Update title when it changes
+  useEffect(() => {
+    if (dynamicTitle && dynamicTitle !== lastTrackedTitleRef.current) {
+      lastTrackedTitleRef.current = dynamicTitle;
+      
+      // Update the link with new title
+      try {
+        const existingLinksJson = localStorage.getItem(LINKS_STORAGE_KEY);
+        if (existingLinksJson) {
+          const existingLinks: Link[] = JSON.parse(existingLinksJson);
+          const linkIndex = existingLinks.findIndex(link => link.id === documentId);
+          
+          if (linkIndex >= 0) {
+            existingLinks[linkIndex].title = dynamicTitle;
+            localStorage.setItem(LINKS_STORAGE_KEY, JSON.stringify(existingLinks));
+            console.log(`🔄 Link title updated: "${dynamicTitle}" for document ${documentId}`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to update link title:', error);
+      }
+    }
+  }, [dynamicTitle, documentId]);
 }
 
 function generateDocumentTitle(documentId: string): string {
