@@ -50,6 +50,7 @@ export function Editor({ documentId }: EditorProps) {
   // Auto-save state
   const [lastSavedContent, setLastSavedContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [justCreatedDocument, setJustCreatedDocument] = useState<boolean>(false);
 
   // Check if document exists in API (created via Obsidian plugin)
   useEffect(() => {
@@ -163,24 +164,35 @@ export function Editor({ documentId }: EditorProps) {
       console.log('Current editor content length:', yjsContent.length);
       console.log('API content length:', obsidianDocument.content.length);
       
-      // Use safe initialization that handles deduplication
-      initializeContentSafely(
-        yjsContent,
-        obsidianDocument.content,
-        (safeContent) => {
-          try {
-            const proseMirrorDoc = markdownToProseMirror(safeContent);
-            editor.commands.setContent(proseMirrorDoc);
-            console.log('✅ Safe content initialization complete');
-          } catch (error) {
-            console.error('Failed to convert markdown to ProseMirror:', error);
-            // Fallback to plain text
-            editor.commands.setContent(safeContent);
+      // RACE CONDITION FIX: Only initialize if Yjs is truly empty AND we didn't just create this document
+      // This prevents overwriting content that was just typed but not yet persisted
+      if (yXmlFragment.length === 0 && (!yjsContent || yjsContent.trim().length <= 50) && !justCreatedDocument) {
+        console.log('📝 Yjs is empty, initializing with API content');
+        initializeContentSafely(
+          yjsContent,
+          obsidianDocument.content,
+          (safeContent) => {
+            try {
+              const proseMirrorDoc = markdownToProseMirror(safeContent);
+              editor.commands.setContent(proseMirrorDoc);
+              console.log('✅ Safe content initialization complete');
+            } catch (error) {
+              console.error('Failed to convert markdown to ProseMirror:', error);
+              // Fallback to plain text
+              editor.commands.setContent(safeContent);
+            }
           }
-        }
-      );
+        );
+      } else {
+        console.log('⚠️ Skipping API initialization - preventing overwrite');
+        console.log('   Reasons:');
+        console.log('   - Yjs fragment length:', yXmlFragment.length);
+        console.log('   - Yjs content length:', yjsContent?.length || 0);
+        console.log('   - Just created document:', justCreatedDocument);
+        console.log('   This prevents race condition on first refresh after new note creation');
+      }
     }
-  }, [editor, obsidianDocument, isLoadingDocument, ydoc]);
+  }, [editor, obsidianDocument, isLoadingDocument, ydoc, justCreatedDocument]);
 
   // Auto-save function with sanitization and deduplication
   const saveContent = useCallback(async (content: string) => {
@@ -208,7 +220,11 @@ export function Editor({ documentId }: EditorProps) {
         );
         setObsidianDocument(newDocument);
         setDocumentTitle(newDocument.title);
+        setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
         console.log('✅ New document created in database');
+        
+        // Clear the flag after a delay to allow normal initialization later
+        setTimeout(() => setJustCreatedDocument(false), 5000);
       } else {
         // Document exists, just update it
         await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
