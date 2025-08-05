@@ -184,7 +184,7 @@ export function Editor({ documentId }: EditorProps) {
 
   // Auto-save function with sanitization and deduplication
   const saveContent = useCallback(async (content: string) => {
-    if (!obsidianDocument || isSaving) return;
+    if (isSaving) return;
     
     try {
       setIsSaving(true);
@@ -198,7 +198,23 @@ export function Editor({ documentId }: EditorProps) {
       const deduplicatedContent = deduplicateContent(sanitizedContent);
       console.log('🔍 Content deduplicated:', deduplicatedContent.length, 'chars');
       
-      await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
+      // If no document exists in database, create it first
+      if (!obsidianDocument) {
+        console.log('📝 Creating new document in database:', documentId);
+        const newDocument = await extendedDocumentService.createDocument(
+          documentId,
+          `New Document ${new Date().toLocaleDateString()}`,
+          deduplicatedContent
+        );
+        setObsidianDocument(newDocument);
+        setDocumentTitle(newDocument.title);
+        console.log('✅ New document created in database');
+      } else {
+        // Document exists, just update it
+        await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
+        console.log('✅ Existing document updated');
+      }
+      
       setLastSavedContent(deduplicatedContent);
       console.log('✅ Save complete with sanitization and deduplication');
       
@@ -211,7 +227,7 @@ export function Editor({ documentId }: EditorProps) {
 
   // Auto-save with debouncing and change detection
   useEffect(() => {
-    if (!editor || !obsidianDocument) return;
+    if (!editor) return;
 
     let timeoutId: NodeJS.Timeout;
     
@@ -238,7 +254,7 @@ export function Editor({ documentId }: EditorProps) {
       editor.off('update', handleUpdate);
       clearTimeout(timeoutId);
     };
-  }, [editor, obsidianDocument, lastSavedContent, saveContent]);
+  }, [editor, lastSavedContent, saveContent]);
 
   // Debug functions for testing (development only)
   useEffect(() => {
