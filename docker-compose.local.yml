@@ -25,7 +25,7 @@ services:
       DATABASE_URL: postgresql://obsidian:obsidian_local@postgres-local:5432/obsidian_local
       REDIS_URL: redis://redis-local:6379
     ports:
-      - "8091:8081"  # Use different port to avoid conflicts
+      - "8081:8081"  # Match frontend expectations
     depends_on:
       - postgres-local
       - redis-local
@@ -42,7 +42,7 @@ services:
       DATABASE_URL: postgresql://obsidian:obsidian_local@postgres-local:5432/obsidian_local
       REDIS_URL: redis://redis-local:6379
     ports:
-      - "8092:8082"  # Use different port to avoid conflicts
+      - "8082:8082"  # Match frontend expectations
     depends_on:
       - postgres-local
       - redis-local

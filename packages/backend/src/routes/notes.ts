@@ -34,14 +34,26 @@ router.get('/:shareId', async (req, res, next) => {
   }
 });
 
-// PUT /api/notes/:shareId - Update document
+// PUT /api/notes/:shareId - Update or create document with specific ID
 router.put('/:shareId', async (req, res, next) => {
   try {
     const { shareId } = validateShareId(req.params);
     const { content } = validateNoteContent(req.body);
-    const result = await updateSharedNote(shareId, content);
     
-    res.json(result);
+    // Check if document exists
+    try {
+      const result = await updateSharedNote(shareId, content);
+      res.json(result);
+    } catch (error: any) {
+      // If document doesn't exist, create it with the specific ID
+      if (error.message.includes('not found') || error.message.includes('Not found')) {
+        console.log(`Creating new document with ID: ${shareId}`);
+        const result = await createSharedNote(content, shareId);
+        res.status(201).json(result);
+      } else {
+        throw error;
+      }
+    }
   } catch (error) {
     next(error);
   }

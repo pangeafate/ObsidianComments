@@ -50,6 +50,7 @@ class DocumentService {
       return false;
     }
   }
+
 }
 
 export const documentService = new DocumentService();
