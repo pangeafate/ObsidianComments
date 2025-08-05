@@ -22,6 +22,7 @@ import { extendedDocumentService } from '../services/documentServiceExtensions';
 import { markdownToProseMirror } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
 import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
+import { extractSmartTitle } from '../utils/smartTitle';
 
 interface EditorProps {
   documentId: string;
@@ -213,21 +214,36 @@ export function Editor({ documentId }: EditorProps) {
       // If no document exists in database, create it first
       if (!obsidianDocument) {
         console.log('📝 Creating new document in database:', documentId);
+        
+        // Extract smart title from content
+        const smartTitle = extractSmartTitle(deduplicatedContent);
+        console.log('🧠 Smart title extracted:', smartTitle);
+        
         const newDocument = await extendedDocumentService.createDocument(
           documentId,
-          `New Document ${new Date().toLocaleDateString()}`,
+          smartTitle,
           deduplicatedContent
         );
         setObsidianDocument(newDocument);
         setDocumentTitle(newDocument.title);
         setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
-        console.log('✅ New document created in database');
+        console.log('✅ New document created in database with smart title');
         
         // Clear the flag after a delay to allow normal initialization later
         setTimeout(() => setJustCreatedDocument(false), 5000);
       } else {
-        // Document exists, just update it
+        // Document exists, update it and potentially update title
         await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
+        
+        // Update title if content has changed significantly
+        const currentSmartTitle = extractSmartTitle(deduplicatedContent);
+        if (currentSmartTitle !== documentTitle && currentSmartTitle !== `New Document ${new Date().toLocaleDateString()}`) {
+          console.log('🧠 Title updated from content:', currentSmartTitle);
+          setDocumentTitle(currentSmartTitle);
+          // Note: We don't update the title in the database here to avoid too many API calls
+          // The title in DB will be updated on next document creation/major save
+        }
+        
         console.log('✅ Existing document updated');
       }
       
