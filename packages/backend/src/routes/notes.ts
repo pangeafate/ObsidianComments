@@ -18,8 +18,9 @@ const router = Router();
 // POST /api/notes/share - Create a new shared document
 router.post('/share', async (req, res, next) => {
   try {
-    const { title, content, metadata } = validateNoteShare(req.body);
-    const result = await createSharedNote({ title, content, metadata });
+    const { title, content, metadata, shareId } = req.body;
+    const validated = validateNoteShare({ title, content, metadata });
+    const result = await createSharedNote(validated, shareId);
     
     res.status(201).json(result);
   } catch (error) {

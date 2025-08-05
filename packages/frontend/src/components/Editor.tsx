@@ -68,9 +68,30 @@ export function Editor({ documentId }: EditorProps) {
           const document = await documentService.loadDocument(documentId);
           setObsidianDocument(document);
           setDocumentTitle(document.title);
+          console.log('✅ Loaded existing document from database:', document.title);
+        } else {
+          // Document doesn't exist - create it immediately with default content
+          console.log('📝 Document not found, creating new document in database:', documentId);
+          
+          const defaultTitle = `New Document ${new Date().toLocaleDateString()}`;
+          const defaultContent = `# ${defaultTitle}\n\nStart typing here...`;
+          
+          const newDocument = await extendedDocumentService.createDocument(
+            documentId,
+            defaultTitle,
+            defaultContent
+          );
+          
+          setObsidianDocument(newDocument);
+          setDocumentTitle(newDocument.title);
+          setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
+          console.log('✅ New document created in database with default content:', newDocument.title);
+          
+          // Clear the flag after a delay to allow normal initialization later
+          setTimeout(() => setJustCreatedDocument(false), 5000);
         }
       } catch (error) {
-        console.error('Failed to load document from API:', error);
+        console.error('Failed to load or create document from API:', error);
         // Fallback to regular collaboration
         setObsidianDocument(null);
       } finally {

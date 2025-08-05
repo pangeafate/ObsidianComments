@@ -13,7 +13,7 @@ export const extendedDocumentService = {
       const docTitle = title || 'New Document';
       const docContent = content || `# ${docTitle}\n\nStart typing here...`;
       
-      // Use POST to create document, then check if we can retrieve it with the custom ID
+      // Use POST to create document with custom ID
       const createResponse = await fetch(`${baseUrl}/notes/share`, {
         method: 'POST',
         headers: {
@@ -22,6 +22,7 @@ export const extendedDocumentService = {
         body: JSON.stringify({
           title: docTitle,
           content: docContent,
+          shareId: documentId, // Pass the document ID as shareId
         }),
       });
 
