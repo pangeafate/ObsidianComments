@@ -1,0 +1,264 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: obsidian_comments_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd packages/backend && npm ci
+        cd ../frontend && npm ci
+        cd ../hocuspocus && npm ci
+
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test
+        cd packages/backend && npx prisma generate
+        
+    - name: Run backend unit tests
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test_jwt_secret
+        NODE_ENV: test
+      run: |
+        cd packages/backend
+        npx prisma migrate deploy
+        npm test
+
+    - name: Run frontend unit tests
+      run: |
+        cd packages/frontend
+        npm test
+
+    - name: Run hocuspocus unit tests  
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
+        REDIS_URL: redis://localhost:6379
+        NODE_ENV: test
+      run: |
+        cd packages/hocuspocus
+        npx prisma generate
+        npm test
+
+    - name: Build frontend
+      env:
+        VITE_API_URL: http://localhost:8081/api
+        VITE_WS_URL: ws://localhost:8082
+      run: |
+        cd packages/frontend
+        npm run build
+
+    - name: Build backend
+      run: |
+        cd packages/backend
+        npm run build
+
+    - name: Build hocuspocus
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
+      run: |
+        cd packages/hocuspocus
+        npm run build
+
+  e2e-test:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: obsidian_comments_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd packages/backend && npm ci
+        cd ../frontend && npm ci
+        cd ../hocuspocus && npm ci
+
+    - name: Install Playwright
+      run: npx playwright install --with-deps chromium
+
+    - name: Build all services
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
+        VITE_API_URL: http://localhost:8081/api
+        VITE_WS_URL: ws://localhost:8082
+      run: |
+        cd packages/backend && npx prisma generate && npm run build
+        cd ../frontend && npm run build  
+        cd ../hocuspocus && npx prisma generate && npm run build
+
+    - name: Start services for E2E testing
+      env:
+        DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test_jwt_secret
+        NODE_ENV: test
+        PORT: 8081
+      run: |
+        cd packages/backend
+        npx prisma migrate deploy
+        npm start &
+        cd ../hocuspocus
+        PORT=8082 npm start &
+        cd ../frontend
+        npm run preview -- --port 3001 &
+        
+        # Wait for services to start
+        sleep 30
+
+    - name: Run E2E tests
+      env:
+        TEST_URL: http://localhost:3001
+      run: |
+        npx playwright test tests/e2e/critical-path.spec.js --project=chromium
+        npx playwright test tests/e2e/collaboration-tdd.spec.js --project=chromium --max-failures=5
+
+    - name: Upload Playwright report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test, e2e-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd packages/backend && npm ci
+        cd ../frontend && npm ci
+        cd ../hocuspocus && npm ci
+
+    - name: Build production assets
+      env:
+        VITE_API_URL: https://obsidiancomments.serverado.app/api
+        VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
+        NODE_ENV: production
+      run: |
+        cd packages/backend && npm run build
+        cd ../frontend && npm run build
+        cd ../hocuspocus && npm run build
+
+    - name: Deploy to production server
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      run: |
+        echo "$DEPLOY_KEY" > deploy_key
+        chmod 600 deploy_key
+        
+        # Upload built assets
+        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
+        
+        # Restart services
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+          cd /opt/obsidian-comments
+          pm2 restart obsidian-backend
+          pm2 restart obsidian-hocuspocus
+          docker restart obsidian-nginx
+        EOF
+        
+        rm deploy_key
+
+    - name: Run production health check
+      run: |
+        sleep 30
+        curl -f https://obsidiancomments.serverado.app/api/health
+        echo "✅ Production deployment successful"

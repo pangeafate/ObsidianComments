@@ -9,11 +9,11 @@ export interface DocumentData {
 }
 
 class DocumentService {
-  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
 
   async loadDocument(documentId: string): Promise<DocumentData> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/notes/${documentId}`, {
+      const response = await fetch(`${this.baseUrl}/notes/${documentId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -38,7 +38,7 @@ class DocumentService {
 
   async checkDocumentExists(documentId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/notes/${documentId}`, {
+      const response = await fetch(`${this.baseUrl}/notes/${documentId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

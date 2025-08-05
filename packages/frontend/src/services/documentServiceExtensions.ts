@@ -9,51 +9,43 @@ export const extendedDocumentService = {
   
   async createDocument(documentId: string, title?: string, content?: string): Promise<DocumentData> {
     try {
-      // First, try to create with the specific ID using PUT
-      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081';
-      const response = await fetch(`${baseUrl}/api/notes/${documentId}`, {
-        method: 'PUT',
+      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081/api';
+      const docTitle = title || 'New Document';
+      const docContent = content || `# ${docTitle}\n\nStart typing here...`;
+      
+      // Use POST to create document, then check if we can retrieve it with the custom ID
+      const createResponse = await fetch(`${baseUrl}/notes/share`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content: content || `# ${title || 'New Document'}\n\nStart typing here...`,
+          title: docTitle,
+          content: docContent,
         }),
       });
 
-      if (!response.ok) {
-        // If PUT fails, try POST to create with auto-generated ID
-        const createResponse = await fetch(`${baseUrl}/api/notes/share`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content: content || `# ${title || 'New Document'}\n\nStart typing here...`,
-          }),
-        });
-
-        if (!createResponse.ok) {
-          throw new Error('Failed to create document');
-        }
-
-        const createResult = await createResponse.json();
-        
-        // Return the document data in expected format
-        return {
-          shareId: createResult.shareId,
-          title: title || 'New Document',
-          content: content || `# ${title || 'New Document'}\n\nStart typing here...`,
-          createdAt: createResult.createdAt,
-          updatedAt: createResult.createdAt,
-          permissions: 'edit',
-          collaborativeUrl: createResult.shareUrl,
-        };
+      if (!createResponse.ok) {
+        const errorText = await createResponse.text();
+        console.error('❌ Create response error:', errorText);
+        throw new Error(`Failed to create document: ${createResponse.status} ${errorText}`);
       }
 
-      // If PUT succeeded, fetch the created document
-      return await documentService.loadDocument(documentId);
+      const createResult = await createResponse.json();
+      console.log('✅ Document created via API:', createResult);
+      
+      // Return the document data in expected format
+      return {
+        shareId: createResult.shareId,
+        title: docTitle,
+        content: docContent,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        permissions: 'edit',
+        collaborativeUrl: createResult.collaborativeUrl,
+      };
     } catch (error) {
+      console.error('❌ Failed to create document:', error);
       if (error instanceof Error) {
         throw error;
       }
@@ -61,10 +53,12 @@ export const extendedDocumentService = {
     }
   },
   
-  async saveDocument(documentId: string, content: string): Promise<void> {
+  async saveDocument(documentId: string, content: string, title?: string): Promise<void> {
     try {
-      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081';
-      const response = await fetch(`${baseUrl}/api/notes/${documentId}`, {
+      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081/api';
+      
+      // Update content
+      const response = await fetch(`${baseUrl}/notes/${documentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -75,10 +69,33 @@ export const extendedDocumentService = {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save document');
+        const errorText = await response.text();
+        console.error('❌ Save content response error:', errorText);
+        throw new Error(`Failed to save document content: ${response.status} ${errorText}`);
+      }
+      
+      console.log('✅ Document content saved successfully');
+
+      // Update title if provided
+      if (title) {
+        const titleResponse = await fetch(`${baseUrl}/notes/${documentId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title,
+          }),
+        });
+
+        if (!titleResponse.ok) {
+          console.warn('⚠️ Failed to update document title, but content was saved');
+        } else {
+          console.log('✅ Document title updated successfully');
+        }
       }
     } catch (error) {
-      console.error('Failed to save document:', error);
+      console.error('❌ Failed to save document:', error);
       throw error;
     }
   }

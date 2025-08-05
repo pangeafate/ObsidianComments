@@ -242,15 +242,21 @@ export function Editor({ documentId }: EditorProps) {
         setTimeout(() => setJustCreatedDocument(false), 5000);
       } else {
         // Document exists, update it and potentially update title
-        await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
-        
-        // Update title if content has changed significantly
         const currentSmartTitle = extractSmartTitle(deduplicatedContent);
-        if (currentSmartTitle !== documentTitle && currentSmartTitle !== `New Document ${new Date().toLocaleDateString()}`) {
+        const titleChanged = currentSmartTitle !== documentTitle && 
+          currentSmartTitle !== `New Document ${new Date().toLocaleDateString()}`;
+        
+        // Save content and title together
+        await extendedDocumentService.saveDocument(
+          documentId, 
+          deduplicatedContent, 
+          titleChanged ? currentSmartTitle : undefined
+        );
+        
+        // Update local title state if it changed
+        if (titleChanged) {
           console.log('🧠 Title updated from content:', currentSmartTitle);
           setDocumentTitle(currentSmartTitle);
-          // Note: We don't update the title in the database here to avoid too many API calls
-          // The title in DB will be updated on next document creation/major save
         }
         
         console.log('✅ Existing document updated');
@@ -265,6 +271,16 @@ export function Editor({ documentId }: EditorProps) {
       setIsSaving(false);
     }
   }, [documentId, obsidianDocument, isSaving]);
+
+  // Update page title when document title changes
+  useEffect(() => {
+    if (documentTitle && documentTitle !== 'Collaborative Editor') {
+      document.title = `${documentTitle} - Obsidian Comments`;
+      console.log('📋 Page title updated to:', document.title);
+    } else {
+      document.title = 'Obsidian Comments';
+    }
+  }, [documentTitle]);
 
   // Auto-save with debouncing and change detection
   useEffect(() => {
