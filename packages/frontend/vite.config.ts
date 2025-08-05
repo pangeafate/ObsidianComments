@@ -14,10 +14,10 @@ export default defineConfig({
     },
   },
   build: {
-    // Use esbuild minifier (default) which doesn't require eval
-    minify: 'esbuild',
-    // Generate source maps as separate files instead of eval
-    sourcemap: false,
+    // Temporarily disable minification for debugging
+    minify: false,
+    // Enable source maps for debugging
+    sourcemap: true,
     // Ensure no eval() calls in production bundle
     rollupOptions: {
       output: {

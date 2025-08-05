@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
@@ -18,7 +18,10 @@ import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
 import { documentService, DocumentData } from '../services/documentService';
+import { extendedDocumentService } from '../services/documentServiceExtensions';
 import { markdownToProseMirror } from '../utils/markdownConverter';
+import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
+import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
 
 interface EditorProps {
   documentId: string;
@@ -43,6 +46,10 @@ export function Editor({ documentId }: EditorProps) {
   const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
   const [documentTitle, setDocumentTitle] = useState<string>('Collaborative Editor');
+  
+  // Auto-save state
+  const [lastSavedContent, setLastSavedContent] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Check if document exists in API (created via Obsidian plugin)
   useEffect(() => {
@@ -138,42 +145,117 @@ export function Editor({ documentId }: EditorProps) {
       },
       handleTextInput: (_view, from, _to, text) => {
         // Auto-apply track changes to new text input
-        if (editor?.commands && editor.state.doc.nodeSize > from + text.length) {
-          setTimeout(() => {
-            try {
-              editor.commands.setTextSelection({ from, to: from + text.length });
-              editor.commands.addTrackChanges();
-            } catch (error) {
-              console.warn('Track changes selection failed:', error);
-            }
-          }, 0);
-        }
+        // Note: Removed editor self-reference to fix initialization error
+        // Track changes will be handled by the extension automatically
         return false;
       },
     },
   }, [provider, currentUser, userColor, ydoc]);
 
-  // Initialize editor with Obsidian content only if Yjs document is empty
+  // Initialize editor with safe content deduplication
   useEffect(() => {
     if (editor && obsidianDocument && !isLoadingDocument && ydoc) {
-      // Only set content if the Yjs document is empty (new document)
       const yXmlFragment = ydoc.getXmlFragment('content');
-      // Check if the fragment is empty
-      if (yXmlFragment.length === 0) {
-        console.log('📝 Initializing empty Yjs document with API content');
-        try {
-          const proseMirrorDoc = markdownToProseMirror(obsidianDocument.content);
-          editor.commands.setContent(proseMirrorDoc);
-        } catch (error) {
-          console.error('Failed to convert markdown to ProseMirror:', error);
-          // Fallback to plain text
-          editor.commands.setContent(obsidianDocument.content);
+      const yjsContent = editor.getHTML();
+      
+      console.log('🛡️ Starting safe content initialization');
+      console.log('Yjs fragment length:', yXmlFragment.length);
+      console.log('Current editor content length:', yjsContent.length);
+      console.log('API content length:', obsidianDocument.content.length);
+      
+      // Use safe initialization that handles deduplication
+      initializeContentSafely(
+        yjsContent,
+        obsidianDocument.content,
+        (safeContent) => {
+          try {
+            const proseMirrorDoc = markdownToProseMirror(safeContent);
+            editor.commands.setContent(proseMirrorDoc);
+            console.log('✅ Safe content initialization complete');
+          } catch (error) {
+            console.error('Failed to convert markdown to ProseMirror:', error);
+            // Fallback to plain text
+            editor.commands.setContent(safeContent);
+          }
         }
-      } else {
-        console.log('✅ Yjs document has content, skipping API content initialization');
-      }
+      );
     }
   }, [editor, obsidianDocument, isLoadingDocument, ydoc]);
+
+  // Auto-save function with sanitization and deduplication
+  const saveContent = useCallback(async (content: string) => {
+    if (!obsidianDocument || isSaving) return;
+    
+    try {
+      setIsSaving(true);
+      console.log('💾 Saving content:', content.length, 'chars');
+      
+      // First, sanitize track changes markup
+      const sanitizedContent = stripTrackChangesMarkup(content);
+      console.log('🧹 Content sanitized:', sanitizedContent.length, 'chars');
+      
+      // Then, deduplicate any duplicated content
+      const deduplicatedContent = deduplicateContent(sanitizedContent);
+      console.log('🔍 Content deduplicated:', deduplicatedContent.length, 'chars');
+      
+      await extendedDocumentService.saveDocument(documentId, deduplicatedContent);
+      setLastSavedContent(deduplicatedContent);
+      console.log('✅ Save complete with sanitization and deduplication');
+      
+    } catch (error) {
+      console.error('❌ Failed to save content:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [documentId, obsidianDocument, isSaving]);
+
+  // Auto-save with debouncing and change detection
+  useEffect(() => {
+    if (!editor || !obsidianDocument) return;
+
+    let timeoutId: NodeJS.Timeout;
+    
+    const handleUpdate = () => {
+      const currentContent = editor.getHTML();
+      
+      // Only save if content has actually changed
+      if (currentContent !== lastSavedContent && currentContent.trim() !== '') {
+        // Clear existing timeout
+        clearTimeout(timeoutId);
+        
+        // Set new timeout for debounced save
+        timeoutId = setTimeout(() => {
+          console.log('🔄 Content changed, triggering auto-save');
+          saveContent(currentContent);
+        }, 2000); // 2 second debounce
+      }
+    };
+
+    // Listen to editor updates
+    editor.on('update', handleUpdate);
+    
+    return () => {
+      editor.off('update', handleUpdate);
+      clearTimeout(timeoutId);
+    };
+  }, [editor, obsidianDocument, lastSavedContent, saveContent]);
+
+  // Debug functions for testing (development only)
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as any).editorFunctions = {
+        stripTrackChangesMarkup,
+        getEditorContent: () => editor?.getHTML() || '',
+        getLastSavedContent: () => lastSavedContent,
+        debugEditor: () => ({
+          hasEditor: !!editor,
+          hasDocument: !!obsidianDocument,
+          isSaving,
+          lastSavedLength: lastSavedContent.length
+        })
+      };
+    }
+  }, [editor, obsidianDocument, isSaving, lastSavedContent]);
 
 
   const handleAddComment = (comment: {
