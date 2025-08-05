@@ -9,5 +9,7 @@ module.exports = {
     '!src/index.ts'
   ],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  testTimeout: 10000
+  testTimeout: 10000,
+  // Environment variables for testing
+  setupFiles: ['<rootDir>/src/__tests__/env-setup.ts']
 };

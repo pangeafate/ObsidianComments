@@ -6,15 +6,20 @@ import {
   deleteSharedNote, 
   listSharedNotes 
 } from '../services/notesService';
-import { validateNoteContent, validateShareId } from '../utils/validation';
+import { 
+  validateNoteShare, 
+  validateNoteUpdate, 
+  validateNoteTitleUpdate, 
+  validateShareId 
+} from '../utils/validation';
 
 const router = Router();
 
 // POST /api/notes/share - Create a new shared document
 router.post('/share', async (req, res, next) => {
   try {
-    const { content } = validateNoteContent(req.body);
-    const result = await createSharedNote(content);
+    const { title, content, metadata } = validateNoteShare(req.body);
+    const result = await createSharedNote({ title, content, metadata });
     
     res.status(201).json(result);
   } catch (error) {
@@ -34,26 +39,27 @@ router.get('/:shareId', async (req, res, next) => {
   }
 });
 
-// PUT /api/notes/:shareId - Update or create document with specific ID
+// PUT /api/notes/:shareId - Update document content
 router.put('/:shareId', async (req, res, next) => {
   try {
     const { shareId } = validateShareId(req.params);
-    const { content } = validateNoteContent(req.body);
+    const { content } = validateNoteUpdate(req.body);
     
-    // Check if document exists
-    try {
-      const result = await updateSharedNote(shareId, content);
-      res.json(result);
-    } catch (error: any) {
-      // If document doesn't exist, create it with the specific ID
-      if (error.message.includes('not found') || error.message.includes('Not found')) {
-        console.log(`Creating new document with ID: ${shareId}`);
-        const result = await createSharedNote(content, shareId);
-        res.status(201).json(result);
-      } else {
-        throw error;
-      }
-    }
+    const result = await updateSharedNote(shareId, { content });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/notes/:shareId - Update document title
+router.patch('/:shareId', async (req, res, next) => {
+  try {
+    const { shareId } = validateShareId(req.params);
+    const { title } = validateNoteTitleUpdate(req.body);
+    
+    const result = await updateSharedNote(shareId, { title });
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }
@@ -65,7 +71,7 @@ router.delete('/:shareId', async (req, res, next) => {
     const { shareId } = validateShareId(req.params);
     await deleteSharedNote(shareId);
     
-    res.status(204).send();
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }
@@ -74,7 +80,10 @@ router.delete('/:shareId', async (req, res, next) => {
 // GET /api/notes - List all shared documents
 router.get('/', async (req, res, next) => {
   try {
-    const result = await listSharedNotes();
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+    
+    const result = await listSharedNotes(limit, offset);
     
     res.json(result);
   } catch (error) {

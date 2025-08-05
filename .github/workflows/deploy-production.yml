@@ -1,0 +1,212 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm ci --prefix packages/backend
+        npm ci --prefix packages/frontend
+        npm ci --prefix packages/hocuspocus
+
+    - name: Generate Prisma client
+      run: |
+        cd packages/backend
+        npx prisma generate
+        DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db" npx prisma migrate deploy
+
+    - name: Run backend tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
+        NODE_ENV: test
+      run: |
+        cd packages/backend
+        npm test
+
+    - name: Run frontend tests
+      run: |
+        cd packages/frontend
+        npm test
+
+    - name: Build applications
+      run: |
+        cd packages/backend && npm run build
+        cd ../frontend && npm run build
+        cd ../hocuspocus && npm run build
+
+    - name: Run production API tests (will fail until deployed)
+      run: |
+        npx playwright install --with-deps
+        npm run test:production || echo "Production tests failed as expected before deployment"
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service: [backend, frontend, hocuspocus]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/${{ matrix.service }}
+        file: ./packages/${{ matrix.service }}/Dockerfile.production
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to production server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        port: ${{ secrets.PRODUCTION_PORT || 22 }}
+        script: |
+          # Navigate to deployment directory
+          cd /opt/obsidian-comments
+          
+          # Pull latest images
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Update docker-compose with new images
+          export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+          export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
+          export HOCUSPOCUS_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hocuspocus:latest
+          
+          # Set production environment variables
+          export POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+          export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+          export CORS_ORIGIN="https://obsidiancomments.serverado.app"
+          
+          # Deploy with docker-compose
+          docker-compose -f docker-compose.production.yml pull
+          docker-compose -f docker-compose.production.yml up -d --remove-orphans
+          
+          # Cleanup old images
+          docker image prune -af
+
+    - name: Run post-deployment tests
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        port: ${{ secrets.PRODUCTION_PORT || 22 }}
+        script: |
+          # Wait for services to be ready
+          sleep 30
+          
+          # Check if services are running
+          docker-compose -f /opt/obsidian-comments/docker-compose.production.yml ps
+          
+          # Basic health checks
+          curl -f https://obsidiancomments.serverado.app/health || exit 1
+          curl -f https://obsidiancomments.serverado.app/api/health || exit 1
+
+  run-production-tests:
+    needs: deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright
+      run: npx playwright install --with-deps
+
+    - name: Run production tests
+      run: npm run test:production
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: production-test-results
+        path: test-results/

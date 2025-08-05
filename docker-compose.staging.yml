@@ -1,0 +1,112 @@
+networks:
+  obsidian_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  nginx_logs:
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging_password}
+      POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"  # Different port to avoid conflicts
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"  # Different port to avoid conflicts
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.production
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=http://localhost:3002/api
+      - VITE_WS_URL=ws://localhost:3002/ws
+    networks:
+      - obsidian_network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile.production
+    environment:
+      - NODE_ENV=staging
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-staging_password}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - REDIS_URL=redis://redis:6379
+      - PORT=8081
+      - FRONTEND_URL=http://localhost:3002
+    networks:
+      - obsidian_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  hocuspocus:
+    build:
+      context: ./packages/hocuspocus
+      dockerfile: Dockerfile.production
+    environment:
+      - NODE_ENV=staging
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-staging_password}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - REDIS_URL=redis://redis:6379
+      - PORT=8082
+    networks:
+      - obsidian_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "3002:80"  # Use port 3002 for staging, no SSL
+    volumes:
+      - ./nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+      - hocuspocus
+    restart: unless-stopped
+    networks:
+      - obsidian_network

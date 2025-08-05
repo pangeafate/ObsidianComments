@@ -82,15 +82,22 @@ function generateCollaborativeUrl(shareId: string): string {
   return `${baseUrl}/editor/${shareId}`;
 }
 
-export async function createSharedNote(content: string, customId?: string) {
-  const title = extractTitleFromMarkdown(content);
+interface NoteData {
+  title?: string;
+  content?: string;
+  metadata?: any;
+}
+
+export async function createSharedNote(data: NoteData, customId?: string) {
+  const title = data.title || extractTitleFromMarkdown(data.content || '');
   
   const document = await prisma.document.create({
     data: {
       id: customId, // Use custom ID if provided, otherwise auto-generate
       title,
-      content,
+      content: data.content || '',
       metadata: {
+        ...data.metadata,
         source: customId ? 'web-editor' : 'obsidian-plugin',
         createdVia: 'api'
       }
@@ -98,10 +105,9 @@ export async function createSharedNote(content: string, customId?: string) {
   });
 
   return {
-    shareUrl: generateCollaborativeUrl(document.id),
     shareId: document.id,
-    createdAt: document.publishedAt.toISOString(),
-    permissions: 'edit'
+    collaborativeUrl: generateCollaborativeUrl(document.id),
+    title: document.title
   };
 }
 
@@ -125,9 +131,7 @@ export async function getSharedNote(shareId: string) {
   };
 }
 
-export async function updateSharedNote(shareId: string, content: string) {
-  const title = extractTitleFromMarkdown(content);
-  
+export async function updateSharedNote(shareId: string, updates: NoteData) {
   const document = await prisma.document.findUnique({
     where: { id: shareId }
   });
@@ -136,19 +140,27 @@ export async function updateSharedNote(shareId: string, content: string) {
     throw new NotFoundError('Shared note not found. It may have been deleted.');
   }
 
+  const updateData: any = {
+    updatedAt: new Date()
+  };
+
+  if (updates.content !== undefined) {
+    updateData.content = updates.content;
+    updateData.title = extractTitleFromMarkdown(updates.content);
+  }
+
+  if (updates.title !== undefined) {
+    updateData.title = updates.title;
+  }
+
   const updated = await prisma.document.update({
     where: { id: shareId },
-    data: {
-      title,
-      content,
-      updatedAt: new Date()
-    }
+    data: updateData
   });
 
   return {
-    shareId: updated.id,
-    updatedAt: updated.updatedAt.toISOString(),
-    version: 1 // We'll implement proper versioning later
+    success: true,
+    updatedAt: updated.updatedAt.toISOString()
   };
 }
 
@@ -166,25 +178,19 @@ export async function deleteSharedNote(shareId: string) {
   });
 }
 
-export async function listSharedNotes() {
+export async function listSharedNotes(limit?: number, offset?: number) {
   const documents = await prisma.document.findMany({
     orderBy: { publishedAt: 'desc' },
-    take: 100 // Limit to 100 most recent
+    take: limit || 100, // Use provided limit or default to 100
+    skip: offset || 0
   });
 
   const shares = documents.map(doc => ({
-    shareId: doc.id,
+    id: doc.id,
     title: doc.title,
-    shareUrl: generateCollaborativeUrl(doc.id),
     createdAt: doc.publishedAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
-    permissions: 'edit',
-    views: 0, // We'll implement analytics later
-    editors: 1 // We'll implement proper editor tracking later
+    updatedAt: doc.updatedAt.toISOString()
   }));
 
-  return {
-    shares,
-    total: shares.length
-  };
+  return shares;
 }

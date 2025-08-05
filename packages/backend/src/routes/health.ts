@@ -46,7 +46,7 @@ router.get('/health', async (req, res) => {
     const hocuspocusHealth = await checkHocuspocusHealth();
     
     res.json({
-      status: 'ok',
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       services: {
         database: 'connected',
