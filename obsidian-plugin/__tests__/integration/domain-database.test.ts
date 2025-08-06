@@ -225,7 +225,7 @@ describe('Domain and Database Integration', () => {
       // Assert
       expect(result.shareUrl).toBe(collaborativeUrl);
       expect(result.updatedContent).toContain(`shareUrl: ${collaborativeUrl}`);
-      expect(result.updatedContent).toContain(`shareId: ${shareId}`);
+      expect(result.updatedContent).not.toContain(`shareId: ${shareId}`); // shareId removed per new requirements
     });
 
     test('should extract shareId from correct domain URL format', () => {

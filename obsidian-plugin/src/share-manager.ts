@@ -19,21 +19,56 @@ export class ShareManager {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
 
-    // Extract shareId from shareUrl
-    const shareIdMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
-    const shareId = shareIdMatch ? shareIdMatch[1] : '';
-
     if (match) {
       // Content has existing frontmatter
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       
-      const newFrontmatter = `${existingFrontmatter}\nshareId: ${shareId}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      // Remove any existing share metadata and add new (without shareId)
+      const cleanedFrontmatter = existingFrontmatter
+        .split('\n')
+        .filter(line => 
+          !line.trim().startsWith('shareUrl:') && 
+          !line.trim().startsWith('shareId:') && 
+          !line.trim().startsWith('sharedAt:')
+        )
+        .join('\n');
+
+      const newFrontmatter = `${cleanedFrontmatter}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${contentWithoutFrontmatter}`;
     } else {
-      // No existing frontmatter
-      const newFrontmatter = `shareId: ${shareId}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      // No existing frontmatter - create clean frontmatter without shareId
+      const newFrontmatter = `shareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${content}`;
+    }
+  }
+
+  async updateShareMetadata(content: string, shareUrl: string, sharedAt: string): Promise<string> {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+
+    if (match) {
+      // Update existing frontmatter
+      const existingFrontmatter = match[1];
+      const contentWithoutFrontmatter = content.substring(match[0].length);
+      
+      // Remove existing share metadata
+      const cleanedLines = existingFrontmatter
+        .split('\n')
+        .filter(line => 
+          !line.trim().startsWith('shareUrl:') && 
+          !line.trim().startsWith('shareId:') && 
+          !line.trim().startsWith('sharedAt:')
+        );
+
+      // Add updated share metadata (without shareId)
+      cleanedLines.push(`shareUrl: ${shareUrl}`);
+      cleanedLines.push(`sharedAt: ${sharedAt}`);
+
+      return `---\n${cleanedLines.join('\n')}\n---\n${contentWithoutFrontmatter}`;
+    } else {
+      // No frontmatter exists, add it
+      return await this.addShareMetadata(content, shareUrl, sharedAt);
     }
   }
 
@@ -170,10 +205,13 @@ export class ShareManager {
       const existingShareUrl = this.getShareUrl(content);
       const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
       
+      // Update the sharedAt timestamp while preserving other metadata
+      const updatedContent = await this.updateShareMetadata(content, shareUrl, new Date().toISOString());
+      
       return {
         shareUrl,
         shareId: existingShareId,
-        updatedContent: content,
+        updatedContent,
         wasUpdate: true
       };
     } else {
@@ -197,6 +235,11 @@ export class ShareManager {
         wasUpdate: false
       };
     }
+  }
+
+  async reshareNote(content: string): Promise<ShareResult> {
+    // Re-share is the same as share - it will update if exists or create if new
+    return await this.shareNote(content);
   }
 
   private extractTitleFromContent(content: string): string {

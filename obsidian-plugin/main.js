@@ -230,13 +230,13 @@ var ShareManager = class {
   async addShareMetadata(content, shareUrl, sharedAt) {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
-    const shareIdMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
-    const shareId = shareIdMatch ? shareIdMatch[1] : "";
     if (match) {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
-      const newFrontmatter = `${existingFrontmatter}
-shareId: ${shareId}
+      const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      ).join("\n");
+      const newFrontmatter = `${cleanedFrontmatter}
 shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
@@ -244,13 +244,31 @@ ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
-      const newFrontmatter = `shareId: ${shareId}
-shareUrl: ${shareUrl}
+      const newFrontmatter = `shareUrl: ${shareUrl}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
 ---
 ${content}`;
+    }
+  }
+  async updateShareMetadata(content, shareUrl, sharedAt) {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+    if (match) {
+      const existingFrontmatter = match[1];
+      const contentWithoutFrontmatter = content.substring(match[0].length);
+      const cleanedLines = existingFrontmatter.split("\n").filter(
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      );
+      cleanedLines.push(`shareUrl: ${shareUrl}`);
+      cleanedLines.push(`sharedAt: ${sharedAt}`);
+      return `---
+${cleanedLines.join("\n")}
+---
+${contentWithoutFrontmatter}`;
+    } else {
+      return await this.addShareMetadata(content, shareUrl, sharedAt);
     }
   }
   async removeShareMetadata(content) {
@@ -350,10 +368,11 @@ ${contentWithoutFrontmatter}`;
       const updateResult = await this.apiClient.updateNote(existingShareId, content);
       const existingShareUrl = this.getShareUrl(content);
       const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      const updatedContent = await this.updateShareMetadata(content, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
       return {
         shareUrl,
         shareId: existingShareId,
-        updatedContent: content,
+        updatedContent,
         wasUpdate: true
       };
     } else {
@@ -373,6 +392,9 @@ ${contentWithoutFrontmatter}`;
         wasUpdate: false
       };
     }
+  }
+  async reshareNote(content) {
+    return await this.shareNote(content);
   }
   extractTitleFromContent(content) {
     const lines = content.split("\n");
