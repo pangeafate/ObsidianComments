@@ -134,3 +134,45 @@ export function validateShareId(data: any): ShareIdRequest {
   
   return value;
 }
+
+// Additional validation functions needed by tests
+export function validateDocumentData(data: any): { title: string; content: string } {
+  const schema = Joi.object({
+    title: Joi.string().required().min(1).max(255),
+    content: Joi.string().required().min(1)
+  });
+  
+  const { error, value } = schema.validate(data, { abortEarly: false });
+  
+  if (error) {
+    const details = error.details.map(detail => ({
+      field: detail.path.join('.'),
+      message: detail.message
+    }));
+    
+    throw new ValidationError(details);
+  }
+  
+  return value;
+}
+
+export function validatePublishData(data: any): PublishRequest {
+  return validatePublishRequest(data);
+}
+
+export function sanitizeInput(input: string): string {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  
+  // Basic sanitization - remove potentially harmful characters
+  return input
+    .trim()
+    .replace(/[<>]/g, '') // Remove basic HTML tags
+    .slice(0, 10000); // Limit length
+}
+
+export function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}

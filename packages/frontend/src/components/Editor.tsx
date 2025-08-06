@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { Editor as TipTapEditor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { useCollaboration } from '../hooks/useCollaboration';
+import * as Y from 'yjs';
 import { useComments } from '../hooks/useComments';
 import { useLinkTracking } from '../hooks/useLinkTracking';
 import { UserPresence } from './UserPresence';
@@ -30,11 +32,13 @@ interface EditorProps {
 }
 
 export function Editor({ documentId }: EditorProps) {
-  const { provider, ydoc, setUser, users, status } = useCollaboration(documentId);
+  const { provider, ydoc, setUser, users, status, populateInitialContent } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
   
   // Refs
   const myLinksPaneRef = useRef<MyLinksPaneRef>(null);
+  const editorRef = useRef<any>(null);
+  const editorIdRef = useRef(Math.random().toString());
   
   // User name and color state
   const [currentUser, setCurrentUser] = useState<string>('');
@@ -56,12 +60,15 @@ export function Editor({ documentId }: EditorProps) {
   const [lastSavedContent, setLastSavedContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [justCreatedDocument, setJustCreatedDocument] = useState<boolean>(false);
+  const [contentInitialized, setContentInitialized] = useState<boolean>(false);
+  const [collaborationReady, setCollaborationReady] = useState<boolean>(false);
 
   // Check if document exists in API (created via Obsidian plugin)
   useEffect(() => {
     async function checkAndLoadDocument() {
       try {
         setIsLoadingDocument(true);
+        setContentInitialized(false); // Reset initialization flag for new document
         const exists = await documentService.checkDocumentExists(documentId);
         
         if (exists) {
@@ -101,6 +108,30 @@ export function Editor({ documentId }: EditorProps) {
 
     checkAndLoadDocument();
   }, [documentId]);
+  
+  // CRITICAL FIX: Pre-populate Y.js document with content BEFORE editor creation
+  useEffect(() => {
+    if (ydoc && obsidianDocument && !isLoadingDocument && !contentInitialized) {
+      console.log('🔧 EARLY FIX: Pre-populating Y.js document before editor connects');
+      
+      const yXmlFragment = ydoc.getXmlFragment('content');
+      const isYjsEmpty = yXmlFragment.length === 0;
+      const hasApiContent = obsidianDocument.content && obsidianDocument.content.trim().length > 20;
+      
+      if (isYjsEmpty && hasApiContent && !justCreatedDocument) {
+        console.log('📝 Conditions met for Y.js pre-population');
+        console.log('   - Y.js empty:', isYjsEmpty);
+        console.log('   - Has API content:', hasApiContent);
+        console.log('   - Not just created:', !justCreatedDocument);
+        
+        const success = populateInitialContent(obsidianDocument.content);
+        if (success) {
+          setContentInitialized(true);
+          console.log('✅ Y.js document pre-populated successfully');
+        }
+      }
+    }
+  }, [ydoc, obsidianDocument, isLoadingDocument, contentInitialized, justCreatedDocument, populateInitialContent]);
   
   useEffect(() => {
     if (currentUser) {
@@ -143,87 +174,218 @@ export function Editor({ documentId }: EditorProps) {
     }
   };
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        history: false,
-      }),
-      ...(ydoc ? [Collaboration.configure({
-        document: ydoc,
-        field: 'content',
-      })] : []),
-      ...(provider ? [CollaborationCursor.configure({
-        provider: provider,
-        user: currentUser ? {
-          name: currentUser,
-          color: userColor || generateUserColor(currentUser),
-        } : undefined,
-      })] : []),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      TrackChanges.configure({
-        userId: currentUser,
-        userName: currentUser,
-        enabled: true,
-      }),
-      CommentHighlight,
-    ],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
-      },
-      handleTextInput: (_view, from, _to, text) => {
-        // Auto-apply track changes to new text input
-        // Note: Removed editor self-reference to fix initialization error
-        // Track changes will be handled by the extension automatically
-        return false;
-      },
-    },
-  }, [provider, currentUser, userColor, ydoc]);
-
-  // Initialize editor with safe content deduplication
+  // REF-BASED FIX: Create stable editor instance using refs (Hypothesis #1)
+  const [editor, setEditor] = useState<any>(null);
+  
+  // Initialize editor only once using ref to prevent re-initialization
   useEffect(() => {
-    if (editor && obsidianDocument && !isLoadingDocument && ydoc) {
-      const yXmlFragment = ydoc.getXmlFragment('content');
+    if (editorRef.current) {
+      console.log('🔄 Editor ref exists, skipping re-initialization');
+      return; // Already initialized
+    }
+    
+    console.log(`🔧 REF FIX: Initializing stable editor instance. ID: ${editorIdRef.current}`);
+    
+    const newEditor = new TipTapEditor({
+      extensions: [
+        StarterKit.configure({
+          history: false,
+        }),
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
+        TrackChanges.configure({
+          userId: currentUser || 'anonymous',
+          userName: currentUser || 'anonymous',
+          enabled: true,
+        }),
+        CommentHighlight,
+        // Don't add Collaboration extensions initially
+      ],
+      editorProps: {
+        attributes: {
+          class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
+        },
+        handleTextInput: (_view, from, _to, text) => {
+          return false;
+        },
+      },
+    });
+    
+    // Assign unique ID for tracking
+    (newEditor as any).__id = editorIdRef.current;
+    console.log('🔧 REF FIX: Editor instance created with ID:', (newEditor as any).__id);
+    
+    editorRef.current = newEditor;
+    setEditor(newEditor);
+    
+    return () => {
+      console.log('🔧 REF FIX: Cleaning up editor instance');
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
+  }, []); // Empty deps array - only initialize once
+  
+  // Effect to reconfigure editor when collaboration is ready
+  useEffect(() => {
+    if (!editorRef.current || !collaborationReady || !ydoc || !provider) return;
+    
+    const currentEditor = editorRef.current;
+    console.log(`🔧 REF FIX: Reconfiguring editor with collaboration. ID: ${(currentEditor as any).__id}`);
+    
+    // Store current content
+    const currentContent = currentEditor.getHTML();
+    console.log('📄 REF FIX: Storing current content before reconfigure:', currentContent.length, 'chars');
+    
+    // Create new editor with collaboration extensions
+    const newEditor = new TipTapEditor({
+      extensions: [
+        StarterKit.configure({
+          history: false,
+        }),
+        Collaboration.configure({
+          document: ydoc,
+          field: 'content',
+        }),
+        ...(currentUser ? [CollaborationCursor.configure({
+          provider: provider,
+          user: {
+            name: currentUser,
+            color: userColor || generateUserColor(currentUser),
+          },
+        })] : []),
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
+        TrackChanges.configure({
+          userId: currentUser || 'anonymous',
+          userName: currentUser || 'anonymous',
+          enabled: true,
+        }),
+        CommentHighlight,
+      ],
+      editorProps: {
+        attributes: {
+          class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
+        },
+        handleTextInput: (_view, from, _to, text) => {
+          return false;
+        },
+      },
+      content: currentContent, // Preserve content during reconfigure
+    });
+    
+    // Assign same ID for tracking
+    (newEditor as any).__id = editorIdRef.current;
+    console.log('🔧 REF FIX: Editor reconfigured with collaboration. ID:', (newEditor as any).__id);
+    
+    // Replace editor
+    currentEditor.destroy();
+    editorRef.current = newEditor;
+    setEditor(newEditor);
+    
+    console.log('✅ REF FIX: Editor successfully reconfigured with collaboration');
+  }, [ydoc, provider, collaborationReady, currentUser, userColor]);
+  
+  // Debug effect to track editor instance stability
+  useEffect(() => {
+    if (editor) {
+      console.log(`🔍 REF FIX: Editor effect running. ID: ${editorIdRef.current}`);
+      (editor as any).__id = editorIdRef.current;
+      console.log('🔍 REF FIX: Editor instance ID:', (editor as any).__id);
+    }
+  }, [editor]);
+
+  // Initialize editor with safe content deduplication (without Collaboration extension)
+  useEffect(() => {
+    if (editor && obsidianDocument && !isLoadingDocument && !contentInitialized && !collaborationReady) {
       const yjsContent = editor.getHTML();
       
-      console.log('🛡️ Starting safe content initialization');
-      console.log('Yjs fragment length:', yXmlFragment.length);
+      console.log('🛡️ PHASE 1: Content initialization (no collaboration yet)');
       console.log('Current editor content length:', yjsContent.length);
       console.log('API content length:', obsidianDocument.content.length);
+      console.log('Document ID:', documentId);
+      console.log('Just created document:', justCreatedDocument);
+      console.log('Already initialized:', contentInitialized);
       
-      // RACE CONDITION FIX: Only initialize if Yjs is truly empty AND we didn't just create this document
-      // This prevents overwriting content that was just typed but not yet persisted
-      if (yXmlFragment.length === 0 && (!yjsContent || yjsContent.trim().length <= 50) && !justCreatedDocument) {
-        console.log('📝 Yjs is empty, initializing with API content');
+      // PHASE 1: Initialize content without Y.js interference
+      const shouldInitialize = (!yjsContent || yjsContent.trim().length <= 50) && 
+                              obsidianDocument.content && 
+                              obsidianDocument.content.trim().length > 0 &&
+                              !justCreatedDocument &&
+                              !contentInitialized;
+      
+      if (shouldInitialize) {
+        console.log('📝 PHASE 1: Initializing editor with API content');
+        console.log('API content to load:', obsidianDocument.content.substring(0, 100) + '...');
+        
+        // PHASE 1 FIX: Set content directly without Y.js interference
+        console.log('🔧 PHASE 1 FIX: Setting content directly in editor (no collaboration extensions)');
+        
         initializeContentSafely(
           yjsContent,
           obsidianDocument.content,
           (safeContent) => {
+            console.log('📝 PHASE 1: Setting content in collaboration-free editor');
             try {
-              const proseMirrorDoc = markdownToProseMirror(safeContent);
-              editor.commands.setContent(proseMirrorDoc);
-              console.log('✅ Safe content initialization complete');
+              // Check if content is HTML or markdown
+              const isHTML = safeContent.trim().startsWith('<');
+              
+              if (isHTML) {
+                console.log('📝 Setting HTML content directly');
+                editor.commands.setContent(safeContent);
+                console.log('✅ PHASE 1: HTML content set successfully');
+              } else {
+                console.log('📝 Converting markdown content');
+                const proseMirrorDoc = markdownToProseMirror(safeContent);
+                editor.commands.setContent(proseMirrorDoc);
+                console.log('✅ PHASE 1: Markdown content set successfully');
+              }
+              
+              // Mark content as initialized and enable collaboration
+              setContentInitialized(true);
+              
+              // Enable collaboration after content is set
+              setTimeout(() => {
+                console.log('🔧 PHASE 2: Enabling collaboration extensions');
+                setCollaborationReady(true);
+              }, 500); // Small delay to ensure content is fully set
+              
             } catch (error) {
-              console.error('Failed to convert markdown to ProseMirror:', error);
-              // Fallback to plain text
+              console.error('❌ PHASE 1 failed:', error);
+              // Fallback
               editor.commands.setContent(safeContent);
+              setContentInitialized(true);
+              setCollaborationReady(true);
             }
           }
         );
       } else {
-        console.log('⚠️ Skipping API initialization - preventing overwrite');
-        console.log('   Reasons:');
-        console.log('   - Yjs fragment length:', yXmlFragment.length);
-        console.log('   - Yjs content length:', yjsContent?.length || 0);
-        console.log('   - Just created document:', justCreatedDocument);
-        console.log('   This prevents race condition on first refresh after new note creation');
+        console.log('⚠️ PHASE 1: Skipping content initialization');
+        console.log('   Conditions:');
+        console.log('   - Editor content empty:', (!yjsContent || yjsContent.trim().length <= 50));
+        console.log('   - Has API content:', !!(obsidianDocument.content && obsidianDocument.content.trim().length > 0));
+        console.log('   - Not just created:', !justCreatedDocument);
+        console.log('   - Not already initialized:', !contentInitialized);
+        console.log('   - Should initialize:', shouldInitialize);
+        
+        // Enable collaboration immediately for documents that don't need content initialization
+        if (!collaborationReady) {
+          console.log('🔧 PHASE 1: Enabling collaboration (no content to initialize)');
+          setCollaborationReady(true);
+        }
       }
+    } else {
+      console.log('⏳ PHASE 1: Waiting for initialization requirements:');
+      console.log('   - Editor ready:', !!editor);
+      console.log('   - Document loaded:', !!obsidianDocument);
+      console.log('   - Not loading:', !isLoadingDocument);
+      console.log('   - Not already initialized:', !contentInitialized);
+      console.log('   - Not collaboration ready:', !collaborationReady);
     }
-  }, [editor, obsidianDocument, isLoadingDocument, ydoc, justCreatedDocument]);
+  }, [editor, obsidianDocument, isLoadingDocument, justCreatedDocument, documentId, contentInitialized, collaborationReady]);
 
   // Auto-save function with sanitization and deduplication
   const saveContent = useCallback(async (content: string) => {

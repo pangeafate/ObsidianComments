@@ -11,5 +11,10 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   testTimeout: 10000,
   // Environment variables for testing
-  setupFiles: ['<rootDir>/src/__tests__/env-setup.ts']
+  setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
+  // Ignore database integration tests in CI until DB is properly configured
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    process.env.CI && !process.env.DATABASE_URL ? '/__tests__/.*\\.integration\\.test\\.ts$' : ''
+  ].filter(Boolean)
 };
