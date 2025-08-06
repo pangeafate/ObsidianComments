@@ -396,6 +396,75 @@ ${contentWithoutFrontmatter}`;
   async reshareNote(content) {
     return await this.shareNote(content);
   }
+  async shareNoteWithFilename(content, filename) {
+    const preparedContent = this.prepareContentWithTitle(content, filename);
+    const cleanFilename = this.cleanFilename(filename);
+    const existingShareId = this.getShareId(preparedContent);
+    if (existingShareId) {
+      const updateResult = await this.apiClient.updateNote(existingShareId, preparedContent);
+      const existingShareUrl = this.getShareUrl(preparedContent);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      const updatedContent = await this.updateShareMetadata(preparedContent, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
+      return {
+        shareUrl,
+        shareId: existingShareId,
+        updatedContent,
+        wasUpdate: true
+      };
+    } else {
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
+      const updatedContent = await this.addShareMetadata(
+        preparedContent,
+        shareResponse.shareUrl,
+        // This is now collaborativeUrl from backend
+        shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+      );
+      return {
+        shareUrl: shareResponse.shareUrl,
+        shareId: shareResponse.shareId,
+        updatedContent,
+        wasUpdate: false
+      };
+    }
+  }
+  prepareContentWithTitle(content, filename) {
+    const cleanFilename = this.cleanFilename(filename);
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const frontmatterMatch = content.match(frontmatterRegex);
+    let bodyContent;
+    let frontmatter = "";
+    if (frontmatterMatch) {
+      frontmatter = frontmatterMatch[0];
+      bodyContent = content.substring(frontmatterMatch[0].length);
+    } else {
+      bodyContent = content;
+    }
+    const lines = bodyContent.split("\n");
+    const firstNonEmptyLine = lines.find((line) => line.trim() !== "");
+    if (firstNonEmptyLine && firstNonEmptyLine.startsWith("# ")) {
+      const existingTitle = firstNonEmptyLine.substring(2).trim();
+      if (existingTitle === cleanFilename) {
+        return content;
+      } else {
+        const newLines = lines.map(
+          (line) => line.trim() !== "" && line.startsWith("# ") && line === firstNonEmptyLine ? `# ${cleanFilename}` : line
+        );
+        return frontmatter + newLines.join("\n");
+      }
+    } else {
+      const titleLine = `# ${cleanFilename}`;
+      if (bodyContent.trim() === "") {
+        return frontmatter + titleLine + "\n\n";
+      } else {
+        return frontmatter + titleLine + "\n\n" + bodyContent;
+      }
+    }
+  }
+  cleanFilename(filename) {
+    const withoutExtension = filename.replace(/\.[^/.]+$/, "");
+    return withoutExtension;
+  }
   extractTitleFromContent(content) {
     const lines = content.split("\n");
     for (const line of lines) {
@@ -701,7 +770,8 @@ var ObsidianCommentsPlugin = class extends import_obsidian.Plugin {
     }
     try {
       const content = await this.app.vault.read(activeFile);
-      const result = await this.shareManager.shareNote(content);
+      const filename = activeFile.name;
+      const result = await this.shareManager.shareNoteWithFilename(content, filename);
       await this.app.vault.modify(activeFile, result.updatedContent);
       if (this.settingsManager.settings.copyToClipboard) {
         await navigator.clipboard.writeText(result.shareUrl);
@@ -736,7 +806,8 @@ var ObsidianCommentsPlugin = class extends import_obsidian.Plugin {
   async shareFileNote(file) {
     try {
       const content = await this.app.vault.read(file);
-      const result = await this.shareManager.shareNote(content);
+      const filename = file.name;
+      const result = await this.shareManager.shareNoteWithFilename(content, filename);
       await this.app.vault.modify(file, result.updatedContent);
       if (this.settingsManager.settings.copyToClipboard) {
         await navigator.clipboard.writeText(result.shareUrl);

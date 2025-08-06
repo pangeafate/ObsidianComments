@@ -210,7 +210,8 @@ export class ObsidianCommentsPlugin extends Plugin {
 
     try {
       const content = await this.app.vault.read(activeFile);
-      const result = await this.shareManager.shareNote(content);
+      const filename = activeFile.name;
+      const result = await this.shareManager.shareNoteWithFilename(content, filename);
       
       // Update the file with share metadata
       await this.app.vault.modify(activeFile, result.updatedContent);
@@ -267,7 +268,8 @@ export class ObsidianCommentsPlugin extends Plugin {
   async shareFileNote(file: TFile): Promise<void> {
     try {
       const content = await this.app.vault.read(file);
-      const result = await this.shareManager.shareNote(content);
+      const filename = file.name;
+      const result = await this.shareManager.shareNoteWithFilename(content, filename);
       
       await this.app.vault.modify(file, result.updatedContent);
       

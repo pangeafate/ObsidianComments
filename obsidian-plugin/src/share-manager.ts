@@ -242,6 +242,104 @@ export class ShareManager {
     return await this.shareNote(content);
   }
 
+  async shareNoteWithFilename(content: string, filename: string): Promise<ShareResult> {
+    // Prepare content with proper title/body structure for editor compatibility
+    const preparedContent = this.prepareContentWithTitle(content, filename);
+    const cleanFilename = this.cleanFilename(filename);
+    
+    const existingShareId = this.getShareId(preparedContent);
+
+    if (existingShareId) {
+      // Update existing share
+      const updateResult = await this.apiClient.updateNote(existingShareId, preparedContent);
+      
+      // Get the existing shareUrl from the content or construct it from server URL
+      const existingShareUrl = this.getShareUrl(preparedContent);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      
+      // Update the sharedAt timestamp while preserving other metadata
+      const updatedContent = await this.updateShareMetadata(preparedContent, shareUrl, new Date().toISOString());
+      
+      return {
+        shareUrl,
+        shareId: existingShareId,
+        updatedContent,
+        wasUpdate: true
+      };
+    } else {
+      // Create new share - generate unique ID and use filename as title
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
+      
+      // Use the shareUrl from response (which is collaborativeUrl from backend)
+      const updatedContent = await this.addShareMetadata(
+        preparedContent, 
+        shareResponse.shareUrl, // This is now collaborativeUrl from backend
+        shareResponse.createdAt || new Date().toISOString()
+      );
+
+      return {
+        shareUrl: shareResponse.shareUrl,
+        shareId: shareResponse.shareId,
+        updatedContent,
+        wasUpdate: false
+      };
+    }
+  }
+
+  private prepareContentWithTitle(content: string, filename: string): string {
+    const cleanFilename = this.cleanFilename(filename);
+    
+    // Handle frontmatter
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const frontmatterMatch = content.match(frontmatterRegex);
+    
+    let bodyContent: string;
+    let frontmatter: string = '';
+    
+    if (frontmatterMatch) {
+      frontmatter = frontmatterMatch[0];
+      bodyContent = content.substring(frontmatterMatch[0].length);
+    } else {
+      bodyContent = content;
+    }
+    
+    // Check if content already has the correct H1 title
+    const lines = bodyContent.split('\n');
+    const firstNonEmptyLine = lines.find(line => line.trim() !== '');
+    
+    if (firstNonEmptyLine && firstNonEmptyLine.startsWith('# ')) {
+      const existingTitle = firstNonEmptyLine.substring(2).trim();
+      if (existingTitle === cleanFilename) {
+        // Title already matches, return as-is
+        return content;
+      } else {
+        // Replace the existing H1 with the filename
+        const newLines = lines.map(line => 
+          line.trim() !== '' && line.startsWith('# ') && line === firstNonEmptyLine
+            ? `# ${cleanFilename}`
+            : line
+        );
+        return frontmatter + newLines.join('\n');
+      }
+    } else {
+      // No H1 title exists, prepend the filename as H1
+      const titleLine = `# ${cleanFilename}`;
+      if (bodyContent.trim() === '') {
+        return frontmatter + titleLine + '\n\n';
+      } else {
+        return frontmatter + titleLine + '\n\n' + bodyContent;
+      }
+    }
+  }
+
+  private cleanFilename(filename: string): string {
+    // Remove file extension (.md, .txt, etc.)
+    const withoutExtension = filename.replace(/\.[^/.]+$/, '');
+    return withoutExtension;
+  }
+
   private extractTitleFromContent(content: string): string {
     // Extract title from first H1 heading
     const lines = content.split('\n');
