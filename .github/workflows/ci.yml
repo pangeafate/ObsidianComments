@@ -52,9 +52,6 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
-        cd packages/backend && npm ci
-        cd ../frontend && npm ci
-        cd ../hocuspocus && npm ci
 
     - name: Setup test environment
       env:
@@ -70,7 +67,7 @@ jobs:
         echo "NODE_ENV=$NODE_ENV" >> .env.test
         
         # Generate Prisma client
-        cd packages/backend && npx prisma generate
+        npm run prisma:generate
         
     - name: Run backend unit tests
       env:
@@ -116,20 +113,17 @@ jobs:
         VITE_API_URL: http://localhost:8081/api
         VITE_WS_URL: ws://localhost:8082
       run: |
-        cd packages/frontend
-        npm run build
+        npm run build:frontend
 
     - name: Build backend
       run: |
-        cd packages/backend
-        npm run build
+        npm run build:backend
 
     - name: Build hocuspocus
       env:
         DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
       run: |
-        cd packages/hocuspocus
-        npm run build
+        npm run build:hocuspocus
 
   e2e-test:
     name: End-to-End Tests
@@ -174,9 +168,6 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
-        cd packages/backend && npm ci
-        cd ../frontend && npm ci
-        cd ../hocuspocus && npm ci
 
     - name: Install Playwright
       run: npx playwright install --with-deps chromium
@@ -247,9 +238,6 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
-        cd packages/backend && npm ci
-        cd ../frontend && npm ci
-        cd ../hocuspocus && npm ci
 
     - name: Build production assets
       env:
