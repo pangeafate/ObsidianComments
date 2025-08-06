@@ -9,7 +9,7 @@
   "scripts": {
     "install-all": "npm install && npm run install:backend && npm run install:frontend && npm run install:hocuspocus",
     "install:backend": "cd packages/backend && npm install",
-    "install:frontend": "cd packages/frontend && npm install", 
+    "install:frontend": "cd packages/frontend && npm install",
     "install:hocuspocus": "cd packages/hocuspocus && npm install",
     "dev": "docker-compose -f docker-compose.local.yml up",
     "dev:old": "docker-compose up --build",
@@ -34,10 +34,10 @@
     "test:production": "npx playwright test --config=playwright.production.config.js",
     "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:hocuspocus",
     "lint:backend": "cd packages/backend && npm run lint",
-    "lint:frontend": "cd packages/frontend && npm run lint", 
+    "lint:frontend": "cd packages/frontend && npm run lint",
     "lint:hocuspocus": "cd packages/hocuspocus && npm run lint",
     "typecheck": "npm run typecheck --workspaces",
-    "prisma:generate": "cd packages/backend && npx prisma generate && cd ../hocuspocus && npx prisma generate",
+    "prisma:generate": "cd packages/backend && npx prisma generate",
     "prisma:migrate": "cd packages/backend && npx prisma migrate dev",
     "prisma:deploy": "cd packages/backend && npx prisma migrate deploy",
     "build:local": "VITE_API_URL=http://localhost:3001 VITE_WS_URL=ws://localhost:3001/ws npm run build --prefix packages/frontend",
@@ -54,10 +54,13 @@
   "devDependencies": {
     "@playwright/test": "^1.54.2",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "typescript": "^5.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.54.2"
   }
 }
