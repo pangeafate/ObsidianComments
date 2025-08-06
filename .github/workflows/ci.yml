@@ -284,12 +284,12 @@ jobs:
           pm2 list
           docker ps | grep obsidian
           
-          # Run 500 error diagnostics
+          # Run 500 error diagnostics (non-blocking)
           echo ""
           echo "🔍 RUNNING 500 ERROR DIAGNOSTICS"
           echo "================================="
           chmod +x /tmp/diagnose-500.sh
-          bash /tmp/diagnose-500.sh
+          timeout 60 bash /tmp/diagnose-500.sh || echo "Diagnostics completed with timeout/errors (non-blocking)"
         EOF
         
         rm deploy_key

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Diagnose the 500 Internal Server Error
 
-set -e
+# Disable exit on error for diagnostics - we want to continue even if some checks fail
+set +e
 
 echo "🔍 DIAGNOSING 500 INTERNAL SERVER ERROR"
 echo "========================================"
@@ -15,7 +16,7 @@ docker ps | grep nginx || echo "No nginx container"
 
 echo ""
 echo "nginx container logs (last 20 lines):"
-docker logs --tail 20 obsidian-nginx 2>&1 || echo "Can't get logs"
+timeout 10 docker logs --tail 20 obsidian-nginx 2>&1 || echo "Can't get logs (timeout or error)"
 
 echo ""
 echo "2️⃣ BACKEND SERVICE STATUS"
@@ -56,11 +57,11 @@ echo ""
 echo "5️⃣ NGINX ERROR LOGS"
 echo "===================="
 echo "nginx error logs:"
-docker exec obsidian-nginx cat /var/log/nginx/error.log 2>&1 || echo "No error logs available"
+timeout 10 docker exec obsidian-nginx cat /var/log/nginx/error.log 2>&1 | head -50 || echo "No error logs available"
 
 echo ""
 echo "nginx access logs:"
-docker exec obsidian-nginx tail -10 /var/log/nginx/access.log 2>&1 || echo "No access logs available"
+timeout 10 docker exec obsidian-nginx tail -10 /var/log/nginx/access.log 2>&1 || echo "No access logs available"
 
 echo ""
 echo "6️⃣ TESTING DIFFERENT ENDPOINTS"
