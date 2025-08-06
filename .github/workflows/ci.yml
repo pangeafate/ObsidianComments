@@ -100,6 +100,7 @@ jobs:
         CI: true
       run: |
         cd packages/hocuspocus
+        npx prisma generate
         # Skip tests if no test script exists
         if [ -f "package.json" ] && grep -q '"test"' package.json; then
           npm test
@@ -179,7 +180,7 @@ jobs:
       run: |
         cd packages/backend && npx prisma generate && npm run build
         cd ../frontend && npm run build  
-        cd ../hocuspocus && npm run build
+        cd ../hocuspocus && npx prisma generate && npm run build
 
     - name: Start services for E2E testing
       env:

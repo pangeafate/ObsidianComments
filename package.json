@@ -37,7 +37,7 @@
     "lint:frontend": "cd packages/frontend && npm run lint",
     "lint:hocuspocus": "cd packages/hocuspocus && npm run lint",
     "typecheck": "npm run typecheck --workspaces",
-    "prisma:generate": "cd packages/backend && npx prisma generate",
+    "prisma:generate": "cd packages/backend && npx prisma generate && cd ../hocuspocus && npx prisma generate",
     "prisma:migrate": "cd packages/backend && npx prisma migrate dev",
     "prisma:deploy": "cd packages/backend && npx prisma migrate deploy",
     "build:local": "VITE_API_URL=http://localhost:3001 VITE_WS_URL=ws://localhost:3001/ws npm run build --prefix packages/frontend",

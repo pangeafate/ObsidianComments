@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: 'postgresql://postgres:password@localhost:5432/obsidian_comments_test'
+      url: process.env.DATABASE_URL || 'postgresql://postgres:test_password@localhost:5432/obsidian_comments_test'
     }
   }
 });
