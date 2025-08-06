@@ -249,9 +249,12 @@ jobs:
         echo "$DEPLOY_KEY" > deploy_key
         chmod 600 deploy_key
         
-        # Upload built assets
+        # Upload built assets AND nginx configuration
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
+        
+        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          nginx.conf $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/nginx.conf
         
         # Restart services and ensure all components are running
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
@@ -264,8 +267,13 @@ jobs:
           pm2 restart obsidian-backend-final || pm2 restart obsidian-backend
           pm2 restart obsidian-hocuspocus-fixed || pm2 restart obsidian-hocuspocus
           
-          # Restart nginx
-          docker restart obsidian-nginx
+          # Recreate nginx with updated configuration
+          docker stop obsidian-nginx || true
+          docker rm obsidian-nginx || true
+          docker run -d --name obsidian-nginx --network host \
+            -v /opt/obsidian-comments/nginx.conf:/etc/nginx/nginx.conf:ro \
+            -v /etc/nginx/ssl:/etc/nginx/ssl:ro \
+            nginx:alpine
           
           # Show status for verification
           pm2 list
@@ -286,11 +294,28 @@ jobs:
         for i in {1..5}; do
           if curl -f https://obsidiancomments.serverado.app/api/health; then
             echo "✅ Production deployment successful!"
-            exit 0
+            break
           fi
           echo "⏳ Attempt $i failed, retrying in 10 seconds..."
           sleep 10
         done
         
-        echo "⚠️ Health check failed, but services may still be starting. Check manually."
+        echo "🔍 Testing CORS headers (CRITICAL)..."
+        curl -sI -H 'Origin: app://obsidian.md' https://obsidiancomments.serverado.app/api/notes/share | tee headers.txt
+        
+        # Fail if wildcard appears
+        if grep -i 'access-control-allow-origin: \*' headers.txt; then
+          echo "❌ CORS ERROR: nginx still adds wildcard headers"
+          exit 1
+        fi
+        
+        # Fail if there are multiple CORS headers
+        CORS_COUNT=$(grep -i '^access-control-allow-origin:' headers.txt | wc -l)
+        if [ "$CORS_COUNT" -ne 1 ]; then
+          echo "❌ CORS ERROR: Found $CORS_COUNT Access-Control-Allow-Origin headers (expected 1)"
+          grep -i '^access-control-allow-origin:' headers.txt
+          exit 1
+        fi
+        
+        echo "✅ CORS headers are correct!"
         echo "🔍 Manual check: https://obsidiancomments.serverado.app"
