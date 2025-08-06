@@ -185,7 +185,7 @@ export async function listSharedNotes(limit?: number, offset?: number) {
     skip: offset || 0
   });
 
-  const shares = documents.map(doc => ({
+  const shares = documents.map((doc: any) => ({
     id: doc.id,
     title: doc.title,
     createdAt: doc.publishedAt.toISOString(),
