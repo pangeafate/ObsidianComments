@@ -18,17 +18,32 @@ app.use(helmet());
 
 // CORS configuration for Obsidian plugin support
 const corsOptions = {
-  origin: [
-    'https://obsidiancomments.serverado.app',
-    'http://localhost:3001', // Local development
-    'http://localhost:5173', // Vite dev server
-    'app://obsidian.md', // Obsidian desktop app
-    /^capacitor:\/\/localhost/, // Obsidian mobile app
-    /^https?:\/\/localhost:\d+$/ // Any localhost port for development
-  ],
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://obsidiancomments.serverado.app',
+      'http://localhost:3001', // Local development
+      'http://localhost:5173', // Vite dev server
+      'app://obsidian.md', // Obsidian desktop app
+    ];
+    
+    const isAllowed = allowedOrigins.includes(origin) ||
+                     /^capacitor:\/\/localhost/.test(origin) || // Obsidian mobile app
+                     /^https?:\/\/localhost:\d+$/.test(origin); // Any localhost port for development
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'), false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 app.use(cors(corsOptions));
 
