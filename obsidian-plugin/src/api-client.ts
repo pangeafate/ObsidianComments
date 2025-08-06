@@ -198,7 +198,9 @@ export class ApiClient {
     try {
       const response = await fetch(url, {
         ...options,
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'omit', // Don't send credentials to avoid CORS complications
+        mode: 'cors' // Explicitly set CORS mode
       });
       clearTimeout(timeoutId);
       return response;
