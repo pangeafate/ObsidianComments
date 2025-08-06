@@ -160,7 +160,7 @@ export function validatePublishData(data: any): PublishRequest {
   return validatePublishRequest(data);
 }
 
-export function sanitizeInput(input: string): string {
+export function sanitizeInput(input: any): string {
   if (typeof input !== 'string') {
     return '';
   }
