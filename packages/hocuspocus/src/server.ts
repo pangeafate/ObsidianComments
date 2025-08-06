@@ -170,6 +170,18 @@ export function createServer() {
     },
 
     async onRequest(data: any) {
+      // Handle health check endpoint
+      if (data.request.url === '/health' && data.request.method === 'GET') {
+        return new Response(JSON.stringify({ 
+          status: 'healthy', 
+          service: 'hocuspocus',
+          timestamp: new Date().toISOString() 
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
       // Allow all origins for now - can be restricted later
       const headers = {
         'Access-Control-Allow-Origin': '*',

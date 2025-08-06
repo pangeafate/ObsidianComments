@@ -8,6 +8,10 @@ COPY package*.json ./
 # Install all dependencies for building
 RUN npm install
 
+# Copy Prisma schema and generate client
+COPY prisma ./prisma
+RUN npx prisma generate
+
 # Copy source code
 COPY . .
 
@@ -29,6 +33,8 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
+# Copy Prisma schema for runtime (needed by Prisma client)
+COPY --from=builder /app/prisma ./prisma
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
