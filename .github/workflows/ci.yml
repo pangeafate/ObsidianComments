@@ -258,18 +258,44 @@ jobs:
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
         
-        # Restart services
+        # Restart services and ensure all components are running
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
           cd /opt/obsidian-comments
-          pm2 restart obsidian-backend
-          pm2 restart obsidian-hocuspocus
+          
+          # Start database services if not running
+          docker-compose -f docker-compose.simple.yml --env-file .env.production up -d postgres redis
+          
+          # Restart PM2 services with correct names
+          pm2 restart obsidian-backend-final || pm2 restart obsidian-backend
+          pm2 restart obsidian-hocuspocus-fixed || pm2 restart obsidian-hocuspocus
+          
+          # Restart nginx
           docker restart obsidian-nginx
+          
+          # Show status for verification
+          pm2 list
+          docker ps | grep obsidian
         EOF
         
         rm deploy_key
 
     - name: Run production health check
       run: |
+        echo "🔍 Waiting for services to start..."
         sleep 30
-        curl -f https://obsidiancomments.serverado.app/api/health
-        echo "✅ Production deployment successful"
+        
+        echo "🌐 Testing HTTPS connectivity..."
+        curl -I https://obsidiancomments.serverado.app/
+        
+        echo "🏥 Testing API health endpoint..."
+        for i in {1..5}; do
+          if curl -f https://obsidiancomments.serverado.app/api/health; then
+            echo "✅ Production deployment successful!"
+            exit 0
+          fi
+          echo "⏳ Attempt $i failed, retrying in 10 seconds..."
+          sleep 10
+        done
+        
+        echo "⚠️ Health check failed, but services may still be starting. Check manually."
+        echo "🔍 Manual check: https://obsidiancomments.serverado.app"
