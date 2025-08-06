@@ -10,9 +10,7 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {
-      "actualWorkers": 3
-    },
+    "metadata": {},
     "preserveOutput": "always",
     "reporter": [
       [
@@ -42,9 +40,7 @@
         "outputDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 3
-        },
+        "metadata": {},
         "id": "chromium",
         "name": "chromium",
         "testDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e",
@@ -58,9 +54,7 @@
         "outputDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 3
-        },
+        "metadata": {},
         "id": "firefox",
         "name": "firefox",
         "testDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e",
@@ -74,9 +68,7 @@
         "outputDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 3
-        },
+        "metadata": {},
         "id": "webkit",
         "name": "webkit",
         "testDir": "/Users/sergeypodolskiy/CODEBASE/25 08 04 ObsidianComments v2/tests/e2e",
@@ -98,180 +90,17 @@
       "reuseExistingServer": true
     }
   },
-  "suites": [
+  "suites": [],
+  "errors": [
     {
-      "title": "debug-service-issues.spec.js",
-      "file": "debug-service-issues.spec.js",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Debug Service Issues",
-          "file": "debug-service-issues.spec.js",
-          "line": 13,
-          "column": 6,
-          "specs": [
-            {
-              "title": "should identify specific error causes",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 1139,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "🔍 Identifying specific error causes...\n"
-                        },
-                        {
-                          "text": "\n🚨 ERROR SUMMARY:\n"
-                        },
-                        {
-                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "✅ No errors detected - app should be working correctly\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-08-05T11:34:23.286Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "f3e553686b2c6eeb36b4-64d09aa9c4d75072b108",
-              "file": "debug-service-issues.spec.js",
-              "line": 202,
-              "column": 3
-            },
-            {
-              "title": "should identify specific error causes",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 1,
-                      "parallelIndex": 1,
-                      "status": "passed",
-                      "duration": 1631,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "🔍 Identifying specific error causes...\n"
-                        },
-                        {
-                          "text": "\n🚨 ERROR SUMMARY:\n"
-                        },
-                        {
-                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "✅ No errors detected - app should be working correctly\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-08-05T11:34:23.286Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "f3e553686b2c6eeb36b4-111688841b68be065c0e",
-              "file": "debug-service-issues.spec.js",
-              "line": 202,
-              "column": 3
-            },
-            {
-              "title": "should identify specific error causes",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 2,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 1319,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "🔍 Identifying specific error causes...\n"
-                        },
-                        {
-                          "text": "\n🚨 ERROR SUMMARY:\n"
-                        },
-                        {
-                          "text": "JavaScript Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "Network Errors: \u001b[33m0\u001b[39m\n"
-                        },
-                        {
-                          "text": "✅ No errors detected - app should be working correctly\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-08-05T11:34:23.286Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "f3e553686b2c6eeb36b4-232618060b245370c063",
-              "file": "debug-service-issues.spec.js",
-              "line": 202,
-              "column": 3
-            }
-          ]
-        }
-      ]
+      "message": "Error: Process from config.webServer exited early.",
+      "stack": "Error: Process from config.webServer exited early."
     }
   ],
-  "errors": [],
   "stats": {
-    "startTime": "2025-08-05T11:34:23.042Z",
-    "duration": 2505.576,
-    "expected": 3,
+    "startTime": "2025-08-06T10:46:24.095Z",
+    "duration": 9.238999999999976,
+    "expected": 0,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

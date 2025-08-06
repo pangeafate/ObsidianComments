@@ -32,7 +32,7 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     setYdoc(newYdoc);
     
     const hocuspocusProvider = new HocuspocusProvider({
-      url: import.meta.env.VITE_WS_URL || 'ws://localhost:8082',
+      url: import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`,
       name: documentId,
       document: newYdoc,
       token: 'collaboration-token', // Simple token for authentication

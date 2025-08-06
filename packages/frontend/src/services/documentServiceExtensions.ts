@@ -9,7 +9,7 @@ export const extendedDocumentService = {
   
   async createDocument(documentId: string, title?: string, content?: string): Promise<DocumentData> {
     try {
-      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081/api';
+      const baseUrl = (documentService as any).baseUrl || '/api';
       const docTitle = title || 'New Document';
       const docContent = content || `# ${docTitle}\n\nStart typing here...`;
       
@@ -56,7 +56,7 @@ export const extendedDocumentService = {
   
   async saveDocument(documentId: string, content: string, title?: string): Promise<void> {
     try {
-      const baseUrl = (documentService as any).baseUrl || 'http://localhost:8081/api';
+      const baseUrl = (documentService as any).baseUrl || '/api';
       
       // Update content
       const response = await fetch(`${baseUrl}/notes/${documentId}`, {
