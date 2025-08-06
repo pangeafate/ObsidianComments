@@ -13,8 +13,10 @@ const app = express();
 // Trust proxy for nginx reverse proxy
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure helmet to not interfere with CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Allow cross-origin requests
+}));
 
 // CORS configuration for Obsidian plugin support
 const corsOptions = {
