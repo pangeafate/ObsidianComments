@@ -2,9 +2,9 @@ import {
   validateDocumentData, 
   validatePublishData, 
   sanitizeInput,
-  isValidUUID,
-  ValidationError 
+  isValidUUID
 } from '../validation';
+import { ValidationError } from '../errors';
 
 describe('validation utils', () => {
   describe('validateDocumentData', () => {
