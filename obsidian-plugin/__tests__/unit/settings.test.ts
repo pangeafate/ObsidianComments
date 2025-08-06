@@ -26,7 +26,7 @@ describe('PluginSettings', () => {
       // This test will FAIL until DEFAULT_SETTINGS is implemented
       expect(DEFAULT_SETTINGS).toBeDefined();
       expect(DEFAULT_SETTINGS.apiKey).toBe('');
-      expect(DEFAULT_SETTINGS.serverUrl).toBe('https://api.obsidiancomments.com');
+      expect(DEFAULT_SETTINGS.serverUrl).toBe('https://obsidiancomments.serverado.app');
       expect(DEFAULT_SETTINGS.copyToClipboard).toBe(true);
       expect(DEFAULT_SETTINGS.showNotifications).toBe(true);
       expect(DEFAULT_SETTINGS.defaultPermissions).toBe('edit');
@@ -53,16 +53,16 @@ describe('PluginSettings', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    test('should reject empty API key', () => {
+    test('should accept empty API key as optional', () => {
       // Arrange
-      const invalidSettings = { ...MOCK_SETTINGS.configured, apiKey: '' };
+      const settingsWithEmptyKey = { ...MOCK_SETTINGS.configured, apiKey: '' };
 
-      // Act - This will FAIL until API key validation is implemented
-      const result = validateSettings(invalidSettings);
+      // Act - Empty API key should be allowed (optional)
+      const result = validateSettings(settingsWithEmptyKey);
 
       // Assert
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('API key is required');
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     test('should reject invalid server URL', () => {
@@ -140,8 +140,7 @@ describe('PluginSettings', () => {
 
       // Assert
       expect(result.isValid).toBe(false);
-      expect(result.errors.length).toBeGreaterThanOrEqual(3);
-      expect(result.errors).toContain('API key is required');
+      expect(result.errors.length).toBeGreaterThanOrEqual(2);
       expect(result.errors).toContain('Invalid server URL format');
       expect(result.errors).toContain('Default permissions must be either "view" or "edit"');
     });

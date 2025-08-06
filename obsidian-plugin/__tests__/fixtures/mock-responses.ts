@@ -5,7 +5,7 @@ export const API_RESPONSES = {
     success: {
       status: 200,
       data: {
-        shareUrl: 'https://share.obsidiancomments.com/abc123def456',
+        shareUrl: 'https://obsidiancomments.serverado.app/editor/abc123def456',
         shareId: 'abc123def456',
         createdAt: '2024-01-01T00:00:00.000Z',
         permissions: 'edit'
@@ -89,7 +89,7 @@ export const API_RESPONSES = {
           {
             shareId: 'abc123def456',
             title: 'Test Note 1',
-            shareUrl: 'https://share.obsidiancomments.com/abc123def456',
+            shareUrl: 'https://obsidiancomments.serverado.app/editor/abc123def456',
             createdAt: '2024-01-01T00:00:00.000Z',
             updatedAt: '2024-01-01T12:00:00.000Z',
             permissions: 'edit',
@@ -99,7 +99,7 @@ export const API_RESPONSES = {
           {
             shareId: 'def456ghi789',
             title: 'Test Note 2',
-            shareUrl: 'https://share.obsidiancomments.com/def456ghi789',
+            shareUrl: 'https://obsidiancomments.serverado.app/editor/def456ghi789',
             createdAt: '2024-01-02T00:00:00.000Z',
             updatedAt: '2024-01-02T08:00:00.000Z',
             permissions: 'view',

@@ -1,9 +1,9 @@
 {
   "id": "obsidian-comments",
   "name": "Obsidian Comments",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "minAppVersion": "1.0.0",
-  "description": "Share notes online for collaborative editing with comments. Now with live backend at obsidiancomments.lakestrom.com!",
+  "description": "Share notes online for collaborative editing with comments. Live backend at obsidiancomments.serverado.app!",
   "author": "Your Name",
   "authorUrl": "https://github.com/pangeafate",
   "fundingUrl": "https://github.com/sponsors/pangeafate",

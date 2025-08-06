@@ -46,23 +46,32 @@ var ApiClient = class {
   get settings() {
     return this.config;
   }
-  async shareNote(content) {
+  async shareNote(content, title, shareId) {
     const url = `${this.config.serverUrl}/api/notes/share`;
+    const extractedTitle = title || this.extractTitleFromContent(content);
     try {
+      const requestBody = {
+        content,
+        title: extractedTitle
+      };
+      if (shareId) {
+        requestBody.shareId = shareId;
+      }
       const response = await this.makeRequest(url, {
         method: "POST",
         headers: this.getHeaders(),
-        body: JSON.stringify({ content })
+        body: JSON.stringify(requestBody)
       });
       if (!response.ok) {
         await this.handleErrorResponse(response);
       }
       const data = await response.json();
       return {
-        shareUrl: data.shareUrl,
+        shareUrl: data.collaborativeUrl || data.shareUrl,
+        // Handle backend's collaborativeUrl field
         shareId: data.shareId,
-        createdAt: data.createdAt,
-        permissions: data.permissions
+        createdAt: data.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+        permissions: data.permissions || "edit"
       };
     } catch (error) {
       if (error instanceof Error && error.message === "Request timeout") {
@@ -73,6 +82,22 @@ var ApiClient = class {
       }
       throw error;
     }
+  }
+  extractTitleFromContent(content) {
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("# ")) {
+        return trimmed.substring(2).trim();
+      }
+    }
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && !trimmed.startsWith("#")) {
+        return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
+      }
+    }
+    return "Untitled Document";
   }
   async updateNote(shareId, content) {
     const url = `${this.config.serverUrl}/api/notes/${shareId}`;
@@ -90,6 +115,17 @@ var ApiClient = class {
       updatedAt: data.updatedAt,
       version: data.version
     };
+  }
+  async getSharedNote(shareId) {
+    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
+    const response = await this.makeRequest(url, {
+      method: "GET",
+      headers: this.getHeaders()
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    return await response.json();
   }
   async deleteShare(shareId) {
     const url = `${this.config.serverUrl}/api/notes/${shareId}`;
@@ -317,10 +353,13 @@ ${contentWithoutFrontmatter}`;
         wasUpdate: true
       };
     } else {
-      const shareResponse = await this.apiClient.shareNote(content);
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const extractedTitle = this.extractTitleFromContent(content);
+      const shareResponse = await this.apiClient.shareNote(content, extractedTitle, uniqueShareId);
       const updatedContent = await this.addShareMetadata(
         content,
         shareResponse.shareUrl,
+        // This is now collaborativeUrl from backend
         shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
       );
       return {
@@ -330,6 +369,22 @@ ${contentWithoutFrontmatter}`;
         wasUpdate: false
       };
     }
+  }
+  extractTitleFromContent(content) {
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("# ")) {
+        return trimmed.substring(2).trim();
+      }
+    }
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && !trimmed.startsWith("#")) {
+        return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
+      }
+    }
+    return "New Document";
   }
   async unshareNote(content) {
     const shareId = this.getShareId(content);
@@ -344,15 +399,18 @@ ${contentWithoutFrontmatter}`;
 // src/settings.ts
 var DEFAULT_SETTINGS = {
   apiKey: "",
-  serverUrl: "https://obsidiancomments.lakestrom.com",
+  serverUrl: "https://obsidiancomments.serverado.app",
   copyToClipboard: true,
   showNotifications: true,
   defaultPermissions: "edit"
 };
 function validateSettings(settings) {
   const errors = [];
-  if (settings.apiKey && settings.apiKey.trim() !== "" && settings.apiKey.length < 20) {
-    errors.push("API key must be at least 20 characters long");
+  if (settings.apiKey !== void 0) {
+    if (settings.apiKey.trim() === "") {
+    } else if (settings.apiKey.length < 20) {
+      errors.push("API key must be at least 20 characters long");
+    }
   }
   if (settings.serverUrl) {
     try {

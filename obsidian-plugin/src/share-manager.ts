@@ -177,11 +177,16 @@ export class ShareManager {
         wasUpdate: true
       };
     } else {
-      // Create new share
-      const shareResponse = await this.apiClient.shareNote(content);
+      // Create new share - generate unique ID and extract title
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const extractedTitle = this.extractTitleFromContent(content);
+      
+      const shareResponse = await this.apiClient.shareNote(content, extractedTitle, uniqueShareId);
+      
+      // Use the shareUrl from response (which is collaborativeUrl from backend)
       const updatedContent = await this.addShareMetadata(
         content, 
-        shareResponse.shareUrl, 
+        shareResponse.shareUrl, // This is now collaborativeUrl from backend
         shareResponse.createdAt || new Date().toISOString()
       );
 
@@ -192,6 +197,27 @@ export class ShareManager {
         wasUpdate: false
       };
     }
+  }
+
+  private extractTitleFromContent(content: string): string {
+    // Extract title from first H1 heading
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('# ')) {
+        return trimmed.substring(2).trim();
+      }
+    }
+    
+    // Fallback: use first non-empty line
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && !trimmed.startsWith('#')) {
+        return trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed;
+      }
+    }
+    
+    return 'New Document';
   }
 
   async unshareNote(content: string): Promise<string> {

@@ -57,16 +57,16 @@ describe('ApiClient', () => {
       const result = await apiClient.shareNote(noteContent);
 
       // Assert
-      expect(result.shareUrl).toMatch(/^https:\/\/share\.obsidiancomments\.com\//);
+      expect(result.shareUrl).toMatch(/^https:\/\/obsidiancomments\.serverado\.app\/editor\//);
       expect(result.shareId).toHaveLength(12);
       expect(result.createdAt).toBeDefined();
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.obsidiancomments.com/api/notes/share',
+        'https://obsidiancomments.serverado.app/api/notes/share',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MOCK_SETTINGS.configured.apiKey}`,
+            'Authorization': `Bearer test-api-key-12345-abcdef-valid-length`,
             'User-Agent': expect.stringContaining('ObsidianComments')
           }),
           body: JSON.stringify({ content: noteContent })
@@ -132,7 +132,7 @@ describe('ApiClient', () => {
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Authorization': `Bearer ${MOCK_SETTINGS.configured.apiKey}`,
+            'Authorization': `Bearer test-api-key-12345-abcdef-valid-length`,
             'Content-Type': 'application/json',
             'User-Agent': expect.stringContaining('ObsidianComments')
           })
@@ -159,11 +159,11 @@ describe('ApiClient', () => {
       expect(result.shareId).toBe(shareId);
       expect(result.updatedAt).toBeDefined();
       expect(global.fetch).toHaveBeenCalledWith(
-        `https://api.obsidiancomments.com/api/notes/${shareId}`,
+        `https://obsidiancomments.serverado.app/api/notes/${shareId}`,
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
-            'Authorization': `Bearer ${MOCK_SETTINGS.configured.apiKey}`,
+            'Authorization': `Bearer test-api-key-12345-abcdef-valid-length`,
             'Content-Type': 'application/json'
           }),
           body: JSON.stringify({ content: updatedContent })
@@ -203,7 +203,7 @@ describe('ApiClient', () => {
 
       // Assert
       expect(global.fetch).toHaveBeenCalledWith(
-        `https://api.obsidiancomments.com/api/notes/${shareId}`,
+        `https://obsidiancomments.serverado.app/api/notes/${shareId}`,
         expect.objectContaining({
           method: 'DELETE',
           headers: expect.objectContaining({
@@ -268,7 +268,7 @@ describe('ApiClient', () => {
       expect(result.user).toBeDefined();
       expect(result.limits).toBeDefined();
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.obsidiancomments.com/api/auth/test',
+        'https://obsidiancomments.serverado.app/api/auth/test',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({

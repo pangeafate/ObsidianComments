@@ -37,14 +37,27 @@ export class ApiClient {
     return this.config;
   }
 
-  async shareNote(content: string): Promise<ShareResponse> {
+  async shareNote(content: string, title?: string, shareId?: string): Promise<ShareResponse> {
     const url = `${this.config.serverUrl}/api/notes/share`;
     
+    // Extract title from content if not provided
+    const extractedTitle = title || this.extractTitleFromContent(content);
+    
     try {
+      const requestBody: any = { 
+        content,
+        title: extractedTitle
+      };
+      
+      // Include shareId for database persistence if provided
+      if (shareId) {
+        requestBody.shareId = shareId;
+      }
+      
       const response = await this.makeRequest(url, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ content })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -53,10 +66,10 @@ export class ApiClient {
 
       const data = await response.json();
       return {
-        shareUrl: data.shareUrl,
+        shareUrl: data.collaborativeUrl || data.shareUrl, // Handle backend's collaborativeUrl field
         shareId: data.shareId,
-        createdAt: data.createdAt,
-        permissions: data.permissions
+        createdAt: data.createdAt || new Date().toISOString(),
+        permissions: data.permissions || 'edit'
       };
     } catch (error) {
       if (error instanceof Error && error.message === 'Request timeout') {
@@ -67,6 +80,27 @@ export class ApiClient {
       }
       throw error;
     }
+  }
+
+  private extractTitleFromContent(content: string): string {
+    // Extract title from first H1 heading
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('# ')) {
+        return trimmed.substring(2).trim();
+      }
+    }
+    
+    // Fallback: use first non-empty line
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && !trimmed.startsWith('#')) {
+        return trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed;
+      }
+    }
+    
+    return 'Untitled Document';
   }
 
   async updateNote(shareId: string, content: string): Promise<UpdateResponse> {
@@ -88,6 +122,21 @@ export class ApiClient {
       updatedAt: data.updatedAt,
       version: data.version
     };
+  }
+
+  async getSharedNote(shareId: string): Promise<any> {
+    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
+    
+    const response = await this.makeRequest(url, {
+      method: 'GET',
+      headers: this.getHeaders()
+    });
+
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+
+    return await response.json();
   }
 
   async deleteShare(shareId: string): Promise<void> {

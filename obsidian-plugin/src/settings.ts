@@ -10,7 +10,7 @@ import { PluginSettings, ValidationResult } from './types';
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   apiKey: '',
-  serverUrl: 'https://obsidiancomments.lakestrom.com',
+  serverUrl: 'https://obsidiancomments.serverado.app',
   copyToClipboard: true,
   showNotifications: true,
   defaultPermissions: 'edit'
@@ -19,9 +19,13 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 export function validateSettings(settings: Partial<PluginSettings>): ValidationResult {
   const errors: string[] = [];
 
-  // API key validation (optional for now)
-  if (settings.apiKey && settings.apiKey.trim() !== '' && settings.apiKey.length < 20) {
-    errors.push('API key must be at least 20 characters long');
+  // API key validation - now optional but if provided must be valid
+  if (settings.apiKey !== undefined) {
+    if (settings.apiKey.trim() === '') {
+      // Empty string is allowed (optional API key)
+    } else if (settings.apiKey.length < 20) {
+      errors.push('API key must be at least 20 characters long');
+    }
   }
 
   // Server URL validation  
