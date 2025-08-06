@@ -182,18 +182,8 @@ export function createServer() {
         });
       }
       
-      // Allow all origins for now - can be restricted later
-      const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-        'Access-Control-Allow-Credentials': 'true'
-      };
-      
-      if (data.request.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers });
-      }
-      
+      // Let backend handle CORS for API endpoints
+      // Hocuspocus only handles WebSocket connections (/ws) which don't need CORS headers
       return null; // Let Hocuspocus handle the request
     },
 
