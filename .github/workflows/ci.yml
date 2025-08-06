@@ -66,7 +66,7 @@ jobs:
         echo "JWT_SECRET=$JWT_SECRET" >> .env.test
         echo "NODE_ENV=$NODE_ENV" >> .env.test
         
-        # Generate Prisma client
+        # Generate Prisma client for both backend and hocuspocus
         npm run prisma:generate
         
     - name: Run backend unit tests
@@ -78,19 +78,17 @@ jobs:
         CI: true
         MOCK_EXTERNAL_SERVICES: true
       run: |
-        cd packages/backend
-        # Try to create database schema, continue if it fails
-        npx prisma db push --force-reset --accept-data-loss || echo "Database setup failed, running tests with mocks"
-        # Run only the CI validation tests for now
-        npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
+        # Try to create database schema
+        cd packages/backend && npx prisma db push --force-reset --accept-data-loss || echo "Database setup failed, running tests with mocks"
+        # Run backend tests
+        npm run test:backend -- --testPathPattern="ci-validation.test.ts" || npm run test:backend -- --verbose
 
     - name: Run frontend unit tests
       env:
         CI: true
       run: |
-        cd packages/frontend
-        # Run only the CI validation tests for now  
-        npm test -- --testPathPattern="ci-validation.test.tsx" --watchAll=false || echo "Frontend tests completed"
+        # Run frontend tests
+        npm run test:frontend -- --testPathPattern="ci-validation.test.tsx" --watchAll=false || echo "Frontend tests completed"
 
     - name: Run hocuspocus unit tests  
       env:
@@ -99,10 +97,8 @@ jobs:
         NODE_ENV: test
         CI: true
       run: |
-        cd packages/hocuspocus
-        npx prisma generate
-        # Run only CI validation tests for now
-        npm test -- --testPathPattern="ci-validation.test.ts" || echo "Hocuspocus tests completed"
+        # Run hocuspocus tests (Prisma client already generated in setup)
+        npm run test:hocuspocus -- --testPathPattern="ci-validation.test.ts" || echo "Hocuspocus tests completed"
 
     - name: Build frontend
       env:
@@ -174,9 +170,10 @@ jobs:
         VITE_API_URL: http://localhost:8081/api
         VITE_WS_URL: ws://localhost:8082
       run: |
-        cd packages/backend && npx prisma generate && npm run build
-        cd ../frontend && npm run build  
-        cd ../hocuspocus && npx prisma generate && npm run build
+        npm run prisma:generate
+        npm run build:backend
+        npm run build:frontend
+        npm run build:hocuspocus
 
     - name: Start services for E2E testing
       env:
@@ -187,14 +184,12 @@ jobs:
         PORT: 8081
         CI: true
       run: |
-        cd packages/backend
         # Create database schema
-        npx prisma db push --force-reset --accept-data-loss
-        npm start &
-        cd ../hocuspocus
-        PORT=8082 npm start &
-        cd ../frontend
-        npm run preview -- --port 3001 &
+        cd packages/backend && npx prisma db push --force-reset --accept-data-loss
+        # Start services in background
+        npm run dev:backend &
+        PORT=8082 npm run dev:hocuspocus &
+        npm run build:frontend && cd packages/frontend && npm run preview -- --port 3001 &
         
         # Wait for services to start
         sleep 30
@@ -241,9 +236,9 @@ jobs:
         VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
         NODE_ENV: production
       run: |
-        cd packages/backend && npm run build
-        cd ../frontend && npm run build
-        cd ../hocuspocus && npm run build
+        npm run build:backend
+        npm run build:frontend
+        npm run build:hocuspocus
 
     - name: Deploy to production server
       env:
