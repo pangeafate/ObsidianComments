@@ -391,8 +391,39 @@ ${contentWithoutFrontmatter}`;
     if (!shareId) {
       return content;
     }
-    await this.apiClient.deleteShare(shareId);
+    await this.deleteFromDatabaseSafely(shareId);
     return await this.removeShareMetadata(content);
+  }
+  async deleteFromDatabaseSafely(shareId, maxRetries = 2) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`\u{1F5D1}\uFE0F Attempting to delete note ${shareId} from database (attempt ${attempt})`);
+        await this.apiClient.deleteShare(shareId);
+        console.log(`\u2705 Successfully deleted note ${shareId} from database`);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Unknown error");
+        console.warn(`\u26A0\uFE0F Delete attempt ${attempt} failed for ${shareId}:`, lastError.message);
+        if (error instanceof Error) {
+          if (error.message.includes("not found") || error.message.includes("404")) {
+            console.log(`\u2139\uFE0F Note ${shareId} already deleted or not found in database`);
+            return;
+          }
+          if (error.message.includes("invalid") || error.message.includes("401")) {
+            console.error(`\u274C Authentication error for ${shareId}, not retrying`);
+            return;
+          }
+        }
+        if (attempt < maxRetries) {
+          const delay = attempt * 1e3;
+          console.log(`\u23F3 Waiting ${delay}ms before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+    console.error(`\u274C Failed to delete note ${shareId} from database after ${maxRetries} attempts:`, lastError == null ? void 0 : lastError.message);
+    console.log(`\u{1F9F9} Continuing with local frontmatter removal for ${shareId}`);
   }
 };
 

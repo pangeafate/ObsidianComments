@@ -227,7 +227,53 @@ export class ShareManager {
       return content; // Not shared, return as-is
     }
 
-    await this.apiClient.deleteShare(shareId);
+    // Attempt to delete from database with proper error handling
+    await this.deleteFromDatabaseSafely(shareId);
+    
+    // Always remove frontmatter locally, even if API call fails
     return await this.removeShareMetadata(content);
+  }
+
+  private async deleteFromDatabaseSafely(shareId: string, maxRetries: number = 2): Promise<void> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🗑️ Attempting to delete note ${shareId} from database (attempt ${attempt})`);
+        
+        await this.apiClient.deleteShare(shareId);
+        
+        console.log(`✅ Successfully deleted note ${shareId} from database`);
+        return; // Success - exit retry loop
+        
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.warn(`⚠️ Delete attempt ${attempt} failed for ${shareId}:`, lastError.message);
+        
+        // Don't retry on certain errors
+        if (error instanceof Error) {
+          if (error.message.includes('not found') || error.message.includes('404')) {
+            console.log(`ℹ️ Note ${shareId} already deleted or not found in database`);
+            return; // Consider this a success - note is gone
+          }
+          
+          if (error.message.includes('invalid') || error.message.includes('401')) {
+            console.error(`❌ Authentication error for ${shareId}, not retrying`);
+            return; // Don't retry auth errors
+          }
+        }
+        
+        // For temporary errors, wait before retry
+        if (attempt < maxRetries) {
+          const delay = attempt * 1000; // 1s, 2s delay
+          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // All retries failed, but don't throw - we still want to remove frontmatter
+    console.error(`❌ Failed to delete note ${shareId} from database after ${maxRetries} attempts:`, lastError?.message);
+    console.log(`🧹 Continuing with local frontmatter removal for ${shareId}`);
   }
 }
