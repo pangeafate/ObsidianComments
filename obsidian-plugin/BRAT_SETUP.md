@@ -17,7 +17,7 @@ This document explains how to set up the Obsidian Comments plugin for beta testi
 3. **Add this plugin to BRAT:**
    - Open BRAT settings
    - Click "Add Beta Plugin"
-   - Enter your repository URL: `https://github.com/YOUR_USERNAME/YOUR_REPO`
+   - Enter your repository URL: `https://github.com/pangeafate/ObsidianComments`
    - BRAT will automatically install the plugin
 
 ## Development Workflow
@@ -86,7 +86,7 @@ BRAT will detect version changes and notify users of updates.
 
 - **Plugin ID:** obsidian-comments
 - **Plugin Name:** Obsidian Comments
-- **Current Version:** 1.0.0
+- **Current Version:** 1.5.0
 
 ## Troubleshooting
 
