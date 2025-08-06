@@ -256,6 +256,10 @@ jobs:
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           nginx.conf $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/nginx.conf
         
+        # Upload diagnostic script for 500 error
+        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          scripts/diagnose-500-error.sh $DEPLOY_USER@$DEPLOY_HOST:/tmp/diagnose-500.sh
+        
         # Restart services and ensure all components are running
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
           cd /opt/obsidian-comments
@@ -267,17 +271,25 @@ jobs:
           pm2 restart obsidian-backend-final || pm2 restart obsidian-backend
           pm2 restart obsidian-hocuspocus-fixed || pm2 restart obsidian-hocuspocus
           
-          # Recreate nginx with updated configuration
+          # Recreate nginx with updated configuration and proper volume mounts
           docker stop obsidian-nginx || true
           docker rm obsidian-nginx || true
           docker run -d --name obsidian-nginx --network host \
             -v /opt/obsidian-comments/nginx.conf:/etc/nginx/nginx.conf:ro \
             -v /etc/nginx/ssl:/etc/nginx/ssl:ro \
+            -v /opt/obsidian-comments/packages/frontend/dist:/opt/obsidian-comments/packages/frontend/dist:ro \
             nginx:alpine
           
           # Show status for verification
           pm2 list
           docker ps | grep obsidian
+          
+          # Run 500 error diagnostics
+          echo ""
+          echo "🔍 RUNNING 500 ERROR DIAGNOSTICS"
+          echo "================================="
+          chmod +x /tmp/diagnose-500.sh
+          bash /tmp/diagnose-500.sh
         EOF
         
         rm deploy_key
