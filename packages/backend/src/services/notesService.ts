@@ -46,7 +46,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
 
   console.log('💾 [DEBUG] Starting Prisma document.create...');
   console.log('💾 [DEBUG] Prisma data payload:', {
-    id: customId,
+    customId: customId, // Frontend-provided ID (for reference only, not used as DB ID)
     title: data.title,
     contentLength: data.content?.length || 0,
     htmlContentLength: sanitizedHtml?.length || 0,
@@ -56,9 +56,11 @@ export async function createSharedNote(data: NoteData, customId?: string) {
   
   let document;
   try {
+    // CRITICAL FIX: Don't pass custom ID to Prisma - let it auto-generate CUID
+    // The frontend's customId may not be valid CUID format
     document = await prisma.document.create({
       data: {
-        id: customId, // Use custom ID if provided, otherwise auto-generate
+        // id: auto-generated CUID (removed customId to fix 500 error)
         title: data.title, // Use provided title as-is
         content: data.content || '',
         htmlContent: sanitizedHtml,
