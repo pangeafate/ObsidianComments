@@ -145,6 +145,7 @@ describe('HTML Support for Notes', () => {
       // Create note with HTML
       const document = await prisma.document.create({
         data: {
+          id: 'test-html-note-1',
           title: 'HTML Note',
           content: '# HTML Note\n\nMarkdown content',
           htmlContent: '<h1>HTML Note</h1><p>Markdown content</p>',
@@ -170,6 +171,7 @@ describe('HTML Support for Notes', () => {
     it('should work with legacy markdown-only notes', async () => {
       const document = await prisma.document.create({
         data: {
+          id: 'test-legacy-note-1',
           title: 'Legacy Note',
           content: '# Legacy\n\nOld note format',
           renderMode: 'markdown'
@@ -193,6 +195,7 @@ describe('HTML Support for Notes', () => {
     it('should update markdown content without affecting HTML', async () => {
       const document = await prisma.document.create({
         data: {
+          id: 'test-editable-note-1',
           title: 'Editable Note',
           content: 'Original markdown',
           htmlContent: '<p>Original HTML</p>',
@@ -219,6 +222,7 @@ describe('HTML Support for Notes', () => {
     it('should update title only when explicitly provided', async () => {
       const document = await prisma.document.create({
         data: {
+          id: 'test-title-update-1',
           title: 'Original Title',
           content: '# Different H1\n\nContent'
         }

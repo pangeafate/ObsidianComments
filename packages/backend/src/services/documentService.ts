@@ -13,6 +13,7 @@ export interface PublishResult {
 export async function publishDocument(data: PublishRequest): Promise<PublishResult> {
   const document = await prisma.document.create({
     data: {
+      id: uuidv4(), // Generate required ID
       title: data.title,
       content: data.content,
       metadata: data.metadata

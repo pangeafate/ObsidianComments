@@ -25,6 +25,7 @@ describe('Hocuspocus Server', () => {
     // Create a document in the database
     const document = await prisma.document.create({
       data: {
+        id: 'test-hocuspocus-doc-1',
         title: 'Test Document',
         content: '# Test Heading\n\nThis is test content.'
       }
@@ -43,6 +44,7 @@ describe('Hocuspocus Server', () => {
   it('should handle document persistence', async () => {
     const document = await prisma.document.create({
       data: {
+        id: 'test-hocuspocus-doc-2',
         title: 'Test Document',
         content: '# Test Content'
       }
