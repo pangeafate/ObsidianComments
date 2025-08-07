@@ -295,10 +295,6 @@ jobs:
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           nginx.conf $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/nginx.conf
         
-        # Upload diagnostic script for 500 error
-        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
-          scripts/diagnose-500-error.sh $DEPLOY_USER@$DEPLOY_HOST:/tmp/diagnose-500.sh
-        
         # Restart services and ensure all components are running
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
           cd /opt/obsidian-comments
@@ -322,13 +318,6 @@ jobs:
           # Show status for verification
           pm2 list
           docker ps | grep obsidian
-          
-          # Run 500 error diagnostics (non-blocking)
-          echo ""
-          echo "🔍 RUNNING 500 ERROR DIAGNOSTICS"
-          echo "================================="
-          chmod +x /tmp/diagnose-500.sh
-          timeout 60 bash /tmp/diagnose-500.sh || echo "Diagnostics completed with timeout/errors (non-blocking)"
         EOF
         
         rm deploy_key
