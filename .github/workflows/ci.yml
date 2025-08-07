@@ -54,8 +54,6 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
-        # Ensure hocuspocus dependencies are installed
-        cd packages/hocuspocus && npm ci
 
     - name: Setup test environment
       env:
@@ -72,6 +70,7 @@ jobs:
         
         # Generate Prisma client for both backend and hocuspocus
         npm run prisma:generate
+        cd packages/hocuspocus && npx prisma generate
         
     - name: Run backend unit tests
       env:
@@ -178,8 +177,6 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
-        # Ensure hocuspocus dependencies are installed
-        cd packages/hocuspocus && npm ci
 
     - name: Install Playwright
       run: npx playwright install --with-deps chromium
@@ -191,6 +188,8 @@ jobs:
         VITE_WS_URL: ws://localhost:8082
       run: |
         npm run prisma:generate
+        cd packages/hocuspocus && npx prisma generate
+        cd ../..
         npm run build:backend
         npm run build:frontend
         npm run build:hocuspocus
@@ -256,15 +255,17 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
-        # Ensure hocuspocus dependencies are installed
-        cd packages/hocuspocus && npm ci
 
     - name: Build production assets
       env:
         VITE_API_URL: https://obsidiancomments.serverado.app/api
         VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
         NODE_ENV: production
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/obsidian_comments
       run: |
+        npm run prisma:generate
+        cd packages/hocuspocus && npx prisma generate
+        cd ../..
         npm run build:backend
         npm run build:frontend
         npm run build:hocuspocus

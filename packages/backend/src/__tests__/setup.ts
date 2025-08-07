@@ -22,14 +22,14 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  // Clean up data between tests
+  // Clean up data between tests if database is available
   try {
     await prisma.comment.deleteMany({});
     await prisma.version.deleteMany({});
     await prisma.document.deleteMany({});
     await prisma.user.deleteMany({});
   } catch (error) {
-    // Ignore errors if tables don't exist
+    // Silently skip cleanup if database is not available
   }
 });
 
