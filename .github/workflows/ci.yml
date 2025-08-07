@@ -379,20 +379,21 @@ ENVFILE
           sleep 10
         done
         
-        echo "🔍 Testing CORS headers..."
-        # Test OPTIONS request for CORS preflight
-        curl -sI -X OPTIONS -H 'Origin: app://obsidian.md' -H 'Access-Control-Request-Method: POST' https://obsidiancomments.serverado.app/api/notes/share | tee headers.txt
+        echo "🔍 Testing CORS headers (CRITICAL)..."
+        # Test actual POST request to trigger backend CORS
+        curl -si -X POST https://obsidiancomments.serverado.app/api/notes/share \
+          -H "Content-Type: application/json" \
+          -H "Origin: app://obsidian.md" \
+          -d '{}' | head -20 | tee headers.txt
         
-        # Check if CORS header is present (should be app://obsidian.md or absent if blocked)
-        if grep -i 'access-control-allow-origin: \*' headers.txt; then
-          echo "⚠️ WARNING: Wildcard CORS headers detected (may be too permissive)"
-        fi
-        
-        # Check if origin is properly allowed
+        # Check if CORS header is present and correct
         if grep -i 'access-control-allow-origin: app://obsidian.md' headers.txt; then
-          echo "✅ CORS headers configured for Obsidian!"
+          echo "✅ CORS headers configured correctly for Obsidian!"
         else
-          echo "ℹ️ CORS headers not present in OPTIONS response (backend may handle per-request)"
+          echo "❌ CORS ERROR: Expected 'Access-Control-Allow-Origin: app://obsidian.md' header"
+          echo "Found headers:"
+          grep -i 'access-control-allow-origin' headers.txt || echo "No CORS headers found"
+          exit 1
         fi
         
         echo "🔌 Testing ShareNote plugin HTML sharing endpoint..."

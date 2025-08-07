@@ -12,25 +12,17 @@ beforeAll(async () => {
   // Set up test environment
   process.env.FRONTEND_URL = 'http://localhost:5173';
   
-  try {
-    // Test database connection
-    await prisma.$connect();
-    console.log('✅ Test database connected successfully');
-  } catch (error) {
-    console.warn('⚠️ Database connection failed, tests may not work properly:', error instanceof Error ? error.message : 'Unknown error');
-  }
+  // Test database connection - MUST succeed for tests to run
+  await prisma.$connect();
+  console.log('✅ Test database connected successfully');
 });
 
 beforeEach(async () => {
-  // Clean up data between tests if database is available
-  try {
-    await prisma.comment.deleteMany({});
-    await prisma.version.deleteMany({});
-    await prisma.document.deleteMany({});
-    await prisma.user.deleteMany({});
-  } catch (error) {
-    // Silently skip cleanup if database is not available
-  }
+  // Clean up data between tests - database MUST be available
+  await prisma.comment.deleteMany({});
+  await prisma.version.deleteMany({});
+  await prisma.document.deleteMany({});
+  await prisma.user.deleteMany({});
 });
 
 afterAll(async () => {

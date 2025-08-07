@@ -9,40 +9,28 @@ const prisma = new PrismaClient({
 });
 
 beforeAll(async () => {
-  // Try to connect and clean up test database
-  try {
-    await prisma.$connect();
-    await prisma.$transaction([
-      prisma.comment.deleteMany(),
-      prisma.version.deleteMany(),
-      prisma.document.deleteMany(),
-      prisma.user.deleteMany(),
-    ]);
-  } catch (error) {
-    console.warn('⚠️ Database not available for cleanup, tests may use mocks');
-  }
+  // Database MUST be available for tests
+  await prisma.$connect();
+  await prisma.$transaction([
+    prisma.comment.deleteMany(),
+    prisma.version.deleteMany(),
+    prisma.document.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
 });
 
 afterEach(async () => {
-  // Clean up after each test if database is available
-  try {
-    await prisma.$transaction([
-      prisma.comment.deleteMany(),
-      prisma.version.deleteMany(),
-      prisma.document.deleteMany(),
-      prisma.user.deleteMany(),
-    ]);
-  } catch (error) {
-    // Silently skip cleanup if database is not available
-  }
+  // Clean up after each test - database MUST be available
+  await prisma.$transaction([
+    prisma.comment.deleteMany(),
+    prisma.version.deleteMany(),
+    prisma.document.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
 });
 
 afterAll(async () => {
-  try {
-    await prisma.$disconnect();
-  } catch (error) {
-    // Silently handle disconnect errors
-  }
+  await prisma.$disconnect();
 });
 
 export { prisma };
