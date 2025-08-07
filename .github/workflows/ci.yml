@@ -330,7 +330,19 @@ jobs:
           -d '{"title":"E2E Test","content":"Test content"}' \
           -v || echo "❌ Document creation via frontend proxy failed"
         
-        echo "🧪 Step 4: Running minimal E2E test"
+        echo "🧪 Step 3.1: Testing specific document route that E2E test will use"
+        DOC_ID="test-doc-$(date +%s)-playwright"
+        curl -f http://localhost:3001/api/notes/$DOC_ID || echo "❌ Document check failed (expected)"
+        curl -X POST http://localhost:3001/api/notes/share \
+          -H "Content-Type: application/json" \
+          -d "{\"title\":\"Test Document\",\"content\":\"Test content\",\"shareId\":\"$DOC_ID\"}" || echo "❌ Document creation failed"
+        curl -f http://localhost:3001/api/notes/$DOC_ID || echo "❌ Document retrieval after creation failed"
+        
+        echo "🧪 Step 4: Running simple E2E test"
+        # Run simple test to verify document creation and loading works
+        timeout 300 npx playwright test tests/e2e/simple-test.spec.js --project=chromium --max-failures=1
+        
+        echo "🧪 Step 5: Running full E2E test (if simple test passes)"
         # Run basic E2E test to verify deployment works - MUST PASS  
         timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
         
