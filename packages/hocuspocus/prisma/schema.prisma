@@ -11,6 +11,8 @@ model Document {
   id          String   @id @default(cuid())
   title       String
   content     String
+  htmlContent String?  // Rendered HTML content
+  renderMode  String   @default("markdown") // "markdown" or "html"
   metadata    Json?    // PostgreSQL supports native JSON
   publishedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
