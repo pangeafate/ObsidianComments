@@ -8,7 +8,7 @@ datasource db {
 }
 
 model Document {
-  id          String   @id @default(cuid())
+  id          String   @id  // Allow any string ID (remove auto-generated CUID)
   title       String
   content     String
   htmlContent String?  // Rendered HTML content

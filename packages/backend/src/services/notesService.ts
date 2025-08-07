@@ -4,6 +4,11 @@ import { sanitizeHtml } from '../utils/html-sanitizer';
 
 const prisma = new PrismaClient();
 
+// Simple ID generation fallback
+function generateId(): string {
+  return 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
 // Generate view URL for HTML rendering
 function generateViewUrl(shareId: string): string {
   const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -46,7 +51,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
 
   console.log('💾 [DEBUG] Starting Prisma document.create...');
   console.log('💾 [DEBUG] Prisma data payload:', {
-    customId: customId, // Frontend-provided ID (for reference only, not used as DB ID)
+    customId: customId, // Frontend-provided ID (now allowed as arbitrary string)
     title: data.title,
     contentLength: data.content?.length || 0,
     htmlContentLength: sanitizedHtml?.length || 0,
@@ -56,11 +61,12 @@ export async function createSharedNote(data: NoteData, customId?: string) {
   
   let document;
   try {
-    // CRITICAL FIX: Don't pass custom ID to Prisma - let it auto-generate CUID
-    // The frontend's customId may not be valid CUID format
+    // FIXED: Use custom ID or generate a fallback if none provided
+    // Prisma schema now allows arbitrary string IDs (removed CUID requirement)
+    const documentId = customId || generateId(); // Use frontend ID or generate one
     document = await prisma.document.create({
       data: {
-        // id: auto-generated CUID (removed customId to fix 500 error)
+        id: documentId, // Now works with any string format
         title: data.title, // Use provided title as-is
         content: data.content || '',
         htmlContent: sanitizedHtml,
