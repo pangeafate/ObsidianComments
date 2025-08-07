@@ -21,6 +21,12 @@ function generateCollaborativeUrl(shareId: string): string {
   return `${baseUrl}/editor/${shareId}`;
 }
 
+// Generate edit URL (same as collaborative URL for now)
+function generateEditUrl(shareId: string): string {
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  return `${baseUrl}/editor/${shareId}`;
+}
+
 interface NoteData {
   title?: string;
   content?: string;
@@ -94,6 +100,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     shareId: document.id,
     collaborativeUrl: generateCollaborativeUrl(document.id),
     viewUrl: generateViewUrl(document.id),
+    editUrl: generateEditUrl(document.id),
     title: document.title
   };
 }
@@ -157,23 +164,38 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
   });
 
   return {
-    success: true,
-    updatedAt: updated.updatedAt.toISOString()
+    shareId: updated.id,
+    title: updated.title,
+    content: updated.content,
+    htmlContent: updated.htmlContent,
+    renderMode: updated.renderMode || 'markdown',
+    createdAt: updated.publishedAt.toISOString(),
+    updatedAt: updated.updatedAt.toISOString(),
+    permissions: 'edit',
+    collaborativeUrl: generateCollaborativeUrl(updated.id),
+    viewUrl: generateViewUrl(updated.id)
   };
 }
 
 export async function deleteSharedNote(shareId: string) {
-  const document = await prisma.document.findUnique({
-    where: { id: shareId }
-  });
+  try {
+    await prisma.document.delete({
+      where: { id: shareId }
+    });
 
-  if (!document) {
-    throw new NotFoundError('Shared note not found. It may have been deleted.');
+    return {
+      success: true,
+      message: 'Note deleted successfully',
+      deletedNoteId: shareId,
+      notifyCollaborators: true
+    };
+  } catch (error) {
+    if ((error as any).code === 'P2025') {
+      // Prisma record not found error
+      throw new NotFoundError('Shared note not found. It may have already been deleted.');
+    }
+    throw error;
   }
-
-  await prisma.document.delete({
-    where: { id: shareId }
-  });
 }
 
 export async function listSharedNotes(limit?: number, offset?: number) {
