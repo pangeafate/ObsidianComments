@@ -86,7 +86,7 @@ jobs:
         
         # Apply database migrations to ensure schema is ready
         cd ../backend
-        PGPASSWORD=test_password psql -h localhost -U postgres -d obsidian_comments_test -c "SELECT version();" || echo "Database connection test"
+        PGPASSWORD=test_password psql -h localhost -U postgres -d obsidian_comments_test -c "SELECT version();"
         npx prisma migrate deploy || npx prisma db push --force-reset --accept-data-loss
         
     - name: Run backend unit tests
@@ -98,15 +98,15 @@ jobs:
         CI: true
         MOCK_EXTERNAL_SERVICES: true
       run: |
-        # Run backend tests (database is already set up)
-        cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
+        # Run backend tests (database is already set up) - MUST PASS
+        cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts"
 
     - name: Run frontend unit tests
       env:
         CI: true
       run: |
-        # Run frontend tests
-        cd packages/frontend && npm test -- --testPathPattern="ci-validation.test.tsx" --watchAll=false || echo "Frontend tests completed"
+        # Run frontend tests - MUST PASS
+        cd packages/frontend && npm test -- --testPathPattern="ci-validation.test.tsx" --watchAll=false
 
     - name: Run hocuspocus unit tests  
       env:
@@ -115,16 +115,16 @@ jobs:
         NODE_ENV: test
         CI: true
       run: |
-        # Run hocuspocus tests (Prisma client already generated in setup)
-        cd packages/hocuspocus && npm test -- --testPathPattern="ci-validation.test.ts" || echo "Hocuspocus tests completed"
+        # Run hocuspocus tests (Prisma client already generated in setup) - MUST PASS  
+        cd packages/hocuspocus && npm test -- --testPathPattern="ci-validation.test.ts"
 
     - name: Run ShareNote plugin unit tests
       env:
         CI: true
         NODE_ENV: test
       run: |
-        # Run ShareNote plugin CI validation test first
-        cd obsidian-plugin && npm test -- --testPathPattern="ci-validation.test.ts" --watchAll=false || npm test -- --verbose --watchAll=false
+        # Run ShareNote plugin CI validation test - MUST PASS
+        cd obsidian-plugin && npm test -- --testPathPattern="ci-validation.test.ts" --watchAll=false
 
     - name: Build frontend
       env:
@@ -246,12 +246,12 @@ jobs:
         TEST_URL: http://localhost:3001
         CI: true
       run: |
-        # Run basic E2E test to verify deployment works
-        timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1 || echo "E2E tests failed but continuing deployment"
+        # Run basic E2E test to verify deployment works - MUST PASS
+        timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
         
-        # Run ShareNote plugin integration test
+        # Run ShareNote plugin integration test - MUST PASS
         echo "🔌 Testing ShareNote plugin integration..."
-        timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1 || echo "ShareNote integration test completed"
+        timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
@@ -428,6 +428,6 @@ jobs:
           -H "Content-Type: application/json" \
           -H "Origin: app://obsidian.md" \
           -d '{"title":"CI Health Check","content":"# CI Health Check\n\nTesting HTML sharing","htmlContent":"<h1>CI Health Check</h1><p>Testing HTML sharing</p>"}' \
-          --fail --silent || echo "HTML sharing endpoint test completed (may fail without auth)"
+          --fail --silent
         
         echo "🔍 Manual check: https://obsidiancomments.serverado.app"
