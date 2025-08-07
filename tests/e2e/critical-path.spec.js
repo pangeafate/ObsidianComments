@@ -3,9 +3,25 @@ const { test, expect } = require('@playwright/test');
 test.describe('Critical User Paths - ObsidianComments', () => {
   let documentId;
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
     // Set up consistent test data with timestamp to avoid conflicts
     documentId = 'test-doc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // PRE-CREATE DOCUMENT (using proven working approach from simple test)
+    console.log(`📝 Pre-creating document for critical path test: ${documentId}`);
+    const createResponse = await request.post('/api/notes/share', {
+      data: {
+        title: 'Critical Path Test Document',
+        content: '# Critical Path Test\n\nThis document was pre-created for testing.',
+        shareId: documentId
+      }
+    });
+    
+    if (createResponse.status() !== 201) {
+      throw new Error(`Failed to pre-create document: ${createResponse.status()}`);
+    }
+    
+    console.log(`✅ Document pre-created successfully: ${documentId}`);
     
     // Set up error monitoring
     page.on('pageerror', error => {
