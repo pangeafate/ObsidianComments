@@ -54,6 +54,8 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
+        # Ensure hocuspocus dependencies are installed
+        cd packages/hocuspocus && npm ci
 
     - name: Setup test environment
       env:
@@ -176,6 +178,8 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
+        # Ensure hocuspocus dependencies are installed
+        cd packages/hocuspocus && npm ci
 
     - name: Install Playwright
       run: npx playwright install --with-deps chromium
@@ -252,6 +256,8 @@ jobs:
         npm ci
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
+        # Ensure hocuspocus dependencies are installed
+        cd packages/hocuspocus && npm ci
 
     - name: Build production assets
       env:
