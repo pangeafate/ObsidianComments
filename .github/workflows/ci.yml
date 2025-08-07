@@ -295,6 +295,12 @@ jobs:
           -d '{"title":"CI Test","content":"Test content"}' \
           -v 2>&1 || echo "❌ Document creation API failed - this should show the actual 500 error"
         
+        echo "🧪 Testing Document Creation API WITH shareId (like frontend)..."
+        curl -X POST http://localhost:8081/api/notes/share \
+          -H "Content-Type: application/json" \
+          -d '{"title":"Frontend Test","content":"Test content","shareId":"test-doc-1754584736028-yim34va27"}' \
+          -v 2>&1 || echo "❌ Frontend-style API request failed"
+        
         echo ""
         echo "📋 BACKEND SERVICE LOGS (first 100 lines):"
         head -100 packages/backend/backend.log 2>/dev/null || echo "❌ No backend logs found"

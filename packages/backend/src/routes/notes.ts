@@ -19,8 +19,12 @@ const router = Router();
 router.post('/share', async (req, res, next) => {
   try {
     console.log('📝 [DEBUG] POST /api/notes/share - Request received');
+    console.log('📝 [DEBUG] Request headers:', JSON.stringify(req.headers, null, 2));
     console.log('📝 [DEBUG] Request body keys:', Object.keys(req.body));
     console.log('📝 [DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('📝 [DEBUG] Raw body type:', typeof req.body);
+    console.log('📝 [DEBUG] Content-Length:', req.get('content-length'));
+    console.log('📝 [DEBUG] User-Agent:', req.get('user-agent'));
     
     const { title, content, htmlContent, metadata, shareId } = req.body;
     console.log('📝 [DEBUG] Extracted fields:', { title: title?.length, content: content?.length, htmlContent: htmlContent?.length, hasMetadata: !!metadata, shareId });
