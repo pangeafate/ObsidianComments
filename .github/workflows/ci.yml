@@ -82,7 +82,8 @@ jobs:
         MOCK_EXTERNAL_SERVICES: true
       run: |
         # Apply database migrations (includes HTML support)
-        cd packages/backend && npx prisma migrate deploy && npx prisma generate || npx prisma db push --force-reset --accept-data-loss && npx prisma generate || echo "Database setup failed, running tests with mocks"
+        cd packages/backend
+        npx prisma migrate deploy && npx prisma generate || npx prisma db push --force-reset --accept-data-loss && npx prisma generate || echo "Database setup failed, running tests with mocks"
         # Run backend tests
         cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
 
@@ -308,20 +309,17 @@ jobs:
           # Ensure environment file exists
           if [ ! -f .env.production ]; then
             echo "Creating production environment file..."
-            cat > .env.production << 'ENVFILE'
-DATABASE_URL=postgresql://postgres:password@localhost:5432/obsidian_comments
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=production_jwt_secret_change_me
-NODE_ENV=production
-PORT=8081
-HOCUSPOCUS_PORT=8082
-FRONTEND_URL=https://obsidiancomments.serverado.app
-ENVFILE
+            echo "DATABASE_URL=postgresql://postgres:password@localhost:5432/obsidian_comments" > .env.production
+            echo "REDIS_URL=redis://localhost:6379" >> .env.production
+            echo "JWT_SECRET=production_jwt_secret_change_me" >> .env.production
+            echo "NODE_ENV=production" >> .env.production
+            echo "PORT=8081" >> .env.production
+            echo "HOCUSPOCUS_PORT=8082" >> .env.production
+            echo "FRONTEND_URL=https://obsidiancomments.serverado.app" >> .env.production
           fi
           
           # Start database services if not running
-          docker-compose -f docker-compose.simple.yml --env-file .env.production up -d postgres redis || \
-          echo "Database services may already be running"
+          docker-compose -f docker-compose.simple.yml --env-file .env.production up -d postgres redis || echo "Database services may already be running"
           
           # Wait for database to be ready
           sleep 5
