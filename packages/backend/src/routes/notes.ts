@@ -86,7 +86,7 @@ router.get('/', async (req, res, next) => {
     
     const shares = await listSharedNotes(limit, offset);
     
-    res.json({ shares });
+    res.json(shares);
   } catch (error) {
     next(error);
   }

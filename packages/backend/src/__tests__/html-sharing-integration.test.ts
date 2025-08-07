@@ -69,7 +69,7 @@ describe('HTML Sharing Integration', () => {
       .get('/api/notes')
       .expect(200);
 
-    expect(listResponse.body.shares).toEqual(
+    expect(listResponse.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: 'First Note' }),
         expect.objectContaining({ title: 'Second Note' })
