@@ -1,4 +1,5 @@
 // Simple CI/CD validation tests that don't require external services
+import './ci-setup';  // Use CI-specific setup instead of regular setup
 
 describe('CI/CD Validation', () => {
   it('should have correct environment variables', () => {

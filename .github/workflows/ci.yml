@@ -85,7 +85,7 @@ jobs:
         cd packages/backend
         npx prisma migrate deploy && npx prisma generate || npx prisma db push --force-reset --accept-data-loss && npx prisma generate || echo "Database setup failed, running tests with mocks"
         # Run backend tests
-        cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
+        cd packages/backend && npx jest --config jest.ci.config.js || npm test -- --verbose
 
     - name: Run frontend unit tests
       env:
@@ -102,7 +102,7 @@ jobs:
         CI: true
       run: |
         # Run hocuspocus tests (Prisma client already generated in setup)
-        cd packages/hocuspocus && npm test -- --testPathPattern="ci-validation.test.ts" || echo "Hocuspocus tests completed"
+        cd packages/hocuspocus && npx jest --config jest.ci.config.js || echo "Hocuspocus tests completed"
 
     - name: Run ShareNote plugin unit tests
       env:
