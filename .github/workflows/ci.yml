@@ -273,6 +273,10 @@ jobs:
         echo "$DEPLOY_KEY" > deploy_key
         chmod 600 deploy_key
         
+        # Create required directories on production server
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
+          "mkdir -p /opt/obsidian-comments/{packages,obsidian-plugin/release,scripts}"
+        
         # Upload built assets AND nginx configuration
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
