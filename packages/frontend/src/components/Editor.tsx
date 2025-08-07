@@ -60,7 +60,7 @@ export function Editor({ documentId }: EditorProps) {
   // Obsidian document state
   const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
-  const [documentTitle, setDocumentTitle] = useState<string>('Collaborative Editor');
+  const [documentTitle, setDocumentTitle] = useState<string>('');
   const [isTitleSaving, setIsTitleSaving] = useState<boolean>(false);
   
   // Debounced title saving
@@ -94,9 +94,10 @@ export function Editor({ documentId }: EditorProps) {
         if (exists) {
           const document = await documentService.loadDocument(documentId);
           setObsidianDocument(document);
-          setDocumentTitle(document.title);
-          setLastSavedTitle(document.title);
-          console.log('✅ Loaded existing document from database:', document.title);
+          const title = document.title || 'Untitled Document';
+          setDocumentTitle(title);
+          setLastSavedTitle(title);
+          console.log('✅ Loaded existing document from database:', title);
         } else {
           // Document doesn't exist - create it immediately with default content
           console.log('📝 Document not found, creating new document in database:', documentId);

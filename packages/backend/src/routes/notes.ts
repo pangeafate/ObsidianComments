@@ -89,12 +89,14 @@ router.delete('/:shareId', async (req, res, next) => {
     const { shareId } = validateShareId(req.params);
     const result = await deleteSharedNote(shareId);
     
-    // Import websocketService dynamically to avoid circular dependencies
-    const { websocketService } = await import('../services/websocketService');
-    
-    // Notify all connected collaborators about the deletion
+    // Notify all connected collaborators about the deletion (safely)
     if (result.notifyCollaborators) {
-      websocketService.notifyNoteDeleted(shareId);
+      try {
+        const { websocketService } = await import('../services/websocketService');
+        websocketService.notifyNoteDeleted(shareId);
+      } catch (wsError) {
+        console.warn('⚠️ Failed to notify collaborators via WebSocket:', wsError);
+      }
     }
     
     res.status(200).json({
