@@ -296,6 +296,10 @@ jobs:
         
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           nginx.conf $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/nginx.conf
+          
+        # Upload docker-compose file for database services
+        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          docker-compose.simple.yml $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/docker-compose.simple.yml
         
         # Restart services and ensure all components are running
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
@@ -316,8 +320,7 @@ ENVFILE
           fi
           
           # Start database services if not running
-          docker-compose -f docker-compose.production.yml --env-file .env.production up -d postgres redis || \
-          docker-compose --env-file .env.production up -d postgres redis || \
+          docker-compose -f docker-compose.simple.yml --env-file .env.production up -d postgres redis || \
           echo "Database services may already be running"
           
           # Wait for database to be ready

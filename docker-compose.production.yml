@@ -6,7 +6,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-production_password_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432"  # Expose to host for PM2 backend
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -15,11 +17,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    networks:
-      - obsidian_network
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"  # Expose to host for PM2 backend
     volumes:
       - redis_data:/data
     healthcheck:
@@ -28,8 +30,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    networks:
-      - obsidian_network
 
   backend:
     build:
