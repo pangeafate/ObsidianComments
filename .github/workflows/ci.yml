@@ -237,13 +237,50 @@ jobs:
         
         # Create database schema
         (cd packages/backend && npx prisma db push --force-reset --accept-data-loss)
-        # Start services in background
-        (cd packages/backend && npm start) &
-        (cd packages/hocuspocus && PORT=8082 npm start) &
-        (cd packages/frontend && npm run preview -- --port 3001) &
+        
+        # Start services in background with explicit logging
+        echo "🚀 Starting Backend service..."
+        (cd packages/backend && npm start > backend.log 2>&1) &
+        BACKEND_PID=$!
+        
+        echo "🚀 Starting Hocuspocus service..."
+        (cd packages/hocuspocus && PORT=8082 npm start > hocuspocus.log 2>&1) &
+        HOCUSPOCUS_PID=$!
+        
+        echo "🚀 Starting Frontend service..."
+        (cd packages/frontend && npm run preview -- --port 3001 > frontend.log 2>&1) &
+        FRONTEND_PID=$!
         
         # Wait for services to start
+        echo "⏳ Waiting 30 seconds for services to initialize..."
         sleep 30
+        
+        # Verify services are actually running
+        echo "🔍 Service health check..."
+        echo "Backend PID: $BACKEND_PID, Running: $(kill -0 $BACKEND_PID 2>/dev/null && echo 'YES' || echo 'NO')"
+        echo "Hocuspocus PID: $HOCUSPOCUS_PID, Running: $(kill -0 $HOCUSPOCUS_PID 2>/dev/null && echo 'YES' || echo 'NO')"
+        echo "Frontend PID: $FRONTEND_PID, Running: $(kill -0 $FRONTEND_PID 2>/dev/null && echo 'YES' || echo 'NO')"
+        
+        # Test API endpoints
+        echo "🧪 Testing Backend API..."
+        curl -f http://localhost:8081/api/health || echo "❌ Backend API not responding"
+        
+        echo "🧪 Testing Frontend..."
+        curl -f http://localhost:3001/ || echo "❌ Frontend not responding"
+        
+        echo "🧪 Testing Document Creation API (the failing endpoint)..."
+        curl -X POST http://localhost:8081/api/notes/share \
+          -H "Content-Type: application/json" \
+          -d '{"title":"CI Test","content":"Test content"}' \
+          -v 2>&1 || echo "❌ Document creation API failed - this should show the actual 500 error"
+        
+        echo ""
+        echo "📋 BACKEND SERVICE LOGS (first 100 lines):"
+        head -100 backend.log 2>/dev/null || echo "❌ No backend logs found"
+        
+        echo ""  
+        echo "📋 HOCUSPOCUS SERVICE LOGS (first 50 lines):"
+        head -50 hocuspocus.log 2>/dev/null || echo "❌ No hocuspocus logs found"
 
     - name: Run E2E tests
       env:
@@ -257,6 +294,36 @@ jobs:
         # Run ShareNote plugin integration test - MUST PASS
         echo "🔌 Testing ShareNote plugin integration..."
         timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1
+
+    - name: Collect service logs on failure
+      if: failure()
+      run: |
+        echo "📋 Collecting service logs for debugging..."
+        echo "=== Backend Logs ==="
+        cat backend.log 2>/dev/null || echo "No backend logs found"
+        echo "=== Hocuspocus Logs ==="
+        cat hocuspocus.log 2>/dev/null || echo "No hocuspocus logs found"
+        echo "=== Frontend Logs ==="
+        cat frontend.log 2>/dev/null || echo "No frontend logs found"
+        
+        echo "🔍 Final service status check..."
+        ps aux | grep -E "(node|npm)" | grep -v grep || echo "No Node.js processes running"
+        
+        echo "🌐 Network connectivity test..."
+        curl -I http://localhost:8081/ 2>/dev/null || echo "Backend port 8081 not responding"
+        curl -I http://localhost:8082/ 2>/dev/null || echo "Hocuspocus port 8082 not responding"
+        curl -I http://localhost:3001/ 2>/dev/null || echo "Frontend port 3001 not responding"
+
+    - name: Upload service logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: service-logs
+        path: |
+          backend.log
+          hocuspocus.log
+          frontend.log
+        retention-days: 7
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
