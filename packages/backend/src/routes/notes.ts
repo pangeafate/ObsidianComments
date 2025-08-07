@@ -18,8 +18,8 @@ const router = Router();
 // POST /api/notes/share - Create a new shared document
 router.post('/share', async (req, res, next) => {
   try {
-    const { title, content, metadata, shareId } = req.body;
-    const validated = validateNoteShare({ title, content, metadata });
+    const { title, content, htmlContent, metadata, shareId } = req.body;
+    const validated = validateNoteShare({ title, content, htmlContent, metadata });
     const result = await createSharedNote(validated, shareId);
     
     res.status(201).json(result);
@@ -44,9 +44,9 @@ router.get('/:shareId', async (req, res, next) => {
 router.put('/:shareId', async (req, res, next) => {
   try {
     const { shareId } = validateShareId(req.params);
-    const { content } = validateNoteUpdate(req.body);
+    const validated = validateNoteUpdate(req.body);
     
-    const result = await updateSharedNote(shareId, { content });
+    const result = await updateSharedNote(shareId, validated);
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -84,9 +84,9 @@ router.get('/', async (req, res, next) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
     
-    const result = await listSharedNotes(limit, offset);
+    const shares = await listSharedNotes(limit, offset);
     
-    res.json(result);
+    res.json({ shares });
   } catch (error) {
     next(error);
   }
