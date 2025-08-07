@@ -18,11 +18,14 @@ const noteContentSchema = Joi.object({
 const noteShareSchema = Joi.object({
   title: Joi.string().required().min(1).max(255),
   content: Joi.string().required().min(1).max(1000000),
+  htmlContent: Joi.string().optional().max(5000000), // Allow larger HTML content
   metadata: Joi.object().optional()
 });
 
 const noteUpdateSchema = Joi.object({
-  content: Joi.string().required().min(1).max(1000000)
+  content: Joi.string().optional().min(1).max(1000000),
+  title: Joi.string().optional().min(1).max(255),
+  htmlContent: Joi.string().optional().max(5000000)
 });
 
 const noteTitleUpdateSchema = Joi.object({
@@ -50,11 +53,14 @@ export interface NoteContentRequest {
 export interface NoteShareRequest {
   title: string;
   content: string;
+  htmlContent?: string;
   metadata?: any;
 }
 
 export interface NoteUpdateRequest {
-  content: string;
+  content?: string;
+  title?: string;
+  htmlContent?: string;
 }
 
 export interface NoteTitleUpdateRequest {
@@ -109,7 +115,17 @@ export function validateNoteUpdate(data: any): NoteUpdateRequest {
   const { error, value } = noteUpdateSchema.validate(data, { abortEarly: false });
   
   if (error) {
-    throw new ValidationError('Content is required and must be non-empty');
+    const details = error.details.map(detail => ({
+      field: detail.path.join('.'),
+      message: detail.message
+    }));
+    
+    throw new ValidationError(`Validation failed: ${details.map(d => d.message).join(', ')}`);
+  }
+  
+  // At least one field must be provided for update
+  if (!value.content && !value.title && !value.htmlContent) {
+    throw new ValidationError('At least one field (content, title, or htmlContent) must be provided for update');
   }
   
   return value;
