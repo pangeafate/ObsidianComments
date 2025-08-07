@@ -87,9 +87,22 @@ router.patch('/:shareId', async (req, res, next) => {
 router.delete('/:shareId', async (req, res, next) => {
   try {
     const { shareId } = validateShareId(req.params);
-    await deleteSharedNote(shareId);
+    const result = await deleteSharedNote(shareId);
     
-    res.json({ success: true });
+    // Import websocketService dynamically to avoid circular dependencies
+    const { websocketService } = await import('../services/websocketService');
+    
+    // Notify all connected collaborators about the deletion
+    if (result.notifyCollaborators) {
+      websocketService.notifyNoteDeleted(shareId);
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      deletedNoteId: result.deletedNoteId,
+      title: result.title
+    });
   } catch (error) {
     next(error);
   }

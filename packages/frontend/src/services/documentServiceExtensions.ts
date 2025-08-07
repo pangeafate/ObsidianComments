@@ -99,5 +99,33 @@ export const extendedDocumentService = {
       console.error('❌ Failed to save document:', error);
       throw error;
     }
+  },
+
+  async updateDocumentTitle(documentId: string, title: string): Promise<void> {
+    try {
+      const baseUrl = (documentService as any).baseUrl || '/api';
+      
+      // Update only the title using PATCH
+      const response = await fetch(`${baseUrl}/notes/${documentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Update title response error:', errorText);
+        throw new Error(`Failed to update document title: ${response.status} ${errorText}`);
+      }
+      
+      console.log('✅ Document title updated successfully:', title);
+    } catch (error) {
+      console.error('❌ Failed to update document title:', error);
+      throw error;
+    }
   }
 };

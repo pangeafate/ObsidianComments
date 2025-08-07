@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { documentService, type DocumentData } from '../services/documentService';
 import { markdownToHtml } from '../utils/markdownConverter';
@@ -12,6 +12,7 @@ interface LoadingState {
 
 export function ViewPage() {
   const { documentId } = useParams<{ documentId: string }>();
+  const navigate = useNavigate();
   const [state, setState] = useState<LoadingState>({
     isLoading: true,
     error: null,
@@ -109,7 +110,6 @@ export function ViewPage() {
 
       return (
         <div 
-          className="prose prose-lg max-w-none"
           dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
         />
       );
@@ -132,7 +132,6 @@ export function ViewPage() {
 
     return (
       <div 
-        className="prose prose-lg max-w-none"
         dangerouslySetInnerHTML={{ __html: sanitizedMarkdownHtml }}
       />
     );
@@ -151,10 +150,11 @@ export function ViewPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            {/* Title and Metadata */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">
                 {document.title}
               </h1>
               <p className="text-sm text-gray-500">
@@ -165,44 +165,72 @@ export function ViewPage() {
               </p>
             </div>
 
-            {/* Edit link if collaborative editing is available */}
-            {document.collaborativeUrl && (
-              <Link
-                to={document.collaborativeUrl}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Edit this document
-              </Link>
-            )}
+            {/* Mode Controls */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 ml-0 sm:ml-4 mt-3 sm:mt-0 w-full sm:w-auto">
+              {/* View Mode Indicator */}
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  View Mode
+                </span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  {document.renderMode === 'html' ? 'HTML' : 'Markdown'}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {/* Edit Button */}
+                <button
+                  onClick={() => navigate(`/editor/${documentId}`)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span className="hidden sm:inline">Edit Document</span>
+                  <span className="sm:hidden">Edit</span>
+                </button>
+
+                {/* Back to Home */}
+                <Link
+                  to="/"
+                  className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm font-medium transition-colors"
+                >
+                  <span className="hidden sm:inline">Home</span>
+                  <span className="sm:hidden">←</span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          {renderContent()}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 sm:p-8 lg:p-12">
+            <div className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-a:text-blue-600 hover:prose-a:text-blue-800">
+              {renderContent()}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="bg-white border-t border-gray-200 mt-12">
+      <div className="bg-gray-50 border-t border-gray-200 mt-8">
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex justify-between items-center text-sm text-gray-500">
-            <div>
-              <Link to="/" className="text-blue-600 hover:text-blue-800">
-                ← Back to Home
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                {document.renderMode === 'html' ? 'HTML View' : 'Markdown View'}
-              </span>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-500">
+            <div className="flex items-center gap-4">
               {document.permissions && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                   {document.permissions} access
                 </span>
               )}
+              <span className="text-xs">
+                Document ID: {documentId}
+              </span>
+            </div>
+            <div className="text-xs text-gray-400">
+              Read-only view • Switch to Edit mode to make changes
             </div>
           </div>
         </div>

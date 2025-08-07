@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { useNavigate } from 'react-router-dom';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
@@ -8,12 +9,14 @@ import TaskItem from '@tiptap/extension-task-item';
 import { useCollaboration } from '../hooks/useCollaboration';
 import { useComments } from '../hooks/useComments';
 import { useLinkTracking } from '../hooks/useLinkTracking';
+import { useDebouncedTitleSave } from '../hooks/useDebouncedTitleSave';
 import { UserPresence } from './UserPresence';
 import { ConnectionStatus } from './ConnectionStatus';
 import { EnhancedCommentPanel } from './EnhancedCommentPanel';
 import { UserNamePopup } from './UserNamePopup';
 import { MyLinksPane, MyLinksPaneRef } from './MyLinksPane';
 import { NewNoteButton } from './NewNoteButton';
+import { EditableTitle } from './EditableTitle';
 import { TrackChanges } from '../extensions/TrackChanges';
 import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
@@ -30,7 +33,17 @@ interface EditorProps {
 }
 
 export function Editor({ documentId }: EditorProps) {
-  const { provider, ydoc, setUser, users, status, populateInitialContent } = useCollaboration(documentId);
+  const navigate = useNavigate();
+  const { 
+    provider, 
+    ydoc, 
+    setUser, 
+    users, 
+    status, 
+    getTitle, 
+    setTitle, 
+    onTitleChange 
+  } = useCollaboration(documentId);
   const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
   
   // Refs
@@ -48,6 +61,20 @@ export function Editor({ documentId }: EditorProps) {
   const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
   const [documentTitle, setDocumentTitle] = useState<string>('Collaborative Editor');
+  const [isTitleSaving, setIsTitleSaving] = useState<boolean>(false);
+  
+  // Debounced title saving
+  const {
+    debouncedSaveTitle,
+    saveImmediately: saveTitleImmediately,
+    setLastSavedTitle
+  } = useDebouncedTitleSave({
+    documentId,
+    debounceMs: 1500,
+    onSaveStart: () => setIsTitleSaving(true),
+    onSaveSuccess: () => setIsTitleSaving(false),
+    onSaveError: () => setIsTitleSaving(false)
+  });
   
   // Track this document in user's links with dynamic title (AFTER documentTitle is initialized)
   useLinkTracking(documentId, documentTitle);
@@ -68,6 +95,7 @@ export function Editor({ documentId }: EditorProps) {
           const document = await documentService.loadDocument(documentId);
           setObsidianDocument(document);
           setDocumentTitle(document.title);
+          setLastSavedTitle(document.title);
           console.log('✅ Loaded existing document from database:', document.title);
         } else {
           // Document doesn't exist - create it immediately with default content
@@ -84,6 +112,7 @@ export function Editor({ documentId }: EditorProps) {
           
           setObsidianDocument(newDocument);
           setDocumentTitle(newDocument.title);
+          setLastSavedTitle(newDocument.title);
           setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
           console.log('✅ New document created in database with default content:', newDocument.title);
           
@@ -117,10 +146,65 @@ export function Editor({ documentId }: EditorProps) {
     }
   }, [setUser, currentUser, userColor]);
 
+  // Initialize Yjs title when document is loaded and sync with collaborative state
+  useEffect(() => {
+    if (!ydoc || !documentTitle || !getTitle || !setTitle) return;
+
+    const currentYjsTitle = getTitle();
+    
+    // If Yjs title is empty but we have a document title, initialize Yjs
+    if (!currentYjsTitle && documentTitle) {
+      console.log('🔄 Initializing Yjs title with document title:', documentTitle);
+      setTitle(documentTitle);
+    }
+    // If Yjs has a title but local state doesn't match, update local state
+    else if (currentYjsTitle && currentYjsTitle !== documentTitle) {
+      console.log('🔄 Updating local title from Yjs:', currentYjsTitle);
+      setDocumentTitle(currentYjsTitle);
+    }
+  }, [ydoc, documentTitle, getTitle, setTitle]);
+
+  // Listen for collaborative title changes from other users
+  useEffect(() => {
+    if (!onTitleChange) return;
+
+    console.log('👂 Setting up collaborative title change listener');
+    const cleanup = onTitleChange((newTitle: string) => {
+      console.log('📨 Received collaborative title change:', newTitle);
+      if (newTitle && newTitle !== documentTitle) {
+        setDocumentTitle(newTitle);
+      }
+    });
+
+    return cleanup;
+  }, [onTitleChange, documentTitle]);
+
 
   const handleNameSet = (name: string) => {
     setCurrentUser(name);
   };
+
+  // Handle title changes from EditableTitle component
+  const handleTitleChange = useCallback((newTitle: string) => {
+    console.log('📝 Local title change:', newTitle);
+    
+    // Update local state immediately (optimistic update)
+    setDocumentTitle(newTitle);
+    
+    // Update Yjs for real-time collaboration
+    if (setTitle) {
+      setTitle(newTitle);
+    }
+    
+    // Trigger debounced save to backend
+    debouncedSaveTitle(newTitle);
+  }, [setTitle, debouncedSaveTitle]);
+
+  // Handle immediate title save (e.g., on blur or Enter key)
+  const handleTitleSave = useCallback(async (title: string): Promise<void> => {
+    console.log('💾 Immediate title save requested:', title);
+    await saveTitleImmediately(title);
+  }, [saveTitleImmediately]);
 
   const toggleCommentsPane = () => {
     setIsCommentsPaneOpen(!isCommentsPaneOpen);
@@ -385,12 +469,45 @@ export function Editor({ documentId }: EditorProps) {
     <div className="h-screen flex flex-col bg-gray-100">
       <UserNamePopup onNameSet={handleNameSet} />
       
-      <div className="border-b bg-white p-4 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">{documentTitle}</h1>
-        <div className="flex items-center gap-4">
-          <UserPresence users={users} />
-          <ConnectionStatus status={status} />
-          <div className="flex items-center gap-2">
+      <div className="border-b bg-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="flex-1 min-w-0">
+          <EditableTitle
+            title={documentTitle}
+            onTitleChange={handleTitleChange}
+            onSave={handleTitleSave}
+            placeholder="Untitled Document"
+            maxLength={200}
+            className="w-full"
+          />
+          {isTitleSaving && (
+            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              Saving title...
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+          <div className="hidden sm:flex items-center gap-4">
+            <UserPresence users={users} />
+            <ConnectionStatus status={status} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Mode Indicator and View Button */}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Edit Mode
+              </span>
+              <button
+                onClick={() => navigate(`/view/${documentId}`)}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span className="hidden sm:inline">View</span>
+              </button>
+            </div>
             <button
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                 isMyLinksPaneOpen 
@@ -399,7 +516,8 @@ export function Editor({ documentId }: EditorProps) {
               }`}
               onClick={toggleMyLinksPane}
             >
-              My Links
+              <span className="hidden sm:inline">My Links</span>
+              <span className="sm:hidden">Links</span>
             </button>
             <NewNoteButton />
             <button
@@ -412,6 +530,11 @@ export function Editor({ documentId }: EditorProps) {
             >
               Comments
             </button>
+          </div>
+          {/* Mobile User Presence */}
+          <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
+            <UserPresence users={users} />
+            <ConnectionStatus status={status} />
           </div>
         </div>
       </div>

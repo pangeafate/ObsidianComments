@@ -15,6 +15,9 @@ export interface UseCollaborationReturn {
   setUser: (user: User) => void;
   reconnect: () => void;
   getContent: () => string;
+  getTitle: () => string;
+  setTitle: (title: string) => void;
+  onTitleChange: (callback: (title: string) => void) => () => void;
 }
 
 export function useCollaboration(documentId: string): UseCollaborationReturn {
@@ -29,6 +32,8 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     const newYdoc = new Y.Doc();
     // Initialize the content field as XmlFragment for TipTap compatibility
     newYdoc.getXmlFragment('content');
+    // Initialize shared title as Y.Text for collaborative title editing
+    newYdoc.getText('title');
     setYdoc(newYdoc);
     
     const hocuspocusProvider = new HocuspocusProvider({
@@ -99,6 +104,36 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     return xmlFragment.toString();
   }, [ydoc]);
 
+  const getTitle = useCallback(() => {
+    if (!ydoc) return '';
+    const titleText = ydoc.getText('title');
+    return titleText.toString();
+  }, [ydoc]);
+
+  const setTitle = useCallback((title: string) => {
+    if (!ydoc) return;
+    const titleText = ydoc.getText('title');
+    // Replace entire title content
+    titleText.delete(0, titleText.length);
+    titleText.insert(0, title);
+  }, [ydoc]);
+
+  const onTitleChange = useCallback((callback: (title: string) => void) => {
+    if (!ydoc) return () => {};
+    
+    const titleText = ydoc.getText('title');
+    const handleTitleChange = () => {
+      callback(titleText.toString());
+    };
+
+    titleText.observe(handleTitleChange);
+    
+    // Return cleanup function
+    return () => {
+      titleText.unobserve(handleTitleChange);
+    };
+  }, [ydoc]);
+
   return {
     provider,
     ydoc,
@@ -107,5 +142,8 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     setUser,
     reconnect,
     getContent,
+    getTitle,
+    setTitle,
+    onTitleChange,
   };
 }

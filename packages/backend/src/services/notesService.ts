@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
-import { sanitizeHtml } from '../utils/html-sanitizer';
+import { sanitizeHtml, cleanMarkdownContent, extractCleanTitle } from '../utils/html-sanitizer';
 
 const prisma = new PrismaClient();
 
@@ -44,6 +44,17 @@ export async function createSharedNote(data: NoteData, customId?: string) {
   }
   console.log('✅ [DEBUG] Title validation passed');
 
+  // Clean markdown content first
+  console.log('🧹 [DEBUG] Starting content cleaning...');
+  const cleanedContent = data.content ? cleanMarkdownContent(data.content) : '';
+  console.log('✅ [DEBUG] Content cleaning successful:', { originalLength: data.content?.length, cleanedLength: cleanedContent.length });
+
+  // Extract clean title if not provided or improve existing title
+  let cleanTitle = data.title;
+  if (!cleanTitle || cleanTitle.trim().length === 0) {
+    cleanTitle = extractCleanTitle(cleanedContent);
+  }
+
   // Sanitize HTML if provided
   console.log('🧹 [DEBUG] Starting HTML sanitization...');
   let sanitizedHtml = null;
@@ -73,8 +84,8 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     document = await prisma.document.create({
       data: {
         id: documentId, // Now works with any string format
-        title: data.title, // Use provided title as-is
-        content: data.content || '',
+        title: cleanTitle, // Use cleaned title
+        content: cleanedContent,
         htmlContent: sanitizedHtml,
         renderMode: sanitizedHtml ? 'html' : 'markdown',
         metadata: {
@@ -179,6 +190,17 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
 
 export async function deleteSharedNote(shareId: string) {
   try {
+    // First check if the note exists to get its details before deletion
+    const existingNote = await prisma.document.findUnique({
+      where: { id: shareId },
+      select: { id: true, title: true }
+    });
+
+    if (!existingNote) {
+      throw new NotFoundError('Shared note not found. It may have already been deleted.');
+    }
+
+    // Delete the note
     await prisma.document.delete({
       where: { id: shareId }
     });
@@ -187,6 +209,7 @@ export async function deleteSharedNote(shareId: string) {
       success: true,
       message: 'Note deleted successfully',
       deletedNoteId: shareId,
+      title: existingNote.title,
       notifyCollaborators: true
     };
   } catch (error) {

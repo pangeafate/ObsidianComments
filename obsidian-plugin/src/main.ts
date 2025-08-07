@@ -43,12 +43,20 @@ export class ShareNotePlugin extends Plugin {
 				return;
 			}
 
+			// Check if file is a supported text file
+			if (!this.isTextFile(file)) {
+				new Notice('Only text files can be shared');
+				return;
+			}
+
 			const content = await this.app.vault.read(file);
+			const cleanedContent = this.cleanMarkdownContent(content);
 			const htmlContent = await this.renderToHTML();
+			const cleanTitle = this.extractCleanTitle(file, cleanedContent);
 
 			const shareData = {
-				title: file.basename,
-				content,
+				title: cleanTitle,
+				content: cleanedContent,
 				htmlContent
 			};
 
@@ -108,6 +116,26 @@ export class ShareNotePlugin extends Plugin {
 		cloned.querySelectorAll('.frontmatter').forEach(el => el.remove());
 		cloned.querySelectorAll('.edit-block-button').forEach(el => el.remove());
 
+		// Remove images and media elements
+		cloned.querySelectorAll('img').forEach(el => el.remove());
+		cloned.querySelectorAll('video').forEach(el => el.remove());
+		cloned.querySelectorAll('audio').forEach(el => el.remove());
+		cloned.querySelectorAll('iframe').forEach(el => el.remove());
+		cloned.querySelectorAll('embed').forEach(el => el.remove());
+		cloned.querySelectorAll('object').forEach(el => el.remove());
+
+		// Remove attachment and file links
+		cloned.querySelectorAll('a[href^="file:"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".pdf"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".doc"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".docx"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".xls"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".xlsx"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".ppt"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".pptx"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".zip"]').forEach(el => el.remove());
+		cloned.querySelectorAll('a[href*=".rar"]').forEach(el => el.remove());
+
 		// Convert internal links to plain text
 		cloned.querySelectorAll('a.internal-link').forEach(link => {
 			const textNode = document.createTextNode(link.textContent || '');
@@ -115,6 +143,97 @@ export class ShareNotePlugin extends Plugin {
 		});
 
 		return cloned.innerHTML;
+	}
+
+	isTextFile(file: TFile): boolean {
+		const textExtensions = ['.md', '.txt', '.org', '.tex', '.rst'];
+		const binaryExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', 
+								 '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp',
+								 '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+								 '.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a',
+								 '.zip', '.rar', '.7z', '.tar', '.gz', '.exe', '.dll', '.so'];
+		
+		const extension = '.' + (file.extension || '');
+		
+		// Explicitly allow text files
+		if (textExtensions.includes(extension.toLowerCase())) {
+			return true;
+		}
+		
+		// Explicitly block binary files
+		if (binaryExtensions.includes(extension.toLowerCase())) {
+			return false;
+		}
+		
+		// Default to allowing files without extensions or unknown extensions (assume text)
+		return true;
+	}
+
+	cleanMarkdownContent(content: string): string {
+		if (!content || typeof content !== 'string') return '';
+
+		let cleanedContent = content;
+
+		// Remove image syntax ![alt](url) and ![alt](url "title")
+		cleanedContent = cleanedContent.replace(/!\[.*?\]\([^)]+\)/g, '');
+		
+		// Remove attachment links [[filename.ext]]
+		const attachmentExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+									 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp',
+									 'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm',
+									 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a',
+									 'zip', 'rar', '7z', 'tar', 'gz', 'exe'];
+		
+		const attachmentPattern = new RegExp(`\\[\\[([^\\]]+\\.(${attachmentExtensions.join('|')}))(\\|[^\\]]*)?\\]\\]`, 'gi');
+		cleanedContent = cleanedContent.replace(attachmentPattern, '');
+
+		// Remove embedded/transcluded content ![[filename]]
+		cleanedContent = cleanedContent.replace(/!\[\[([^\]]+)\]\]/g, '');
+
+		// Remove HTML img tags that might have been missed
+		cleanedContent = cleanedContent.replace(/<img[^>]*>/gi, '');
+		
+		// Remove video/audio HTML tags
+		cleanedContent = cleanedContent.replace(/<(video|audio)[^>]*>[\s\S]*?<\/\1>/gi, '');
+		cleanedContent = cleanedContent.replace(/<(video|audio)[^>]*\/>/gi, '');
+
+		// Remove iframe, embed, object tags
+		cleanedContent = cleanedContent.replace(/<(iframe|embed|object)[^>]*>[\s\S]*?<\/\1>/gi, '');
+		cleanedContent = cleanedContent.replace(/<(iframe|embed|object)[^>]*\/>/gi, '');
+
+		// Clean up excessive whitespace but preserve intentional line breaks
+		cleanedContent = cleanedContent.replace(/\n\s*\n\s*\n/g, '\n\n');
+
+		return cleanedContent.trim();
+	}
+
+	extractCleanTitle(file: TFile, content: string): string {
+		// First, try to extract title from H1 header in content
+		const h1Match = content.match(/^#\s+(.+)$/m);
+		if (h1Match && h1Match[1].trim()) {
+			let title = h1Match[1].trim();
+			// Clean up title - remove any remaining markdown or HTML
+			title = title.replace(/[*_`~]/g, ''); // Remove markdown formatting
+			title = title.replace(/<[^>]*>/g, ''); // Remove HTML tags
+			if (title.length > 0) {
+				return title;
+			}
+		}
+
+		// Fallback to filename without extension
+		let title = file.basename;
+		
+		// Clean up filename-based title
+		title = title.replace(/[-_]/g, ' '); // Replace dashes and underscores with spaces
+		title = title.replace(/\s+/g, ' '); // Normalize multiple spaces
+		title = title.trim();
+		
+		// If title is still empty or just whitespace, provide a default
+		if (!title || title.length === 0) {
+			title = 'Untitled Note';
+		}
+
+		return title;
 	}
 
 	async updateFrontmatter(file: TFile, shareResult: ShareNoteResponse) {

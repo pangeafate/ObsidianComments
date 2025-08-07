@@ -76,3 +76,4 @@ cypress/videos/
 # Prisma
 prisma/migrations/
 !prisma/migrations/.gitkeepobsidian-comments-deploy.tar.gz
+.claude/
