@@ -89,15 +89,8 @@ router.delete('/:shareId', async (req, res, next) => {
     const { shareId } = validateShareId(req.params);
     const result = await deleteSharedNote(shareId);
     
-    // Notify all connected collaborators about the deletion (safely)
-    if (result.notifyCollaborators) {
-      try {
-        const { websocketService } = await import('../services/websocketService');
-        websocketService.notifyNoteDeleted(shareId);
-      } catch (wsError) {
-        console.warn('⚠️ Failed to notify collaborators via WebSocket:', wsError);
-      }
-    }
+    // WebSocket notifications temporarily disabled for deployment stability
+    console.log('📡 Note deletion completed (WebSocket notifications disabled)');
     
     res.status(200).json({
       success: true,
