@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// CI-specific Vite configuration
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -8,7 +9,7 @@ export default defineConfig({
     port: 8080,
     proxy: {
       '/api': {
-        target: 'http://backend:8081',
+        target: 'http://localhost:8081',
         changeOrigin: true,
       },
     },
@@ -18,7 +19,8 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://backend:8081',
+        // Force localhost for CI environment
+        target: 'http://localhost:8081',
         changeOrigin: true,
       },
     },

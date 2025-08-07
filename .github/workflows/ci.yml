@@ -252,8 +252,8 @@ jobs:
         (cd packages/hocuspocus && DATABASE_URL="$DATABASE_URL" REDIS_URL="$REDIS_URL" NODE_ENV="$NODE_ENV" PORT=8082 CI="$CI" npm start > hocuspocus.log 2>&1) &
         HOCUSPOCUS_PID=$!
         
-        echo "🚀 Starting Frontend service with CI environment..."
-        (cd packages/frontend && CI="$CI" NODE_ENV="$NODE_ENV" npm run preview -- --port 3001 > frontend.log 2>&1) &
+        echo "🚀 Starting Frontend service with CI config..."
+        (cd packages/frontend && CI="$CI" NODE_ENV="$NODE_ENV" npm run preview -- --port 3001 --config vite.config.ci.ts > frontend.log 2>&1) &
         FRONTEND_PID=$!
         
         # Wait for services to start and check their logs
