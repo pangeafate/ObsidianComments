@@ -30,7 +30,21 @@ export function errorHandler(
     });
   }
 
-  console.error('Unhandled error:', error);
+  console.error('❌ [DEBUG] Unhandled error occurred:', error);
+  console.error('❌ [DEBUG] Error details:', {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    code: (error as any).code,
+    errno: (error as any).errno,
+    syscall: (error as any).syscall
+  });
+  console.error('❌ [DEBUG] Request details:', {
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: req.body
+  });
   
   res.status(500).json({
     error: 'Internal server error',

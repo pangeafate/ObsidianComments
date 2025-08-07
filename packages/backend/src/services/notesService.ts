@@ -24,28 +24,63 @@ interface NoteData {
 }
 
 export async function createSharedNote(data: NoteData, customId?: string) {
+  console.log('🔧 [DEBUG] createSharedNote called with:', { title: data.title?.length, content: data.content?.length, htmlContent: data.htmlContent?.length, customId });
+  
   // Title is now REQUIRED - no automatic extraction
   if (!data.title) {
+    console.error('❌ [DEBUG] Validation failed: Title is required');
     throw new ValidationError('Title is required and must be provided explicitly');
   }
+  console.log('✅ [DEBUG] Title validation passed');
 
   // Sanitize HTML if provided
-  const sanitizedHtml = data.htmlContent ? sanitizeHtml(data.htmlContent) : null;
+  console.log('🧹 [DEBUG] Starting HTML sanitization...');
+  let sanitizedHtml = null;
+  try {
+    sanitizedHtml = data.htmlContent ? sanitizeHtml(data.htmlContent) : null;
+    console.log('✅ [DEBUG] HTML sanitization successful:', { originalLength: data.htmlContent?.length, sanitizedLength: sanitizedHtml?.length });
+  } catch (error) {
+    console.error('❌ [DEBUG] HTML sanitization failed:', error);
+    throw new ValidationError(`HTML sanitization failed: ${(error as Error).message}`);
+  }
 
-  const document = await prisma.document.create({
-    data: {
-      id: customId, // Use custom ID if provided, otherwise auto-generate
-      title: data.title, // Use provided title as-is
-      content: data.content || '',
-      htmlContent: sanitizedHtml,
-      renderMode: sanitizedHtml ? 'html' : 'markdown',
-      metadata: {
-        ...data.metadata,
-        source: data.htmlContent ? 'obsidian-share-note' : 'obsidian-plugin',
-        createdVia: 'api'
-      }
-    }
+  console.log('💾 [DEBUG] Starting Prisma document.create...');
+  console.log('💾 [DEBUG] Prisma data payload:', {
+    id: customId,
+    title: data.title,
+    contentLength: data.content?.length || 0,
+    htmlContentLength: sanitizedHtml?.length || 0,
+    renderMode: sanitizedHtml ? 'html' : 'markdown',
+    hasMetadata: !!data.metadata
   });
+  
+  let document;
+  try {
+    document = await prisma.document.create({
+      data: {
+        id: customId, // Use custom ID if provided, otherwise auto-generate
+        title: data.title, // Use provided title as-is
+        content: data.content || '',
+        htmlContent: sanitizedHtml,
+        renderMode: sanitizedHtml ? 'html' : 'markdown',
+        metadata: {
+          ...data.metadata,
+          source: data.htmlContent ? 'obsidian-share-note' : 'obsidian-plugin',
+          createdVia: 'api'
+        }
+      }
+    });
+    console.log('✅ [DEBUG] Prisma document.create successful:', { documentId: document.id, createdAt: document.publishedAt });
+  } catch (error) {
+    console.error('❌ [DEBUG] Prisma document.create failed:', error);
+    console.error('❌ [DEBUG] Prisma error details:', {
+      name: (error as any).name,
+      message: (error as any).message,
+      code: (error as any).code,
+      meta: (error as any).meta
+    });
+    throw error;
+  }
 
   return {
     shareId: document.id,

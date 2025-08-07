@@ -18,12 +18,25 @@ const router = Router();
 // POST /api/notes/share - Create a new shared document
 router.post('/share', async (req, res, next) => {
   try {
+    console.log('📝 [DEBUG] POST /api/notes/share - Request received');
+    console.log('📝 [DEBUG] Request body keys:', Object.keys(req.body));
+    console.log('📝 [DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+    
     const { title, content, htmlContent, metadata, shareId } = req.body;
+    console.log('📝 [DEBUG] Extracted fields:', { title: title?.length, content: content?.length, htmlContent: htmlContent?.length, hasMetadata: !!metadata, shareId });
+    
+    console.log('📝 [DEBUG] Starting validation...');
     const validated = validateNoteShare({ title, content, htmlContent, metadata });
+    console.log('📝 [DEBUG] Validation successful:', { title: validated.title?.length, content: validated.content?.length });
+    
+    console.log('📝 [DEBUG] Creating shared note...');
     const result = await createSharedNote(validated, shareId);
+    console.log('📝 [DEBUG] Note created successfully:', { shareId: result.shareId });
     
     res.status(201).json(result);
   } catch (error) {
+    console.error('❌ [DEBUG] POST /api/notes/share - Error occurred:', error);
+    console.error('❌ [DEBUG] Error stack:', (error as Error).stack);
     next(error);
   }
 });
