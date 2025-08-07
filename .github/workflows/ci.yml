@@ -315,7 +315,23 @@ jobs:
         CI: true
       run: |
         set -e  # Exit immediately if any command fails
-        # Run basic E2E test to verify deployment works - MUST PASS
+        
+        # First test: Simple connectivity check
+        echo "🧪 Step 1: Testing direct API access from E2E environment"
+        curl -f http://localhost:8081/api/health || echo "❌ Direct backend access failed"
+        
+        echo "🧪 Step 2: Testing frontend proxy by making API request through frontend"
+        curl -f http://localhost:3001/api/health || echo "❌ Frontend proxy to backend failed"
+        
+        # Second test: Create document via frontend proxy
+        echo "🧪 Step 3: Testing document creation through frontend proxy"
+        curl -X POST http://localhost:3001/api/notes/share \
+          -H "Content-Type: application/json" \
+          -d '{"title":"E2E Test","content":"Test content"}' \
+          -v || echo "❌ Document creation via frontend proxy failed"
+        
+        echo "🧪 Step 4: Running minimal E2E test"
+        # Run basic E2E test to verify deployment works - MUST PASS  
         timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
         
         # Run ShareNote plugin integration test - MUST PASS
