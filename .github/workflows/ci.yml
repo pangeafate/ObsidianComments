@@ -238,28 +238,49 @@ jobs:
         # Create database schema
         (cd packages/backend && npx prisma db push --force-reset --accept-data-loss)
         
-        # Start services in background with explicit logging
-        echo "🚀 Starting Backend service..."
-        (cd packages/backend && npm start > backend.log 2>&1) &
+        # Start services in background with explicit environment variables and logging
+        echo "🔍 Environment check:"
+        echo "DATABASE_URL: ${DATABASE_URL:0:50}..."
+        echo "REDIS_URL: $REDIS_URL"
+        echo "NODE_ENV: $NODE_ENV"
+        
+        echo "🚀 Starting Backend service with explicit env vars..."
+        (cd packages/backend && DATABASE_URL="$DATABASE_URL" REDIS_URL="$REDIS_URL" JWT_SECRET="$JWT_SECRET" NODE_ENV="$NODE_ENV" PORT="$PORT" CI="$CI" npm start > backend.log 2>&1) &
         BACKEND_PID=$!
         
-        echo "🚀 Starting Hocuspocus service..."
-        (cd packages/hocuspocus && PORT=8082 npm start > hocuspocus.log 2>&1) &
+        echo "🚀 Starting Hocuspocus service with explicit env vars..."
+        (cd packages/hocuspocus && DATABASE_URL="$DATABASE_URL" REDIS_URL="$REDIS_URL" NODE_ENV="$NODE_ENV" PORT=8082 CI="$CI" npm start > hocuspocus.log 2>&1) &
         HOCUSPOCUS_PID=$!
         
         echo "🚀 Starting Frontend service..."
         (cd packages/frontend && npm run preview -- --port 3001 > frontend.log 2>&1) &
         FRONTEND_PID=$!
         
-        # Wait for services to start
-        echo "⏳ Waiting 30 seconds for services to initialize..."
-        sleep 30
+        # Wait for services to start and check their logs
+        echo "⏳ Waiting for services to initialize..."
+        sleep 10
+        
+        # Check backend startup logs early
+        echo "📋 Backend startup logs (first 20 lines):"
+        head -20 packages/backend/backend.log 2>/dev/null || echo "❌ No backend logs yet"
         
         # Verify services are actually running
         echo "🔍 Service health check..."
         echo "Backend PID: $BACKEND_PID, Running: $(kill -0 $BACKEND_PID 2>/dev/null && echo 'YES' || echo 'NO')"
         echo "Hocuspocus PID: $HOCUSPOCUS_PID, Running: $(kill -0 $HOCUSPOCUS_PID 2>/dev/null && echo 'YES' || echo 'NO')"
         echo "Frontend PID: $FRONTEND_PID, Running: $(kill -0 $FRONTEND_PID 2>/dev/null && echo 'YES' || echo 'NO')"
+        
+        # Wait for backend to actually start serving requests
+        echo "🔍 Waiting for backend API to be ready..."
+        for i in {1..20}; do
+          if curl -f http://localhost:8081/api/health 2>/dev/null; then
+            echo "✅ Backend API is ready"
+            break
+          else
+            echo "⏳ Backend not ready yet... ($i/20)"
+            sleep 2
+          fi
+        done
         
         # Test API endpoints
         echo "🧪 Testing Backend API..."
@@ -276,11 +297,11 @@ jobs:
         
         echo ""
         echo "📋 BACKEND SERVICE LOGS (first 100 lines):"
-        head -100 backend.log 2>/dev/null || echo "❌ No backend logs found"
+        head -100 packages/backend/backend.log 2>/dev/null || echo "❌ No backend logs found"
         
         echo ""  
         echo "📋 HOCUSPOCUS SERVICE LOGS (first 50 lines):"
-        head -50 hocuspocus.log 2>/dev/null || echo "❌ No hocuspocus logs found"
+        head -50 packages/hocuspocus/hocuspocus.log 2>/dev/null || echo "❌ No hocuspocus logs found"
 
     - name: Run E2E tests
       env:
@@ -300,11 +321,11 @@ jobs:
       run: |
         echo "📋 Collecting service logs for debugging..."
         echo "=== Backend Logs ==="
-        cat backend.log 2>/dev/null || echo "No backend logs found"
+        cat packages/backend/backend.log 2>/dev/null || echo "No backend logs found"
         echo "=== Hocuspocus Logs ==="
-        cat hocuspocus.log 2>/dev/null || echo "No hocuspocus logs found"
+        cat packages/hocuspocus/hocuspocus.log 2>/dev/null || echo "No hocuspocus logs found"
         echo "=== Frontend Logs ==="
-        cat frontend.log 2>/dev/null || echo "No frontend logs found"
+        cat packages/frontend/frontend.log 2>/dev/null || echo "No frontend logs found"
         
         echo "🔍 Final service status check..."
         ps aux | grep -E "(node|npm)" | grep -v grep || echo "No Node.js processes running"
@@ -320,9 +341,9 @@ jobs:
       with:
         name: service-logs
         path: |
-          backend.log
-          hocuspocus.log
-          frontend.log
+          packages/backend/backend.log
+          packages/hocuspocus/hocuspocus.log
+          packages/frontend/frontend.log
         retention-days: 7
 
     - name: Upload Playwright report
