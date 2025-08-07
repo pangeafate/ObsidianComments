@@ -284,8 +284,10 @@ jobs:
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
           "mkdir -p /opt/obsidian-comments/{packages,obsidian-plugin/release,scripts}"
         
-        # Upload built assets AND nginx configuration
+        # Upload built assets, Prisma files, AND nginx configuration
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          --exclude 'node_modules' \
+          --exclude '.env*' \
           packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
         
         # Upload ShareNote plugin build
@@ -299,12 +301,49 @@ jobs:
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
           cd /opt/obsidian-comments
           
-          # Start database services if not running
-          docker-compose -f docker-compose.simple.yml --env-file .env.production up -d postgres redis
+          # Ensure environment file exists
+          if [ ! -f .env.production ]; then
+            echo "Creating production environment file..."
+            cat > .env.production << 'ENVFILE'
+DATABASE_URL=postgresql://postgres:password@localhost:5432/obsidian_comments
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=production_jwt_secret_change_me
+NODE_ENV=production
+PORT=8081
+HOCUSPOCUS_PORT=8082
+FRONTEND_URL=https://obsidiancomments.serverado.app
+ENVFILE
+          fi
           
-          # Restart PM2 services with correct names
-          pm2 restart obsidian-backend-final || pm2 restart obsidian-backend
-          pm2 restart obsidian-hocuspocus-fixed || pm2 restart obsidian-hocuspocus
+          # Start database services if not running
+          docker-compose -f docker-compose.production.yml --env-file .env.production up -d postgres redis || \
+          docker-compose --env-file .env.production up -d postgres redis || \
+          echo "Database services may already be running"
+          
+          # Wait for database to be ready
+          sleep 5
+          
+          # Install dependencies for Prisma CLI if needed
+          cd packages/backend
+          [ -d node_modules ] || npm ci --production=false
+          
+          # Apply database migrations and generate Prisma client
+          npx prisma generate
+          npx prisma migrate deploy || npx prisma db push
+          
+          cd ../hocuspocus
+          [ -d node_modules ] || npm ci --production=false
+          npx prisma generate
+          
+          cd /opt/obsidian-comments
+          
+          # Restart PM2 services with environment variables
+          pm2 delete backend 2>/dev/null || true
+          pm2 delete hocuspocus 2>/dev/null || true
+          
+          pm2 start packages/backend/dist/index.js --name backend --env-file .env.production
+          pm2 start packages/hocuspocus/dist/index.js --name hocuspocus --env-file .env.production
+          pm2 save
           
           # Recreate nginx with updated configuration and proper volume mounts
           docker stop obsidian-nginx || true
