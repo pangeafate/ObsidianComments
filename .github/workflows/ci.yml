@@ -81,7 +81,7 @@ jobs:
         MOCK_EXTERNAL_SERVICES: true
       run: |
         # Apply database migrations (includes HTML support)
-        cd packages/backend && npx prisma migrate deploy || npx prisma db push --force-reset --accept-data-loss || echo "Database setup failed, running tests with mocks"
+        cd packages/backend && npx prisma migrate deploy && npx prisma generate || npx prisma db push --force-reset --accept-data-loss && npx prisma generate || echo "Database setup failed, running tests with mocks"
         # Run backend tests
         cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
 
