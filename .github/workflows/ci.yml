@@ -98,6 +98,7 @@ jobs:
         CI: true
         MOCK_EXTERNAL_SERVICES: true
       run: |
+        set -e  # Exit immediately if any command fails
         # Run backend tests (database is already set up) - MUST PASS
         cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts"
 
@@ -105,6 +106,7 @@ jobs:
       env:
         CI: true
       run: |
+        set -e  # Exit immediately if any command fails
         # Run frontend tests - MUST PASS
         cd packages/frontend && npm test -- --testPathPattern="ci-validation.test.tsx" --watchAll=false
 
@@ -115,6 +117,7 @@ jobs:
         NODE_ENV: test
         CI: true
       run: |
+        set -e  # Exit immediately if any command fails
         # Run hocuspocus tests (Prisma client already generated in setup) - MUST PASS  
         cd packages/hocuspocus && npm test -- --testPathPattern="ci-validation.test.ts"
 
@@ -123,6 +126,7 @@ jobs:
         CI: true
         NODE_ENV: test
       run: |
+        set -e  # Exit immediately if any command fails
         # Run ShareNote plugin CI validation test - MUST PASS
         cd obsidian-plugin && npm test -- --testPathPattern="ci-validation.test.ts" --watchAll=false
 
@@ -246,6 +250,7 @@ jobs:
         TEST_URL: http://localhost:3001
         CI: true
       run: |
+        set -e  # Exit immediately if any command fails
         # Run basic E2E test to verify deployment works - MUST PASS
         timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
         
