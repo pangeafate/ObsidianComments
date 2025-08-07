@@ -1,5 +1,4 @@
 // Simple CI/CD validation tests for hocuspocus
-import './ci-setup';  // Use CI-specific setup instead of regular setup
 
 describe('CI/CD Validation - Hocuspocus', () => {
   it('should have Node.js available', () => {
