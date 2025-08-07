@@ -236,11 +236,11 @@ jobs:
         timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 2; done'
         
         # Create database schema
-        cd packages/backend && npx prisma db push --force-reset --accept-data-loss
+        (cd packages/backend && npx prisma db push --force-reset --accept-data-loss)
         # Start services in background
-        cd packages/backend && npm start &
-        cd packages/hocuspocus && PORT=8082 npm start &
-        cd packages/frontend && npm run preview -- --port 3001 &
+        (cd packages/backend && npm start) &
+        (cd packages/hocuspocus && PORT=8082 npm start) &
+        (cd packages/frontend && npm run preview -- --port 3001) &
         
         # Wait for services to start
         sleep 30
