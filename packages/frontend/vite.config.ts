@@ -8,7 +8,23 @@ export default defineConfig({
     port: 8080,
     proxy: {
       '/api': {
-        target: 'http://backend:8081',
+        // Use localhost in CI/test environments, backend hostname in Docker
+        target: process.env.CI || process.env.NODE_ENV === 'test' 
+          ? 'http://localhost:8081' 
+          : 'http://backend:8081',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 3001,
+    proxy: {
+      '/api': {
+        // Use localhost in CI/test environments, backend hostname in Docker
+        target: process.env.CI || process.env.NODE_ENV === 'test' 
+          ? 'http://localhost:8081' 
+          : 'http://backend:8081',
         changeOrigin: true,
       },
     },
