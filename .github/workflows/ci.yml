@@ -55,6 +55,11 @@ jobs:
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
 
+    - name: Install database clients for health checks
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client redis-tools
+
     - name: Setup test environment
       env:
         DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
@@ -62,6 +67,13 @@ jobs:
         JWT_SECRET: test_jwt_secret
         NODE_ENV: test
       run: |
+        # Wait for services to be healthy
+        echo "Waiting for PostgreSQL to be ready..."
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done'
+        
+        echo "Waiting for Redis to be ready..."
+        timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 2; done'
+        
         # Create test environment file
         echo "DATABASE_URL=$DATABASE_URL" > .env.test
         echo "REDIS_URL=$REDIS_URL" >> .env.test
@@ -72,6 +84,11 @@ jobs:
         npm run prisma:generate
         cd packages/hocuspocus && npx prisma generate
         
+        # Apply database migrations to ensure schema is ready
+        cd ../backend
+        PGPASSWORD=test_password psql -h localhost -U postgres -d obsidian_comments_test -c "SELECT version();" || echo "Database connection test"
+        npx prisma migrate deploy || npx prisma db push --force-reset --accept-data-loss
+        
     - name: Run backend unit tests
       env:
         DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
@@ -81,10 +98,7 @@ jobs:
         CI: true
         MOCK_EXTERNAL_SERVICES: true
       run: |
-        # Apply database migrations (includes HTML support)
-        cd packages/backend
-        npx prisma migrate deploy && npx prisma generate || npx prisma db push --force-reset --accept-data-loss && npx prisma generate || echo "Database setup failed, running tests with mocks"
-        # Run backend tests
+        # Run backend tests (database is already set up)
         cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts" || npm test -- --verbose
 
     - name: Run frontend unit tests
@@ -179,6 +193,11 @@ jobs:
         # Install ShareNote plugin dependencies
         cd obsidian-plugin && npm ci
 
+    - name: Install database clients for health checks
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client redis-tools
+
     - name: Install Playwright
       run: npx playwright install --with-deps chromium
 
@@ -205,6 +224,13 @@ jobs:
         PORT: 8081
         CI: true
       run: |
+        # Wait for services to be healthy
+        echo "Waiting for PostgreSQL to be ready..."
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done'
+        
+        echo "Waiting for Redis to be ready..."
+        timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 2; done'
+        
         # Create database schema
         cd packages/backend && npx prisma db push --force-reset --accept-data-loss
         # Start services in background
