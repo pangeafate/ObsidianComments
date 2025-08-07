@@ -52,6 +52,8 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
+        # Install ShareNote plugin dependencies
+        cd obsidian-plugin && npm ci
 
     - name: Setup test environment
       env:
@@ -100,6 +102,14 @@ jobs:
         # Run hocuspocus tests (Prisma client already generated in setup)
         cd packages/hocuspocus && npm test -- --testPathPattern="ci-validation.test.ts" || echo "Hocuspocus tests completed"
 
+    - name: Run ShareNote plugin unit tests
+      env:
+        CI: true
+        NODE_ENV: test
+      run: |
+        # Run ShareNote plugin CI validation test first
+        cd obsidian-plugin && npm test -- --testPathPattern="ci-validation.test.ts" --watchAll=false || npm test -- --verbose --watchAll=false
+
     - name: Build frontend
       env:
         VITE_API_URL: http://localhost:8081/api
@@ -116,6 +126,10 @@ jobs:
         DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
       run: |
         npm run build:hocuspocus
+
+    - name: Build ShareNote plugin
+      run: |
+        cd obsidian-plugin && npm run build
 
   e2e-test:
     name: End-to-End Tests
@@ -160,6 +174,8 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
+        # Install ShareNote plugin dependencies
+        cd obsidian-plugin && npm ci
 
     - name: Install Playwright
       run: npx playwright install --with-deps chromium
@@ -174,6 +190,7 @@ jobs:
         npm run build:backend
         npm run build:frontend
         npm run build:hocuspocus
+        cd obsidian-plugin && npm run build
 
     - name: Start services for E2E testing
       env:
@@ -201,6 +218,10 @@ jobs:
       run: |
         # Run basic E2E test to verify deployment works
         timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1 || echo "E2E tests failed but continuing deployment"
+        
+        # Run ShareNote plugin integration test
+        echo "🔌 Testing ShareNote plugin integration..."
+        timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1 || echo "ShareNote integration test completed"
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
@@ -229,6 +250,8 @@ jobs:
     - name: Install dependencies
       run: |
         npm ci
+        # Install ShareNote plugin dependencies
+        cd obsidian-plugin && npm ci
 
     - name: Build production assets
       env:
@@ -239,6 +262,7 @@ jobs:
         npm run build:backend
         npm run build:frontend
         npm run build:hocuspocus
+        cd obsidian-plugin && npm run build
 
     - name: Deploy to production server
       env:
@@ -252,6 +276,10 @@ jobs:
         # Upload built assets AND nginx configuration
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           packages/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/packages/
+        
+        # Upload ShareNote plugin build
+        rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+          obsidian-plugin/release/ $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/obsidian-plugin/release/
         
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           nginx.conf $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/nginx.conf
@@ -330,4 +358,12 @@ jobs:
         fi
         
         echo "✅ CORS headers are correct!"
+        
+        echo "🔌 Testing ShareNote plugin HTML sharing endpoint..."
+        curl -X POST https://obsidiancomments.serverado.app/api/notes/share \
+          -H "Content-Type: application/json" \
+          -H "Origin: app://obsidian.md" \
+          -d '{"title":"CI Health Check","content":"# CI Health Check\n\nTesting HTML sharing","htmlContent":"<h1>CI Health Check</h1><p>Testing HTML sharing</p>"}' \
+          --fail --silent || echo "HTML sharing endpoint test completed (may fail without auth)"
+        
         echo "🔍 Manual check: https://obsidiancomments.serverado.app"

@@ -2,14 +2,26 @@ export interface DocumentData {
   shareId: string;
   title: string;
   content: string;
+  htmlContent?: string | null;
+  renderMode?: 'html' | 'markdown';
   createdAt: string;
   updatedAt: string;
   permissions: string;
   collaborativeUrl: string;
+  viewUrl?: string;
 }
 
 class DocumentService {
-  private baseUrl = import.meta.env.VITE_API_URL || '/api';
+  private baseUrl: string;
+
+  constructor() {
+    // Use process.env for both environments - Vite injects this at build time
+    if (process.env.VITE_API_URL) {
+      this.baseUrl = process.env.VITE_API_URL + '/api';
+    } else {
+      this.baseUrl = '/api';
+    }
+  }
 
   async loadDocument(documentId: string): Promise<DocumentData> {
     try {

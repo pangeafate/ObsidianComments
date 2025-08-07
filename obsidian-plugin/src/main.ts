@@ -1,446 +1,228 @@
-/**
- * Main Obsidian Comments Plugin - Minimal TDD Implementation
- * 
- * Following TDD: This is the minimal code to make tests pass.
- * Will be expanded as tests require more functionality.
- */
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView } from 'obsidian';
+import { ShareNoteSettings, DEFAULT_SETTINGS } from './settings';
+import { BackendAPI, ShareNoteResponse } from './api';
 
-import { App, Plugin, PluginManifest, TFile, Notice, Menu, PluginSettingTab, Setting, setIcon } from 'obsidian';
-import { ApiClient } from './api-client';
-import { ShareManager } from './share-manager';
-import { SettingsManager, DEFAULT_SETTINGS } from './settings';
-import { PluginSettings } from './types';
+export class ShareNotePlugin extends Plugin {
+	settings!: ShareNoteSettings;
+	api!: BackendAPI;
 
-export class ObsidianCommentsPlugin extends Plugin {
-  settingsManager: SettingsManager;
-  apiClient: ApiClient;
-  shareManager: ShareManager;
-  statusBarItem: HTMLElement | null = null;
+	async onload() {
+		await this.loadSettings();
+		this.api = new BackendAPI(this.settings.backendUrl);
 
-  constructor(app: App, manifest: PluginManifest) {
-    super(app, manifest);
-    
-    // Initialize settings manager first
-    this.settingsManager = new SettingsManager(app);
-    
-    // Initialize API client with temporary settings (will be updated after settings load)
-    this.apiClient = new ApiClient({
-      apiKey: 'temporary-initialization-key-12345',
-      serverUrl: DEFAULT_SETTINGS.serverUrl
-    });
-    
-    // Initialize share manager
-    this.shareManager = new ShareManager(this.apiClient);
-  }
+		// Add ribbon icon
+		this.addRibbonIcon('share', 'Share note', () => {
+			this.shareCurrentNote();
+		});
 
-  async onload(): Promise<void> {
-    // Load settings first
-    await this.settingsManager.loadSettings();
-    
-    // Update API client with loaded settings (if API key is available)
-    if (this.settingsManager.settings && this.settingsManager.settings.apiKey && this.settingsManager.settings.apiKey !== '') {
-      this.apiClient = new ApiClient({
-        apiKey: this.settingsManager.settings.apiKey,
-        serverUrl: this.settingsManager.settings.serverUrl
-      });
-      this.shareManager = new ShareManager(this.apiClient);
-    }
+		// Add command
+		this.addCommand({
+			id: 'share-note',
+			name: 'Share current note',
+			callback: () => this.shareCurrentNote()
+		});
 
-    // Register commands
-    this.addCommand({
-      id: 'share-note',
-      name: 'Share current note online',
-      callback: () => this.shareCurrentNote()
-    });
+		// Add settings tab
+		this.addSettingTab(new ShareNoteSettingTab(this.app, this));
+	}
 
-    this.addCommand({
-      id: 'unshare-note', 
-      name: 'Stop sharing current note',
-      callback: () => this.unshareCurrentNote()
-    });
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
 
-    // Context menu integration will be added in future version
-    // Currently not supported in this Obsidian API version
+	async saveSettings() {
+		await this.saveData(this.settings);
+		this.api = new BackendAPI(this.settings.backendUrl);
+	}
 
-    // Add ribbon icon
-    this.addRibbonIcon('share', 'Share current note', () => {
-      this.shareCurrentNote();
-    });
+	async shareCurrentNote() {
+		try {
+			const file = this.app.workspace.getActiveFile();
+			if (!file) {
+				new Notice('No active file');
+				return;
+			}
 
-    // Add status bar item
-    this.statusBarItem = this.addStatusBarItem();
-    this.statusBarItem.setText('');
+			const content = await this.app.vault.read(file);
+			const htmlContent = await this.renderToHTML();
 
-    // Add settings tab
-    this.addSettingTab(new ObsidianCommentsSettingTab(this.app, this));
+			const shareData = {
+				title: file.basename,
+				content,
+				htmlContent
+			};
 
-    // Update status on file change
-    this.registerEvent(
-      this.app.workspace.on('active-leaf-change', () => {
-        this.updateSharingStatus();
-      })
-    );
+			const result = await this.api.shareNote(shareData);
 
-    // Initial status update
-    await this.updateSharingStatus();
+			// Update frontmatter with share information
+			await this.updateFrontmatter(file, result);
 
-    // Register property widget for shareUrl
-    this.registerPropertyWidget();
-  }
+			// Copy to clipboard if enabled
+			if (this.settings.copyToClipboard && navigator.clipboard) {
+				await navigator.clipboard.writeText(result.viewUrl);
+			}
 
-  registerPropertyWidget(): void {
-    // Watch for active file changes to add share icons
-    this.registerEvent(
-      this.app.workspace.on('active-leaf-change', () => {
-        setTimeout(() => this.addShareIcons(), 100);
-      })
-    );
+			// Open in browser if enabled
+			if (this.settings.openInBrowser) {
+				window.open(result.viewUrl, '_blank');
+			}
 
-    // Also watch for metadata changes
-    this.registerEvent(
-      this.app.metadataCache.on('changed', () => {
-        setTimeout(() => this.addShareIcons(), 100);
-      })
-    );
+			if (this.settings.showNotifications) {
+				new Notice('Note shared successfully!');
+			}
 
-    // Initial check
-    setTimeout(() => this.addShareIcons(), 500);
-  }
+		} catch (error) {
+			console.error('Failed to share note:', error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to share note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+			throw error; // Re-throw for test validation
+		}
+	}
 
-  addShareIcons(): void {
-    let count = 0;
-    const timer = setInterval(() => {
-      count++;
-      if (count > 8) {
-        clearInterval(timer);
-        return;
-      }
+	async renderToHTML(): Promise<string> {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) return '';
 
-      const activeFile = this.app.workspace.getActiveFile();
-      if (!activeFile) return;
+		// Switch to preview mode
+		const currentState = view.getState();
+		await view.setState({
+			...currentState,
+			mode: 'preview'
+		}, { history: false });
 
-      // Check if the file has a shareUrl in frontmatter
-      const cache = this.app.metadataCache.getFileCache(activeFile);
-      const shareUrl = cache?.frontmatter?.shareUrl;
-      if (!shareUrl) return;
+		// Wait for rendering
+		await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Find the shareUrl property in the DOM
-      document.querySelectorAll(`div.metadata-property[data-property-key="shareUrl"]`)
-        .forEach(propertyEl => {
-          const valueEl = propertyEl.querySelector('div.metadata-property-value');
-          if (!valueEl) return;
+		// Get HTML from preview
+		const previewElement = view.previewMode?.containerEl?.querySelector('.markdown-preview-view');
+		if (!previewElement) return '';
 
-          // Check if icons are already added
-          if (valueEl.querySelector('div.obsidian-comments-icons')) return;
+		return this.cleanHTML(previewElement);
+	}
 
-          // Create icons container
-          const iconsEl = document.createElement('div');
-          iconsEl.classList.add('obsidian-comments-icons');
-          iconsEl.style.display = 'inline-flex';
-          iconsEl.style.gap = '4px';
-          iconsEl.style.marginLeft = '8px';
+	cleanHTML(element: Element): string {
+		const cloned = element.cloneNode(true) as Element;
 
-          // Re-share button
-          const reshareIcon = document.createElement('span');
-          reshareIcon.classList.add('clickable-icon');
-          reshareIcon.setAttribute('aria-label', 'Re-share note');
-          reshareIcon.style.cursor = 'pointer';
-          setIcon(reshareIcon, 'upload-cloud');
-          reshareIcon.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            await this.shareCurrentNote();
-          });
-          iconsEl.appendChild(reshareIcon);
+		// Remove Obsidian-specific elements
+		cloned.querySelectorAll('.frontmatter').forEach(el => el.remove());
+		cloned.querySelectorAll('.edit-block-button').forEach(el => el.remove());
 
-          // Copy button
-          const copyIcon = document.createElement('span');
-          copyIcon.classList.add('clickable-icon');
-          copyIcon.setAttribute('aria-label', 'Copy share URL');
-          copyIcon.style.cursor = 'pointer';
-          setIcon(copyIcon, 'copy');
-          copyIcon.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            await navigator.clipboard.writeText(shareUrl);
-            new Notice('Share URL copied to clipboard');
-          });
-          iconsEl.appendChild(copyIcon);
+		// Convert internal links to plain text
+		cloned.querySelectorAll('a.internal-link').forEach(link => {
+			const textNode = document.createTextNode(link.textContent || '');
+			link.replaceWith(textNode);
+		});
 
-          // Open external button
-          const openIcon = document.createElement('span');
-          openIcon.classList.add('clickable-icon');
-          openIcon.setAttribute('aria-label', 'Open in browser');
-          openIcon.style.cursor = 'pointer';
-          setIcon(openIcon, 'external-link');
-          openIcon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            window.open(shareUrl, '_blank');
-          });
-          iconsEl.appendChild(openIcon);
+		return cloned.innerHTML;
+	}
 
-          // Delete button
-          const deleteIcon = document.createElement('span');
-          deleteIcon.classList.add('clickable-icon');
-          deleteIcon.setAttribute('aria-label', 'Unshare note');
-          deleteIcon.style.cursor = 'pointer';
-          setIcon(deleteIcon, 'trash');
-          deleteIcon.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            if (confirm('Are you sure you want to unshare this note?')) {
-              const content = await this.app.vault.read(activeFile);
-              const updatedContent = await this.shareManager.unshareNote(content);
-              await this.app.vault.modify(activeFile, updatedContent);
-              new Notice('Note unshared');
-            }
-          });
-          iconsEl.appendChild(deleteIcon);
+	async updateFrontmatter(file: TFile, shareResult: ShareNoteResponse) {
+		const content = await this.app.vault.read(file);
+		const cache = this.app.metadataCache.getFileCache(file);
+		
+		const shareData = {
+			share_id: shareResult.shareId,
+			share_url: shareResult.viewUrl,
+			edit_url: shareResult.editUrl,
+			shared_at: new Date().toISOString()
+		};
 
-          // Add icons to the value element
-          valueEl.appendChild(iconsEl);
-        });
-    }, 50);
-  }
+		let updatedContent: string;
 
-  async shareCurrentNote(): Promise<void> {
-    const activeFile = this.app.workspace.getActiveFile();
-    
-    if (!activeFile) {
-      new Notice('No active file to share');
-      return;
-    }
+		if (cache?.frontmatter) {
+			// Update existing frontmatter
+			const lines = content.split('\n');
+			const endLine = cache.frontmatterPosition?.end.line || 0;
+			
+			// Build new frontmatter
+			const existingFrontmatter = cache.frontmatter;
+			const newFrontmatter = { ...existingFrontmatter, ...shareData };
+			
+			const frontmatterLines = [
+				'---',
+				...Object.entries(newFrontmatter).map(([key, value]) => {
+					if (Array.isArray(value)) {
+						return `${key}: [${value.join(', ')}]`;
+					}
+					return `${key}: ${value}`;
+				}),
+				'---'
+			];
 
-    try {
-      const content = await this.app.vault.read(activeFile);
-      const filename = activeFile.name;
-      const result = await this.shareManager.shareNoteWithFilename(content, filename);
-      
-      // Update the file with share metadata
-      await this.app.vault.modify(activeFile, result.updatedContent);
-      
-      // Copy to clipboard if enabled
-      if (this.settingsManager.settings.copyToClipboard) {
-        await navigator.clipboard.writeText(result.shareUrl);
-      }
-      
-      // Show notification if enabled
-      if (this.settingsManager.settings.showNotifications) {
-        const message = result.wasUpdate 
-          ? 'Note updated and shared!'
-          : 'Note shared! URL copied to clipboard.';
-        new Notice(message);
-      }
+			// Replace frontmatter, skip the original frontmatter lines
+			const bodyLines = lines.slice(endLine + 1);
+			updatedContent = [...frontmatterLines, ...bodyLines].join('\n');
+		} else {
+			// Add new frontmatter
+			const frontmatterLines = [
+				'---',
+				...Object.entries(shareData).map(([key, value]) => `${key}: ${value}`),
+				'---'
+			];
+			
+			updatedContent = [...frontmatterLines, content].join('\n');
+		}
 
-      // Update status
-      await this.updateSharingStatus();
-      
-    } catch (error) {
-      new Notice(`Failed to share note: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  async unshareCurrentNote(): Promise<void> {
-    const activeFile = this.app.workspace.getActiveFile();
-    
-    if (!activeFile) {
-      new Notice('No active file to unshare');
-      return;
-    }
-
-    try {
-      const content = await this.app.vault.read(activeFile);  
-      const updatedContent = await this.shareManager.unshareNote(content);
-      
-      // Update the file with share metadata removed
-      await this.app.vault.modify(activeFile, updatedContent);
-      
-      // Show notification if enabled
-      if (this.settingsManager.settings.showNotifications) {
-        new Notice('Note unshared successfully.');
-      }
-
-      // Update status
-      await this.updateSharingStatus();
-      
-    } catch (error) {
-      new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  async shareFileNote(file: TFile): Promise<void> {
-    try {
-      const content = await this.app.vault.read(file);
-      const filename = file.name;
-      const result = await this.shareManager.shareNoteWithFilename(content, filename);
-      
-      await this.app.vault.modify(file, result.updatedContent);
-      
-      if (this.settingsManager.settings.copyToClipboard) {
-        await navigator.clipboard.writeText(result.shareUrl);
-      }
-      
-      if (this.settingsManager.settings.showNotifications) {
-        new Notice('Note shared! URL copied to clipboard.');
-      }
-      
-    } catch (error) {
-      new Notice(`Failed to share note: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  async unshareFileNote(file: TFile): Promise<void> {
-    try {
-      const content = await this.app.vault.read(file);
-      const updatedContent = await this.shareManager.unshareNote(content);
-      
-      await this.app.vault.modify(file, updatedContent);
-      
-      if (this.settingsManager.settings.showNotifications) {
-        new Notice('Note unshared successfully.');
-      }
-      
-    } catch (error) {
-      new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  async updateSharingStatus(): Promise<void> {
-    if (!this.statusBarItem) return;
-
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      this.statusBarItem.setText('');
-      return;
-    }
-
-    try {
-      const content = await this.app.vault.read(activeFile);
-      const isShared = this.shareManager.isNoteShared(content);
-      
-      this.statusBarItem.setText(isShared ? '📤 Shared' : '');
-    } catch (error) {
-      this.statusBarItem.setText('');
-    }
-  }
-
-  async onSettingsChange(newSettings: PluginSettings): Promise<void> {
-    this.settingsManager.settings = newSettings;
-    
-    // Update API client with new settings
-    if (newSettings.apiKey) {
-      this.apiClient = new ApiClient({
-        apiKey: newSettings.apiKey,
-        serverUrl: newSettings.serverUrl
-      });
-      this.shareManager = new ShareManager(this.apiClient);
-    }
-  }
-
-  onunload(): void {
-    // Cleanup is handled automatically by Obsidian for registered events
-    // and UI elements like status bar items and ribbon icons
-  }
+		await this.app.vault.modify(file, updatedContent);
+	}
 }
 
-class ObsidianCommentsSettingTab extends PluginSettingTab {
-  plugin: ObsidianCommentsPlugin;
+class ShareNoteSettingTab extends PluginSettingTab {
+	plugin: ShareNotePlugin;
 
-  constructor(app: App, plugin: ObsidianCommentsPlugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
+	constructor(app: App, plugin: ShareNotePlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-    
-    containerEl.createEl('h2', { text: 'Obsidian Comments Settings' });
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
 
-    // API Key setting
-    new Setting(containerEl)
-      .setName('API Key')
-      .setDesc('Your API key for the sharing service')
-      .addText(text => text
-        .setPlaceholder('Enter your API key')
-        .setValue(this.plugin.settingsManager.settings.apiKey)
-        .onChange(async (value) => {
-          this.plugin.settingsManager.settings.apiKey = value;
-          await this.plugin.settingsManager.saveSettings();
-          await this.plugin.onSettingsChange(this.plugin.settingsManager.settings);
-        })
-      );
+		containerEl.createEl('h2', { text: 'Share Note Settings' });
 
-    // Server URL setting
-    new Setting(containerEl)
-      .setName('Server URL')
-      .setDesc('URL of the sharing service')
-      .addText(text => text
-        .setPlaceholder('https://api.obsidiancomments.com')
-        .setValue(this.plugin.settingsManager.settings.serverUrl)
-        .onChange(async (value) => {
-          this.plugin.settingsManager.settings.serverUrl = value;
-          await this.plugin.settingsManager.saveSettings();
-          await this.plugin.onSettingsChange(this.plugin.settingsManager.settings);
-        })
-      );
+		new Setting(containerEl)
+			.setName('Backend URL')
+			.setDesc('URL of your backend server')
+			.addText(text => text
+				.setPlaceholder('https://your-backend.com')
+				.setValue(this.plugin.settings.backendUrl)
+				.onChange(async (value) => {
+					this.plugin.settings.backendUrl = value;
+					await this.plugin.saveSettings();
+				}));
 
-    // Copy to clipboard setting
-    new Setting(containerEl)
-      .setName('Copy to clipboard')
-      .setDesc('Automatically copy share URL to clipboard')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settingsManager.settings.copyToClipboard)
-        .onChange(async (value) => {
-          this.plugin.settingsManager.settings.copyToClipboard = value;
-          await this.plugin.settingsManager.saveSettings();
-        })
-      );
+		new Setting(containerEl)
+			.setName('Copy to clipboard')
+			.setDesc('Automatically copy share URL to clipboard')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.copyToClipboard)
+				.onChange(async (value) => {
+					this.plugin.settings.copyToClipboard = value;
+					await this.plugin.saveSettings();
+				}));
 
-    // Show notifications setting
-    new Setting(containerEl)
-      .setName('Show notifications')
-      .setDesc('Show success/error notifications')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settingsManager.settings.showNotifications)
-        .onChange(async (value) => {
-          this.plugin.settingsManager.settings.showNotifications = value;
-          await this.plugin.settingsManager.saveSettings();
-        })
-      );
+		new Setting(containerEl)
+			.setName('Show notifications')
+			.setDesc('Show success/error notifications')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showNotifications)
+				.onChange(async (value) => {
+					this.plugin.settings.showNotifications = value;
+					await this.plugin.saveSettings();
+				}));
 
-    // Default permissions setting
-    new Setting(containerEl)
-      .setName('Default permissions')
-      .setDesc('Default permission level for shared notes')
-      .addDropdown(dropdown => dropdown
-        .addOption('view', 'View only')
-        .addOption('edit', 'Edit')
-        .setValue(this.plugin.settingsManager.settings.defaultPermissions)
-        .onChange(async (value) => {
-          this.plugin.settingsManager.settings.defaultPermissions = value as 'view' | 'edit';
-          await this.plugin.settingsManager.saveSettings();
-        })
-      );
-
-    // Test connection button
-    new Setting(containerEl)
-      .setName('Test connection')
-      .setDesc('Test your API key and connection')
-      .addButton(button => button
-        .setButtonText('Test')
-        .setCta()
-        .onClick(async () => {
-          try {
-            button.setButtonText('Testing...');
-            await this.plugin.apiClient.testConnection();
-            new Notice('Connection successful!');
-            button.setButtonText('Test');
-          } catch (error) {
-            new Notice(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            button.setButtonText('Test');
-          }
-        })
-      );
-  }
+		new Setting(containerEl)
+			.setName('Open in browser')
+			.setDesc('Automatically open shared note in browser')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.openInBrowser)
+				.onChange(async (value) => {
+					this.plugin.settings.openInBrowser = value;
+					await this.plugin.saveSettings();
+				}));
+	}
 }
 
-// Default export required by Obsidian
-export default ObsidianCommentsPlugin;
+export default ShareNotePlugin;

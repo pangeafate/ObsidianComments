@@ -23,844 +23,178 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
-  ObsidianCommentsPlugin: () => ObsidianCommentsPlugin,
+  ShareNotePlugin: () => ShareNotePlugin,
   default: () => main_default
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 
-// src/api-client.ts
-var ApiClient = class {
-  constructor(config) {
-    if (config.apiKey && config.apiKey.trim() === "") {
-      config = { ...config, apiKey: "" };
-    }
-    try {
-      new URL(config.serverUrl);
-    } catch (e) {
-      throw new Error("Invalid server URL");
-    }
-    this.config = config;
-    this.timeout = config.timeout || 5e3;
+// src/settings.ts
+var DEFAULT_SETTINGS = {
+  backendUrl: "https://obsidiancomments.serverado.app",
+  copyToClipboard: true,
+  showNotifications: true,
+  openInBrowser: false
+};
+
+// src/api.ts
+var BackendAPI = class {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
   }
-  get settings() {
-    return this.config;
-  }
-  async shareNote(content, title, shareId) {
-    const url = `${this.config.serverUrl}/api/notes/share`;
-    const extractedTitle = title || this.extractTitleFromContent(content);
+  async shareNote(data) {
     try {
-      const requestBody = {
-        content,
-        title: extractedTitle
-      };
-      if (shareId) {
-        requestBody.shareId = shareId;
-      }
-      const response = await this.makeRequest(url, {
+      const response = await fetch(`${this.baseUrl}/api/notes/share`, {
         method: "POST",
-        headers: this.getHeaders(),
-        body: JSON.stringify(requestBody)
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
       });
-      if (!response.ok) {
-        await this.handleErrorResponse(response);
+      if (!response || !response.ok) {
+        const errorData = response ? await response.json().catch(() => ({})) : {};
+        throw new Error(errorData.message || `HTTP ${(response == null ? void 0 : response.status) || "unknown"}: ${(response == null ? void 0 : response.statusText) || "Network error"}`);
       }
-      const data = await response.json();
-      return {
-        shareUrl: data.collaborativeUrl || data.shareUrl,
-        // Handle backend's collaborativeUrl field
-        shareId: data.shareId,
-        createdAt: data.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-        permissions: data.permissions || "edit"
-      };
+      const result = await response.json();
+      if (!result.shareId || !result.viewUrl) {
+        throw new Error("Invalid response from backend");
+      }
+      return result;
     } catch (error) {
-      if (error instanceof Error && error.message === "Request timeout") {
-        throw error;
-      }
-      if (error instanceof Error && error.message.includes("Network")) {
-        throw new Error("Failed to connect to sharing service. Please check your internet connection.");
-      }
       throw error;
     }
   }
-  extractTitleFromContent(content) {
-    const lines = content.split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("# ")) {
-        return trimmed.substring(2).trim();
-      }
-    }
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0 && !trimmed.startsWith("#")) {
-        return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
-      }
-    }
-    return "Untitled Document";
-  }
-  async updateNote(shareId, content) {
-    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
-    const response = await this.makeRequest(url, {
-      method: "PUT",
-      headers: this.getHeaders(),
-      body: JSON.stringify({ content })
-    });
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
-    }
-    const data = await response.json();
-    return {
-      shareId: data.shareId,
-      updatedAt: data.updatedAt,
-      version: data.version
-    };
-  }
-  async getSharedNote(shareId) {
-    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
-    const response = await this.makeRequest(url, {
-      method: "GET",
-      headers: this.getHeaders()
-    });
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
-    }
-    return await response.json();
-  }
   async deleteShare(shareId) {
-    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
-    const response = await this.makeRequest(url, {
-      method: "DELETE",
-      headers: this.getHeaders()
+    const response = await fetch(`${this.baseUrl}/api/notes/${shareId}`, {
+      method: "DELETE"
     });
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
-    }
-  }
-  async listShares() {
-    const url = `${this.config.serverUrl}/api/notes`;
-    const response = await this.makeRequest(url, {
-      method: "GET",
-      headers: this.getHeaders()
-    });
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
-    }
-    const data = await response.json();
-    return {
-      shares: data.shares || [],
-      total: data.total || 0
-    };
-  }
-  async testConnection() {
-    const url = `${this.config.serverUrl}/api/auth/test`;
-    const response = await this.makeRequest(url, {
-      method: "GET",
-      headers: this.getHeaders()
-    });
-    if (!response.ok) {
-      await this.handleErrorResponse(response);
-    }
-    const data = await response.json();
-    return {
-      valid: data.valid,
-      user: data.user,
-      limits: data.limits
-    };
-  }
-  async makeRequest(url, options) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        credentials: "omit",
-        // Don't send credentials to avoid CORS complications
-        mode: "cors"
-        // Explicitly set CORS mode
-      });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("Request timeout");
-      }
-      throw new Error("Network error");
-    }
-  }
-  getHeaders() {
-    const headers = {
-      "Content-Type": "application/json",
-      "User-Agent": "ObsidianComments/1.0.0"
-    };
-    if (this.config.apiKey) {
-      headers["Authorization"] = `Bearer ${this.config.apiKey}`;
-    }
-    return headers;
-  }
-  async handleErrorResponse(response) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch (e) {
-      errorData = { message: "Unknown error" };
-    }
-    switch (response.status) {
-      case 401:
-        throw new Error("API key is invalid or expired");
-      case 404:
-        throw new Error("Shared note not found. It may have been deleted.");
-      case 429:
-        throw new Error("Too many requests. Please wait before trying again.");
-      case 500:
-        throw new Error("Server error. Please try again later.");
-      default:
-        throw new Error(errorData.message || `HTTP ${response.status} error`);
-    }
-  }
-};
-
-// src/share-manager.ts
-var ShareManager = class {
-  constructor(apiClient) {
-    this.apiClient = apiClient;
-  }
-  async addShareMetadata(content, shareUrl, sharedAt) {
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-    const match = content.match(frontmatterRegex);
-    if (match) {
-      const existingFrontmatter = match[1];
-      const contentWithoutFrontmatter = content.substring(match[0].length);
-      const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
-      ).join("\n");
-      const newFrontmatter = `${cleanedFrontmatter}
-shareUrl: ${shareUrl}
-sharedAt: ${sharedAt}`;
-      return `---
-${newFrontmatter}
----
-${contentWithoutFrontmatter}`;
-    } else {
-      const newFrontmatter = `shareUrl: ${shareUrl}
-sharedAt: ${sharedAt}`;
-      return `---
-${newFrontmatter}
----
-${content}`;
-    }
-  }
-  async updateShareMetadata(content, shareUrl, sharedAt) {
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-    const match = content.match(frontmatterRegex);
-    if (match) {
-      const existingFrontmatter = match[1];
-      const contentWithoutFrontmatter = content.substring(match[0].length);
-      const cleanedLines = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
-      );
-      cleanedLines.push(`shareUrl: ${shareUrl}`);
-      cleanedLines.push(`sharedAt: ${sharedAt}`);
-      return `---
-${cleanedLines.join("\n")}
----
-${contentWithoutFrontmatter}`;
-    } else {
-      return await this.addShareMetadata(content, shareUrl, sharedAt);
-    }
-  }
-  async removeShareMetadata(content) {
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-    const match = content.match(frontmatterRegex);
-    if (!match) {
-      return content;
-    }
-    const frontmatter = match[1];
-    const contentWithoutFrontmatter = content.substring(match[0].length);
-    const lines = frontmatter.split("\n").filter(
-      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
-    );
-    if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
-      return contentWithoutFrontmatter;
-    } else {
-      return `---
-${lines.join("\n")}
----
-${contentWithoutFrontmatter}`;
-    }
-  }
-  isNoteShared(content) {
-    try {
-      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-      const match = content.match(frontmatterRegex);
-      if (!match) {
-        return false;
-      }
-      const frontmatter = match[1];
-      if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
-        return false;
-      }
-      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:")) && frontmatter.split("\n").some((line) => {
-        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
-        const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
-        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "";
-      });
-    } catch (error) {
-      return false;
-    }
-  }
-  getShareUrl(content) {
-    try {
-      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-      const match = content.match(frontmatterRegex);
-      if (!match) {
-        return null;
-      }
-      const frontmatter = match[1];
-      if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
-        return null;
-      }
-      const lines = frontmatter.split("\n");
-      for (const line of lines) {
-        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
-        if (shareUrlMatch) {
-          const shareUrl = shareUrlMatch[1].trim();
-          return shareUrl === "" ? null : shareUrl;
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-  getShareId(content) {
-    try {
-      const shareUrl = this.getShareUrl(content);
-      if (shareUrl) {
-        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
-        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
-        return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : null;
-      }
-      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-      const fmMatch = content.match(frontmatterRegex);
-      if (!fmMatch) {
-        return null;
-      }
-      const frontmatter = fmMatch[1];
-      const lines = frontmatter.split("\n");
-      for (const line of lines) {
-        const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
-        if (shareIdMatch) {
-          const shareId = shareIdMatch[1].trim();
-          return shareId === "" ? null : shareId;
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-  async shareNote(content) {
-    const existingShareId = this.getShareId(content);
-    if (existingShareId) {
-      const updateResult = await this.apiClient.updateNote(existingShareId, content);
-      const existingShareUrl = this.getShareUrl(content);
-      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
-      const updatedContent = await this.updateShareMetadata(content, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
-      return {
-        shareUrl,
-        shareId: existingShareId,
-        updatedContent,
-        wasUpdate: true
-      };
-    } else {
-      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const extractedTitle = this.extractTitleFromContent(content);
-      const shareResponse = await this.apiClient.shareNote(content, extractedTitle, uniqueShareId);
-      const updatedContent = await this.addShareMetadata(
-        content,
-        shareResponse.shareUrl,
-        // This is now collaborativeUrl from backend
-        shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
-      );
-      return {
-        shareUrl: shareResponse.shareUrl,
-        shareId: shareResponse.shareId,
-        updatedContent,
-        wasUpdate: false
-      };
-    }
-  }
-  async reshareNote(content) {
-    return await this.shareNote(content);
-  }
-  async shareNoteWithFilename(content, filename) {
-    const preparedContent = this.prepareContentWithTitle(content, filename);
-    const cleanFilename = this.cleanFilename(filename);
-    const existingShareId = this.getShareId(preparedContent);
-    if (existingShareId) {
-      const updateResult = await this.apiClient.updateNote(existingShareId, preparedContent);
-      const existingShareUrl = this.getShareUrl(preparedContent);
-      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
-      const updatedContent = await this.updateShareMetadata(preparedContent, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
-      return {
-        shareUrl,
-        shareId: existingShareId,
-        updatedContent,
-        wasUpdate: true
-      };
-    } else {
-      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
-      const updatedContent = await this.addShareMetadata(
-        preparedContent,
-        shareResponse.shareUrl,
-        // This is now collaborativeUrl from backend
-        shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
-      );
-      return {
-        shareUrl: shareResponse.shareUrl,
-        shareId: shareResponse.shareId,
-        updatedContent,
-        wasUpdate: false
-      };
-    }
-  }
-  prepareContentWithTitle(content, filename) {
-    const cleanFilename = this.cleanFilename(filename);
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-    const frontmatterMatch = content.match(frontmatterRegex);
-    let bodyContent;
-    let frontmatter = "";
-    if (frontmatterMatch) {
-      frontmatter = frontmatterMatch[0];
-      bodyContent = content.substring(frontmatterMatch[0].length);
-    } else {
-      bodyContent = content;
-    }
-    const lines = bodyContent.split("\n");
-    const firstNonEmptyLine = lines.find((line) => line.trim() !== "");
-    if (firstNonEmptyLine && firstNonEmptyLine.startsWith("# ")) {
-      const existingTitle = firstNonEmptyLine.substring(2).trim();
-      if (existingTitle === cleanFilename) {
-        return content;
-      } else {
-        const newLines = lines.map(
-          (line) => line.trim() !== "" && line.startsWith("# ") && line === firstNonEmptyLine ? `# ${cleanFilename}` : line
-        );
-        return frontmatter + newLines.join("\n");
-      }
-    } else {
-      const titleLine = `# ${cleanFilename}`;
-      if (bodyContent.trim() === "") {
-        return frontmatter + titleLine + "\n\n";
-      } else {
-        return frontmatter + titleLine + "\n\n" + bodyContent;
-      }
-    }
-  }
-  cleanFilename(filename) {
-    const withoutExtension = filename.replace(/\.[^/.]+$/, "");
-    return withoutExtension;
-  }
-  extractTitleFromContent(content) {
-    const lines = content.split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("# ")) {
-        return trimmed.substring(2).trim();
-      }
-    }
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0 && !trimmed.startsWith("#")) {
-        return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
-      }
-    }
-    return "New Document";
-  }
-  async unshareNote(content) {
-    const shareId = this.getShareId(content);
-    if (!shareId) {
-      return content;
-    }
-    await this.deleteFromDatabaseSafely(shareId);
-    return await this.removeShareMetadata(content);
-  }
-  async deleteFromDatabaseSafely(shareId, maxRetries = 2) {
-    let lastError = null;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`\u{1F5D1}\uFE0F Attempting to delete note ${shareId} from database (attempt ${attempt})`);
-        await this.apiClient.deleteShare(shareId);
-        console.log(`\u2705 Successfully deleted note ${shareId} from database`);
-        return;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error("Unknown error");
-        console.warn(`\u26A0\uFE0F Delete attempt ${attempt} failed for ${shareId}:`, lastError.message);
-        if (error instanceof Error) {
-          if (error.message.includes("not found") || error.message.includes("404")) {
-            console.log(`\u2139\uFE0F Note ${shareId} already deleted or not found in database`);
-            return;
-          }
-          if (error.message.includes("invalid") || error.message.includes("401")) {
-            console.error(`\u274C Authentication error for ${shareId}, not retrying`);
-            return;
-          }
-        }
-        if (attempt < maxRetries) {
-          const delay = attempt * 1e3;
-          console.log(`\u23F3 Waiting ${delay}ms before retry...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
-    }
-    console.error(`\u274C Failed to delete note ${shareId} from database after ${maxRetries} attempts:`, lastError == null ? void 0 : lastError.message);
-    console.log(`\u{1F9F9} Continuing with local frontmatter removal for ${shareId}`);
-  }
-};
-
-// src/settings.ts
-var DEFAULT_SETTINGS = {
-  apiKey: "",
-  serverUrl: "https://obsidiancomments.serverado.app",
-  copyToClipboard: true,
-  showNotifications: true,
-  defaultPermissions: "edit"
-};
-function validateSettings(settings) {
-  const errors = [];
-  if (settings.apiKey !== void 0) {
-    if (settings.apiKey.trim() === "") {
-    } else if (settings.apiKey.length < 20) {
-      errors.push("API key must be at least 20 characters long");
-    }
-  }
-  if (settings.serverUrl) {
-    try {
-      const url = new URL(settings.serverUrl);
-      const isLocalhost = url.hostname.includes("localhost") || url.hostname.includes("127.0.0.1");
-      const isHttps = url.protocol === "https:";
-      if (!isHttps && !isLocalhost) {
-        errors.push("Server URL must use HTTPS for security");
-      }
-    } catch (e) {
-      errors.push("Invalid server URL format");
-    }
-  }
-  if (settings.defaultPermissions && settings.defaultPermissions !== "view" && settings.defaultPermissions !== "edit") {
-    errors.push('Default permissions must be either "view" or "edit"');
-  }
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-}
-var SettingsManager = class {
-  constructor(app) {
-    this.app = app;
-    this.settings = { ...DEFAULT_SETTINGS };
-  }
-  async loadSettings() {
-    const settingsPath = this.getSettingsPath();
-    try {
-      if (await this.app.vault.adapter.exists(settingsPath)) {
-        const data = await this.app.vault.adapter.read(settingsPath);
-        const savedSettings = JSON.parse(data);
-        this.settings = { ...DEFAULT_SETTINGS, ...savedSettings };
-      }
-    } catch (error) {
-      this.settings = { ...DEFAULT_SETTINGS };
-    }
-  }
-  async saveSettings() {
-    try {
-      const settingsPath = this.getSettingsPath();
-      await this.app.vault.adapter.write(
-        settingsPath,
-        JSON.stringify(this.settings, null, 2)
-      );
-    } catch (error) {
-      throw new Error(`Failed to save settings: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  }
-  async updateSettings(updates) {
-    const newSettings = { ...this.settings, ...updates };
-    const validation = validateSettings(newSettings);
-    if (!validation.isValid) {
-      throw new Error("Invalid settings update");
-    }
-    this.settings = newSettings;
-    await this.saveSettings();
-  }
-  async resetSettings() {
-    this.settings = { ...DEFAULT_SETTINGS };
-    await this.saveSettings();
-  }
-  getSettingsPath() {
-    return ".obsidian/plugins/obsidian-comments/data.json";
-  }
-  async isFirstRun() {
-    return !await this.app.vault.adapter.exists(this.getSettingsPath());
-  }
-  exportSettings(options) {
-    const settingsToExport = (options == null ? void 0 : options.excludeSensitive) ? { ...this.settings, apiKey: void 0 } : this.settings;
-    return JSON.stringify(settingsToExport, null, 2);
-  }
-  async importSettings(settingsJson) {
-    try {
-      const importedSettings = JSON.parse(settingsJson);
-      const validation = validateSettings(importedSettings);
-      if (!validation.isValid) {
-        throw new Error("Imported settings are invalid");
-      }
-      this.settings = { ...DEFAULT_SETTINGS, ...importedSettings };
-      await this.saveSettings();
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Imported settings are invalid")) {
-        throw error;
-      }
-      throw new Error("Invalid settings format");
+    if (!response || !response.ok) {
+      throw new Error(`Failed to delete: ${(response == null ? void 0 : response.statusText) || "Network error"}`);
     }
   }
 };
 
 // src/main.ts
-var ObsidianCommentsPlugin = class extends import_obsidian.Plugin {
-  constructor(app, manifest) {
-    super(app, manifest);
-    this.statusBarItem = null;
-    this.settingsManager = new SettingsManager(app);
-    this.apiClient = new ApiClient({
-      apiKey: "temporary-initialization-key-12345",
-      serverUrl: DEFAULT_SETTINGS.serverUrl
-    });
-    this.shareManager = new ShareManager(this.apiClient);
-  }
+var ShareNotePlugin = class extends import_obsidian.Plugin {
   async onload() {
-    await this.settingsManager.loadSettings();
-    if (this.settingsManager.settings && this.settingsManager.settings.apiKey && this.settingsManager.settings.apiKey !== "") {
-      this.apiClient = new ApiClient({
-        apiKey: this.settingsManager.settings.apiKey,
-        serverUrl: this.settingsManager.settings.serverUrl
-      });
-      this.shareManager = new ShareManager(this.apiClient);
-    }
-    this.addCommand({
-      id: "share-note",
-      name: "Share current note online",
-      callback: () => this.shareCurrentNote()
-    });
-    this.addCommand({
-      id: "unshare-note",
-      name: "Stop sharing current note",
-      callback: () => this.unshareCurrentNote()
-    });
-    this.addRibbonIcon("share", "Share current note", () => {
+    await this.loadSettings();
+    this.api = new BackendAPI(this.settings.backendUrl);
+    this.addRibbonIcon("share", "Share note", () => {
       this.shareCurrentNote();
     });
-    this.statusBarItem = this.addStatusBarItem();
-    this.statusBarItem.setText("");
-    this.addSettingTab(new ObsidianCommentsSettingTab(this.app, this));
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => {
-        this.updateSharingStatus();
-      })
-    );
-    await this.updateSharingStatus();
-    this.registerPropertyWidget();
+    this.addCommand({
+      id: "share-note",
+      name: "Share current note",
+      callback: () => this.shareCurrentNote()
+    });
+    this.addSettingTab(new ShareNoteSettingTab(this.app, this));
   }
-  registerPropertyWidget() {
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => {
-        setTimeout(() => this.addShareIcons(), 100);
-      })
-    );
-    this.registerEvent(
-      this.app.metadataCache.on("changed", () => {
-        setTimeout(() => this.addShareIcons(), 100);
-      })
-    );
-    setTimeout(() => this.addShareIcons(), 500);
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
-  addShareIcons() {
-    let count = 0;
-    const timer = setInterval(() => {
-      var _a;
-      count++;
-      if (count > 8) {
-        clearInterval(timer);
-        return;
-      }
-      const activeFile = this.app.workspace.getActiveFile();
-      if (!activeFile)
-        return;
-      const cache = this.app.metadataCache.getFileCache(activeFile);
-      const shareUrl = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.shareUrl;
-      if (!shareUrl)
-        return;
-      document.querySelectorAll(`div.metadata-property[data-property-key="shareUrl"]`).forEach((propertyEl) => {
-        const valueEl = propertyEl.querySelector("div.metadata-property-value");
-        if (!valueEl)
-          return;
-        if (valueEl.querySelector("div.obsidian-comments-icons"))
-          return;
-        const iconsEl = document.createElement("div");
-        iconsEl.classList.add("obsidian-comments-icons");
-        iconsEl.style.display = "inline-flex";
-        iconsEl.style.gap = "4px";
-        iconsEl.style.marginLeft = "8px";
-        const reshareIcon = document.createElement("span");
-        reshareIcon.classList.add("clickable-icon");
-        reshareIcon.setAttribute("aria-label", "Re-share note");
-        reshareIcon.style.cursor = "pointer";
-        (0, import_obsidian.setIcon)(reshareIcon, "upload-cloud");
-        reshareIcon.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await this.shareCurrentNote();
-        });
-        iconsEl.appendChild(reshareIcon);
-        const copyIcon = document.createElement("span");
-        copyIcon.classList.add("clickable-icon");
-        copyIcon.setAttribute("aria-label", "Copy share URL");
-        copyIcon.style.cursor = "pointer";
-        (0, import_obsidian.setIcon)(copyIcon, "copy");
-        copyIcon.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await navigator.clipboard.writeText(shareUrl);
-          new import_obsidian.Notice("Share URL copied to clipboard");
-        });
-        iconsEl.appendChild(copyIcon);
-        const openIcon = document.createElement("span");
-        openIcon.classList.add("clickable-icon");
-        openIcon.setAttribute("aria-label", "Open in browser");
-        openIcon.style.cursor = "pointer";
-        (0, import_obsidian.setIcon)(openIcon, "external-link");
-        openIcon.addEventListener("click", (e) => {
-          e.stopPropagation();
-          window.open(shareUrl, "_blank");
-        });
-        iconsEl.appendChild(openIcon);
-        const deleteIcon = document.createElement("span");
-        deleteIcon.classList.add("clickable-icon");
-        deleteIcon.setAttribute("aria-label", "Unshare note");
-        deleteIcon.style.cursor = "pointer";
-        (0, import_obsidian.setIcon)(deleteIcon, "trash");
-        deleteIcon.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          if (confirm("Are you sure you want to unshare this note?")) {
-            const content = await this.app.vault.read(activeFile);
-            const updatedContent = await this.shareManager.unshareNote(content);
-            await this.app.vault.modify(activeFile, updatedContent);
-            new import_obsidian.Notice("Note unshared");
-          }
-        });
-        iconsEl.appendChild(deleteIcon);
-        valueEl.appendChild(iconsEl);
-      });
-    }, 50);
+  async saveSettings() {
+    await this.saveData(this.settings);
+    this.api = new BackendAPI(this.settings.backendUrl);
   }
   async shareCurrentNote() {
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      new import_obsidian.Notice("No active file to share");
-      return;
-    }
     try {
-      const content = await this.app.vault.read(activeFile);
-      const filename = activeFile.name;
-      const result = await this.shareManager.shareNoteWithFilename(content, filename);
-      await this.app.vault.modify(activeFile, result.updatedContent);
-      if (this.settingsManager.settings.copyToClipboard) {
-        await navigator.clipboard.writeText(result.shareUrl);
+      const file = this.app.workspace.getActiveFile();
+      if (!file) {
+        new import_obsidian.Notice("No active file");
+        return;
       }
-      if (this.settingsManager.settings.showNotifications) {
-        const message = result.wasUpdate ? "Note updated and shared!" : "Note shared! URL copied to clipboard.";
-        new import_obsidian.Notice(message);
-      }
-      await this.updateSharingStatus();
-    } catch (error) {
-      new import_obsidian.Notice(`Failed to share note: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  }
-  async unshareCurrentNote() {
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      new import_obsidian.Notice("No active file to unshare");
-      return;
-    }
-    try {
-      const content = await this.app.vault.read(activeFile);
-      const updatedContent = await this.shareManager.unshareNote(content);
-      await this.app.vault.modify(activeFile, updatedContent);
-      if (this.settingsManager.settings.showNotifications) {
-        new import_obsidian.Notice("Note unshared successfully.");
-      }
-      await this.updateSharingStatus();
-    } catch (error) {
-      new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  }
-  async shareFileNote(file) {
-    try {
       const content = await this.app.vault.read(file);
-      const filename = file.name;
-      const result = await this.shareManager.shareNoteWithFilename(content, filename);
-      await this.app.vault.modify(file, result.updatedContent);
-      if (this.settingsManager.settings.copyToClipboard) {
-        await navigator.clipboard.writeText(result.shareUrl);
+      const htmlContent = await this.renderToHTML();
+      const shareData = {
+        title: file.basename,
+        content,
+        htmlContent
+      };
+      const result = await this.api.shareNote(shareData);
+      await this.updateFrontmatter(file, result);
+      if (this.settings.copyToClipboard && navigator.clipboard) {
+        await navigator.clipboard.writeText(result.viewUrl);
       }
-      if (this.settingsManager.settings.showNotifications) {
-        new import_obsidian.Notice("Note shared! URL copied to clipboard.");
+      if (this.settings.openInBrowser) {
+        window.open(result.viewUrl, "_blank");
       }
-    } catch (error) {
-      new import_obsidian.Notice(`Failed to share note: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  }
-  async unshareFileNote(file) {
-    try {
-      const content = await this.app.vault.read(file);
-      const updatedContent = await this.shareManager.unshareNote(content);
-      await this.app.vault.modify(file, updatedContent);
-      if (this.settingsManager.settings.showNotifications) {
-        new import_obsidian.Notice("Note unshared successfully.");
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice("Note shared successfully!");
       }
     } catch (error) {
-      new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error("Failed to share note:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to share note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+      throw error;
     }
   }
-  async updateSharingStatus() {
-    if (!this.statusBarItem)
-      return;
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      this.statusBarItem.setText("");
-      return;
-    }
-    try {
-      const content = await this.app.vault.read(activeFile);
-      const isShared = this.shareManager.isNoteShared(content);
-      this.statusBarItem.setText(isShared ? "\u{1F4E4} Shared" : "");
-    } catch (error) {
-      this.statusBarItem.setText("");
-    }
+  async renderToHTML() {
+    var _a, _b;
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+    if (!view)
+      return "";
+    const currentState = view.getState();
+    await view.setState({
+      ...currentState,
+      mode: "preview"
+    }, { history: false });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const previewElement = (_b = (_a = view.previewMode) == null ? void 0 : _a.containerEl) == null ? void 0 : _b.querySelector(".markdown-preview-view");
+    if (!previewElement)
+      return "";
+    return this.cleanHTML(previewElement);
   }
-  async onSettingsChange(newSettings) {
-    this.settingsManager.settings = newSettings;
-    if (newSettings.apiKey) {
-      this.apiClient = new ApiClient({
-        apiKey: newSettings.apiKey,
-        serverUrl: newSettings.serverUrl
-      });
-      this.shareManager = new ShareManager(this.apiClient);
-    }
+  cleanHTML(element) {
+    const cloned = element.cloneNode(true);
+    cloned.querySelectorAll(".frontmatter").forEach((el) => el.remove());
+    cloned.querySelectorAll(".edit-block-button").forEach((el) => el.remove());
+    cloned.querySelectorAll("a.internal-link").forEach((link) => {
+      const textNode = document.createTextNode(link.textContent || "");
+      link.replaceWith(textNode);
+    });
+    return cloned.innerHTML;
   }
-  onunload() {
+  async updateFrontmatter(file, shareResult) {
+    var _a;
+    const content = await this.app.vault.read(file);
+    const cache = this.app.metadataCache.getFileCache(file);
+    const shareData = {
+      share_id: shareResult.shareId,
+      share_url: shareResult.viewUrl,
+      edit_url: shareResult.editUrl,
+      shared_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    let updatedContent;
+    if (cache == null ? void 0 : cache.frontmatter) {
+      const lines = content.split("\n");
+      const endLine = ((_a = cache.frontmatterPosition) == null ? void 0 : _a.end.line) || 0;
+      const existingFrontmatter = cache.frontmatter;
+      const newFrontmatter = { ...existingFrontmatter, ...shareData };
+      const frontmatterLines = [
+        "---",
+        ...Object.entries(newFrontmatter).map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return `${key}: [${value.join(", ")}]`;
+          }
+          return `${key}: ${value}`;
+        }),
+        "---"
+      ];
+      const bodyLines = lines.slice(endLine + 1);
+      updatedContent = [...frontmatterLines, ...bodyLines].join("\n");
+    } else {
+      const frontmatterLines = [
+        "---",
+        ...Object.entries(shareData).map(([key, value]) => `${key}: ${value}`),
+        "---"
+      ];
+      updatedContent = [...frontmatterLines, content].join("\n");
+    }
+    await this.app.vault.modify(file, updatedContent);
   }
 };
-var ObsidianCommentsSettingTab = class extends import_obsidian.PluginSettingTab {
+var ShareNoteSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -868,52 +202,23 @@ var ObsidianCommentsSettingTab = class extends import_obsidian.PluginSettingTab 
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Obsidian Comments Settings" });
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Your API key for the sharing service").addText(
-      (text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settingsManager.settings.apiKey).onChange(async (value) => {
-        this.plugin.settingsManager.settings.apiKey = value;
-        await this.plugin.settingsManager.saveSettings();
-        await this.plugin.onSettingsChange(this.plugin.settingsManager.settings);
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Server URL").setDesc("URL of the sharing service").addText(
-      (text) => text.setPlaceholder("https://api.obsidiancomments.com").setValue(this.plugin.settingsManager.settings.serverUrl).onChange(async (value) => {
-        this.plugin.settingsManager.settings.serverUrl = value;
-        await this.plugin.settingsManager.saveSettings();
-        await this.plugin.onSettingsChange(this.plugin.settingsManager.settings);
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Copy to clipboard").setDesc("Automatically copy share URL to clipboard").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settingsManager.settings.copyToClipboard).onChange(async (value) => {
-        this.plugin.settingsManager.settings.copyToClipboard = value;
-        await this.plugin.settingsManager.saveSettings();
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Show notifications").setDesc("Show success/error notifications").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settingsManager.settings.showNotifications).onChange(async (value) => {
-        this.plugin.settingsManager.settings.showNotifications = value;
-        await this.plugin.settingsManager.saveSettings();
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Default permissions").setDesc("Default permission level for shared notes").addDropdown(
-      (dropdown) => dropdown.addOption("view", "View only").addOption("edit", "Edit").setValue(this.plugin.settingsManager.settings.defaultPermissions).onChange(async (value) => {
-        this.plugin.settingsManager.settings.defaultPermissions = value;
-        await this.plugin.settingsManager.saveSettings();
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Test connection").setDesc("Test your API key and connection").addButton(
-      (button) => button.setButtonText("Test").setCta().onClick(async () => {
-        try {
-          button.setButtonText("Testing...");
-          await this.plugin.apiClient.testConnection();
-          new import_obsidian.Notice("Connection successful!");
-          button.setButtonText("Test");
-        } catch (error) {
-          new import_obsidian.Notice(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-          button.setButtonText("Test");
-        }
-      })
-    );
+    containerEl.createEl("h2", { text: "Share Note Settings" });
+    new import_obsidian.Setting(containerEl).setName("Backend URL").setDesc("URL of your backend server").addText((text) => text.setPlaceholder("https://your-backend.com").setValue(this.plugin.settings.backendUrl).onChange(async (value) => {
+      this.plugin.settings.backendUrl = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Copy to clipboard").setDesc("Automatically copy share URL to clipboard").addToggle((toggle) => toggle.setValue(this.plugin.settings.copyToClipboard).onChange(async (value) => {
+      this.plugin.settings.copyToClipboard = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Show notifications").setDesc("Show success/error notifications").addToggle((toggle) => toggle.setValue(this.plugin.settings.showNotifications).onChange(async (value) => {
+      this.plugin.settings.showNotifications = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Open in browser").setDesc("Automatically open shared note in browser").addToggle((toggle) => toggle.setValue(this.plugin.settings.openInBrowser).onChange(async (value) => {
+      this.plugin.settings.openInBrowser = value;
+      await this.plugin.saveSettings();
+    }));
   }
 };
-var main_default = ObsidianCommentsPlugin;
+var main_default = ShareNotePlugin;

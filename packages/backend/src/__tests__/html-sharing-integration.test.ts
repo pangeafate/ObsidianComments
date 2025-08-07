@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { app } from '../app';
-import { prisma } from '__tests__/setup';
+import { prisma } from './setup';
 
 describe('HTML Sharing Integration', () => {
   beforeEach(async () => {

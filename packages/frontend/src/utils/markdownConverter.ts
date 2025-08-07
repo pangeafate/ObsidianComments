@@ -239,3 +239,140 @@ function isSpecialLine(line: string): boolean {
     line.match(/^-\s+\[[x\s]\]/)        // Task lists
   ) !== null;
 }
+
+/**
+ * Convert markdown to HTML for ViewPage component
+ */
+export function markdownToHtml(markdown: string): string {
+  if (!markdown.trim()) {
+    return '<p></p>';
+  }
+
+  const lines = markdown.split('\n');
+  const html: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    
+    // Skip empty lines at the beginning
+    if (!line.trim() && html.length === 0) {
+      i++;
+      continue;
+    }
+
+    // Headings
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = escapeHtml(headingMatch[2]);
+      html.push(`<h${level}>${processInlineMarkdown(text)}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    // Code blocks
+    if (line.startsWith('```')) {
+      const language = line.substring(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        codeLines.push(escapeHtml(lines[i]));
+        i++;
+      }
+      
+      const languageClass = language ? ` language-${language}` : '';
+      html.push(`<pre><code class="${languageClass}">${codeLines.join('\n')}</code></pre>`);
+      i++; // Skip closing ```
+      continue;
+    }
+
+    // Blockquotes
+    if (line.startsWith('> ')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith('> ')) {
+        quoteLines.push(lines[i].substring(2));
+        i++;
+      }
+      
+      const quoteText = quoteLines.join(' ').trim();
+      html.push(`<blockquote><p>${processInlineMarkdown(escapeHtml(quoteText))}</p></blockquote>`);
+      continue;
+    }
+
+    // Task lists
+    if (line.match(/^-\s+\[[x\s]\]/)) {
+      html.push('<ul class="task-list">');
+      
+      while (i < lines.length && lines[i].match(/^-\s+\[[x\s]\]/)) {
+        const taskMatch = lines[i].match(/^-\s+\[([x\s])\]\s*(.*)$/);
+        if (taskMatch) {
+          const checked = taskMatch[1] === 'x' ? ' checked' : '';
+          const text = taskMatch[2] ? processInlineMarkdown(escapeHtml(taskMatch[2])) : '';
+          html.push(`<li class="task-list-item"><input type="checkbox" disabled${checked}> ${text}</li>`);
+        }
+        i++;
+      }
+      
+      html.push('</ul>');
+      continue;
+    }
+
+    // Regular bullet lists
+    if (line.startsWith('- ')) {
+      html.push('<ul>');
+      
+      while (i < lines.length && lines[i].startsWith('- ')) {
+        const itemText = lines[i].substring(2).trim();
+        html.push(`<li>${processInlineMarkdown(escapeHtml(itemText))}</li>`);
+        i++;
+      }
+      
+      html.push('</ul>');
+      continue;
+    }
+
+    // Regular paragraphs
+    if (line.trim()) {
+      // Collect all consecutive non-empty lines for the paragraph
+      const paragraphLines: string[] = [];
+      while (i < lines.length && lines[i].trim() && !isSpecialLine(lines[i])) {
+        paragraphLines.push(lines[i].trim());
+        i++;
+      }
+      
+      if (paragraphLines.length > 0) {
+        const paragraphText = paragraphLines.join(' ');
+        html.push(`<p>${processInlineMarkdown(escapeHtml(paragraphText))}</p>`);
+      }
+      continue;
+    }
+    
+    i++;
+  }
+
+  return html.join('\n');
+}
+
+function processInlineMarkdown(text: string): string {
+  // Bold text **text**
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  
+  // Italic text *text*
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
+  // Inline code `code`
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // Links [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  
+  return text;
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
