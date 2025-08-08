@@ -1,11 +1,12 @@
 // Frontend Jest configuration for TDD development
 import path from 'path';
 import fs from 'fs';
+import { config } from 'dotenv';
 
 // Load .env.test file if it exists
 const envTestPath = path.resolve(process.cwd(), '.env.test');
 if (fs.existsSync(envTestPath)) {
-  require('dotenv').config({ path: envTestPath });
+  config({ path: envTestPath });
 }
 
 export default {
