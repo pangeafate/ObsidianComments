@@ -46,7 +46,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing dashboard section identification in editor');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     // Test: Dashboard section should exist with proper testid
@@ -72,7 +72,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing button section separation in editor');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     // Test: Button section should exist with proper testid
@@ -99,7 +99,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing visual separation between sections');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     const dashboardSection = page.locator('[data-testid="dashboard-section"]');
@@ -134,7 +134,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing button consistency in editor');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     const buttonSection = page.locator('[data-testid="button-section"]');
@@ -165,7 +165,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing button padding consistency');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     const buttonSection = page.locator('[data-testid="button-section"]');
@@ -196,7 +196,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing color scheme preservation with consistency');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     const buttonSection = page.locator('[data-testid="button-section"]');
@@ -230,7 +230,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing view mode dashboard layout');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('.prose', { timeout: 10000 });
     
@@ -265,7 +265,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing minimalistic button design');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     const buttonSection = page.locator('[data-testid="button-section"]');
@@ -295,7 +295,7 @@ test.describe('UI Improvements (TDD)', () => {
     console.log('🎨 Testing responsive dashboard layout');
     
     const doc = await createTestDocument(request);
-    await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
     await waitForEditorReady(page);
     
     // Test on mobile viewport

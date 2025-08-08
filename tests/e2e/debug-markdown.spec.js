@@ -25,7 +25,7 @@ test('Debug markdown checkbox rendering', async ({ page, request }) => {
 
   const doc = await createMarkdownDocument(request, 'Debug Test', markdownContent);
   
-  await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+  await page.goto(`http://localhost:8080/view/${doc.shareId}`);
   await page.waitForLoadState('networkidle');
   await page.waitForSelector('.prose', { timeout: 10000 });
   

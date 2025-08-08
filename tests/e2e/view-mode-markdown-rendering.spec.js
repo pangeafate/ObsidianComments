@@ -36,7 +36,7 @@ This is a paragraph with regular text.`;
     const doc = await createMarkdownDocument(request, 'Heading Test', markdownContent);
     
     // Navigate to view mode
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     
     // Wait for content to load
@@ -72,7 +72,7 @@ Some \`inline code\` should be displayed in monospace.`;
 
     const doc = await createMarkdownDocument(request, 'Text Formatting Test', markdownContent);
     
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('.prose', { timeout: 10000 });
     
@@ -108,7 +108,7 @@ Some \`inline code\` should be displayed in monospace.`;
 
     const doc = await createMarkdownDocument(request, 'List Test', markdownContent);
     
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('.prose', { timeout: 10000 });
     
@@ -147,7 +147,7 @@ And some regular text.`;
 
     const doc = await createMarkdownDocument(request, 'Blockquote and Code Test', markdownContent);
     
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('.prose', { timeout: 10000 });
     
@@ -177,7 +177,7 @@ And some regular text.`;
 
     const doc = await createMarkdownDocument(request, 'Raw Markdown Test', markdownContent);
     
-    await page.goto(`http://localhost:8083/view/${doc.shareId}`);
+    await page.goto(`http://localhost:8080/view/${doc.shareId}`);
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('.prose', { timeout: 10000 });
     

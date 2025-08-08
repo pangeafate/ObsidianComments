@@ -1,4 +1,4 @@
-// Test environment setup
+// Hocuspocus test environment setup
 // Load .env.test file and configure test environment variables
 
 import path from 'path';
@@ -8,38 +8,33 @@ import fs from 'fs';
 const envTestPath = path.resolve(process.cwd(), '.env.test');
 if (fs.existsSync(envTestPath)) {
   require('dotenv').config({ path: envTestPath });
-  console.log('✅ Loaded .env.test configuration');
+  console.log('✅ Hocuspocus: Loaded .env.test configuration');
 } else {
-  console.log('⚠️  No .env.test file found, using fallback values');
+  console.log('⚠️  Hocuspocus: No .env.test file found, using fallback values');
 }
 
 // Ensure test environment is set
 process.env.NODE_ENV = 'test';
 
-// Use loaded environment variables or fallback to local test values
+// Use loaded environment variables or fallback to test values
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:test_password@localhost:5432/obsidian_comments_test';
 process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379/1';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-for-testing-only';
-process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:5173';
-process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Test-specific configurations
+process.env.PORT = process.env.PORT || '8082';
 process.env.MOCK_EXTERNAL_SERVICES = process.env.MOCK_EXTERNAL_SERVICES || 'true';
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
 process.env.DISABLE_LOGS = process.env.DISABLE_LOGS || 'true';
 
-// Port configurations
-process.env.PORT = process.env.PORT || '8081';
-process.env.BACKEND_PORT = process.env.BACKEND_PORT || '8081';
+// Hocuspocus-specific configurations
+process.env.HOCUSPOCUS_SECRET = process.env.HOCUSPOCUS_SECRET || 'test-hocuspocus-secret';
+process.env.WEBSOCKET_TIMEOUT = process.env.WEBSOCKET_TIMEOUT || '5000';
+process.env.MAX_CONNECTIONS = process.env.MAX_CONNECTIONS || '100';
 
-console.log('✅ Test environment configured:', {
+console.log('✅ Hocuspocus test environment configured:', {
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: process.env.DATABASE_URL ? '[CONFIGURED]' : '[NOT SET]',
   REDIS_URL: process.env.REDIS_URL ? '[CONFIGURED]' : '[NOT SET]',
+  PORT: process.env.PORT,
   MOCK_EXTERNAL_SERVICES: process.env.MOCK_EXTERNAL_SERVICES
 });
-
-// Import Redis mock if mocking is enabled
-if (process.env.MOCK_EXTERNAL_SERVICES === 'true') {
-  import('./mocks/redis');
-}

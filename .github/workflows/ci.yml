@@ -162,18 +162,18 @@ jobs:
 
     - name: Start test environment with Docker Compose
       run: |
-        # Create test environment file
+        # Create test environment file for nginx-enabled stack
         cat > .env.test << EOF
         POSTGRES_DB=obsidian_comments_test
         POSTGRES_USER=postgres
         POSTGRES_PASSWORD=test_password
         JWT_SECRET=test_jwt_secret
         NODE_ENV=test
-        CORS_ORIGIN=http://localhost:3001
+        CORS_ORIGIN=http://localhost
         EOF
         
-        echo "Starting Docker Compose services..."
-        # Start services using docker compose for E2E testing (v2 syntax)
+        echo "Starting Docker Compose services with nginx..."
+        # Use E2E compose file which includes nginx optimized for testing
         # Use longer timeout and pull images first to avoid timeout issues
         docker pull postgres:15
         docker pull redis:7-alpine
@@ -181,18 +181,23 @@ jobs:
         docker pull nginx:alpine
         
         # Start services with build (increase timeout significantly for CI environment)
-        timeout 600 docker compose -f docker-compose.yml --env-file .env.test up -d --build
+        timeout 600 docker compose -f docker-compose.e2e.yml --env-file .env.test up -d --build
         
         # Wait for all services to be healthy (increase timeout)
         echo "Waiting for services to be healthy..."
-        timeout 300 bash -c 'until docker compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        timeout 300 bash -c 'until docker compose -f docker-compose.e2e.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
         
         # Show service status for debugging
-        docker compose -f docker-compose.yml ps
+        docker compose -f docker-compose.e2e.yml ps
         
-        # Verify service connectivity (increase timeout)
+        # Verify service connectivity through nginx (port 80)
         echo "Testing service connectivity..."
-        timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 2; echo "Waiting for API..."; done'
+        timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 2; echo "Waiting for API via nginx..."; done'
+
+    - name: Run database migrations
+      run: |
+        echo "Running database migrations..."
+        docker compose -f docker-compose.e2e.yml exec backend npx prisma migrate deploy
 
     - name: Run E2E tests
       env:
@@ -221,15 +226,15 @@ jobs:
       if: failure()
       run: |
         echo "Collecting Docker service logs..."
-        docker compose -f docker-compose.yml logs --tail=100
+        docker compose -f docker-compose.e2e.yml logs --tail=100
         
         echo "Container status:"
-        docker compose -f docker-compose.yml ps
+        docker compose -f docker-compose.e2e.yml ps
 
     - name: Cleanup
       if: always()
       run: |
-        docker compose -f docker-compose.yml down --volumes --remove-orphans
+        docker compose -f docker-compose.e2e.yml down --volumes --remove-orphans
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4

@@ -8,8 +8,8 @@
 const { test, expect } = require('@playwright/test');
 
 // Test configuration
-const BACKEND_URL = process.env.TEST_URL?.replace(':3001', ':8081') || 'http://localhost:8081';
-const FRONTEND_URL = process.env.TEST_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8081';
+const FRONTEND_URL = process.env.TEST_URL || 'http://localhost:8080';
 const API_BASE = `${BACKEND_URL}/api`;
 
 test.describe('ViewPage Integration', () => {

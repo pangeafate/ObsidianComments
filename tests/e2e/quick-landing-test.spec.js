@@ -1,15 +1,15 @@
 /**
  * Quick Landing Page Test
- * Tests the landing page on the correct port (8083) to verify functionality
+ * Tests the landing page on the correct port (8080) to verify functionality
  */
 
 const { test, expect } = require('@playwright/test');
 
 test('Quick landing page test on correct port', async ({ page }) => {
-  console.log('🎯 Testing landing page on port 8083');
+  console.log('🎯 Testing landing page on port 8080');
   
   // Navigate to the correct port where frontend is running
-  await page.goto('http://localhost:8083');
+  await page.goto('http://localhost:8080');
   await page.waitForLoadState('networkidle');
   
   // Verify landing page loaded

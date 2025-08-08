@@ -1,3 +1,4 @@
+// Default Jest configuration - supports TDD development with mocked dependencies
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -8,13 +9,28 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/index.ts'
   ],
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  testTimeout: 10000,
-  // Environment variables for testing
+  testTimeout: 15000,
+  
+  // Environment setup - loads .env.test
   setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
-  // Ignore database integration tests in CI until DB is properly configured
+  
+  // Use mocked setup by default for TDD
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup-mocked.ts'],
+  
+  // Test path configuration
   testPathIgnorePatterns: [
     '/node_modules/',
-    process.env.CI && !process.env.DATABASE_URL ? '/__tests__/.*\\.integration\\.test\\.ts$' : ''
-  ].filter(Boolean)
+    // By default, ignore integration tests that require real database
+    '/__tests__/.*\\.integration\\.test\\.ts$'
+  ],
+  
+  // Coverage configuration
+  coverageDirectory: '<rootDir>/coverage',
+  coverageReporters: ['text', 'lcov'],
+  
+  // Clear mocks between tests for clean TDD cycles
+  clearMocks: true,
+  restoreMocks: true,
+  
+  verbose: false
 };

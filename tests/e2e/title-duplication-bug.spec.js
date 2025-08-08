@@ -26,7 +26,7 @@ test('Title duplication bug - refresh after title change', async ({ page, reques
   const doc = await createDocument(request, originalTitle, content);
   
   // Navigate to editor
-  await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
+  await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
   await page.waitForLoadState('networkidle');
   
   // Wait for editor to be ready
@@ -109,8 +109,8 @@ test('Title duplication bug - collaborative scenario', async ({ page, context })
   const page2 = await context.newPage();
   
   // Navigate both pages to the editor
-  await page.goto(`http://localhost:8083/editor/${doc.shareId}`);
-  await page2.goto(`http://localhost:8083/editor/${doc.shareId}`);
+  await page.goto(`http://localhost:8080/editor/${doc.shareId}`);
+  await page2.goto(`http://localhost:8080/editor/${doc.shareId}`);
   
   // Wait for both to load
   await Promise.all([
