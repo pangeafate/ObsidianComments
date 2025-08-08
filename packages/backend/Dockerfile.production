@@ -21,13 +21,13 @@ RUN npm run build
 # Remove dev dependencies after build
 RUN npm prune --production
 
-# Production stage
-FROM node:18-alpine AS production
+# Production stage - use Debian-based image for better OpenSSL compatibility
+FROM node:18-slim AS production
 
 WORKDIR /app
 
-# Install curl for health checks and OpenSSL for Prisma
-RUN apk add --no-cache curl openssl openssl-dev
+# Install curl for health checks and required libraries
+RUN apt-get update && apt-get install -y curl libssl3 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy built application and dependencies
 COPY --from=builder /app/dist ./dist
@@ -35,9 +35,12 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 
+# Regenerate Prisma client in production stage to ensure compatibility
+RUN npx prisma generate
+
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN groupadd --gid 1001 nodejs
+RUN useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodejs
 
 # Change ownership
 RUN chown -R nodejs:nodejs /app
@@ -47,6 +50,6 @@ EXPOSE 8081
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+  CMD curl -f http://localhost:8081/api/health || exit 1
 
 CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
