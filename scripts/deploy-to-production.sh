@@ -16,8 +16,8 @@ if ! docker compose version &> /dev/null; then
 fi
 
 # Configuration
-DEPLOYMENT_DIR="/opt/obsidian-comments"
-BACKUP_DIR="/opt/obsidian-comments-backup-$(date +%Y%m%d-%H%M%S)"
+DEPLOYMENT_DIR="$HOME/obsidian-comments"
+BACKUP_DIR="$HOME/obsidian-comments-backup-$(date +%Y%m%d-%H%M%S)"
 REPO_URL="https://github.com/your-username/obsidian-comments.git"
 
 echo "📂 Setting up deployment directory: $DEPLOYMENT_DIR"
@@ -78,6 +78,23 @@ if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "change_me_in_production" ]; then
     echo "❌ JWT_SECRET must be set to a secure value in .env.production"
     exit 1
 fi
+
+echo "🔐 Checking SSL certificate availability"
+SSL_CERT_DIR="/etc/letsencrypt/live/obsidiancomments.serverado.app"
+if [ ! -d "$SSL_CERT_DIR" ]; then
+    echo "❌ SSL certificate directory not found: $SSL_CERT_DIR"
+    echo "⚠️  Please ensure SSL certificates are properly configured"
+    echo "⚠️  You may need to run: certbot certonly --webroot -w /var/www/certbot -d obsidiancomments.serverado.app"
+    exit 1
+fi
+
+if [ ! -f "$SSL_CERT_DIR/fullchain.pem" ] || [ ! -f "$SSL_CERT_DIR/privkey.pem" ]; then
+    echo "❌ SSL certificate files not found in $SSL_CERT_DIR"
+    ls -la "$SSL_CERT_DIR/" || true
+    exit 1
+fi
+
+echo "✅ SSL certificates found and accessible"
 
 echo "🐳 Starting clean slate Docker deployment"
 

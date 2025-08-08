@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     # No port exposure - only accessible within Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -41,11 +39,11 @@ services:
       - "8081"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-production_password_change_me}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
       - REDIS_URL=redis://redis:6379
       - PORT=8081
       - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
-      - JWT_SECRET=${JWT_SECRET:-change_me_in_production}
+      - JWT_SECRET=${JWT_SECRET}
       - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-900000}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
     depends_on:
@@ -57,10 +55,11 @@ services:
     networks:
       - obsidian_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   hocuspocus:
     build:
@@ -70,7 +69,7 @@ services:
       - "8082"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-production_password_change_me}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
       - REDIS_URL=redis://redis:6379
       - PORT=8082
       - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
@@ -83,10 +82,11 @@ services:
     networks:
       - obsidian_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8082/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   frontend:
     build:
@@ -105,6 +105,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   nginx:
     build:
@@ -118,9 +119,12 @@ services:
       - /etc/letsencrypt/live/obsidiancomments.serverado.app:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     depends_on:
-      - frontend
-      - backend
-      - hocuspocus
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      hocuspocus:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - obsidian_network
@@ -129,6 +133,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
 
 volumes:
   postgres_data:
