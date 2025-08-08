@@ -72,11 +72,11 @@ export { prisma };
 
 // Helper functions for integration tests
 export const testHelpers = {
-  async createTestDocument(data: { title: string; content: string; shareId?: string }) {
-    const shareId = data.shareId || `test-doc-${Date.now()}`;
+  async createTestDocument(data: { title: string; content: string; id?: string }) {
+    const documentId = data.id || `test-doc-${Date.now()}`;
     return prisma.document.create({
       data: {
-        shareId,
+        id: documentId,
         title: data.title,
         content: data.content,
         metadata: {}
@@ -84,11 +84,11 @@ export const testHelpers = {
     });
   },
   
-  async createTestUser(data: { name: string; email?: string }) {
+  async createTestUser(data: { username: string; displayName?: string }) {
     return prisma.user.create({
       data: {
-        name: data.name,
-        email: data.email || `${data.name}@test.example.com`
+        username: data.username,
+        displayName: data.displayName || data.username
       }
     });
   },
