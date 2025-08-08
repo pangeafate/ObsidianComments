@@ -35,6 +35,8 @@ services:
     build:
       context: ./packages/backend
       dockerfile: Dockerfile.production
+    expose:
+      - "8081"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-production_password_change_me}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
@@ -62,6 +64,8 @@ services:
     build:
       context: ./packages/hocuspocus
       dockerfile: Dockerfile.production
+    expose:
+      - "8082"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-production_password_change_me}@postgres:5432/${POSTGRES_DB:-obsidian_comments}

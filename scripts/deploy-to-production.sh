@@ -91,12 +91,35 @@ if ! docker-compose -f docker-compose.production.yml ps | grep -q "Up"; then
     exit 1
 fi
 
-# Check backend health
-if ! curl -f http://localhost:8081/api/health; then
-    echo "❌ Backend health check failed"
-    docker-compose -f docker-compose.production.yml logs backend
-    exit 1
-fi
+# Wait for backend to be healthy
+echo "⏳ Waiting for backend service to be healthy..."
+for i in {1..30}; do
+    if docker-compose -f docker-compose.production.yml ps backend | grep -q "healthy"; then
+        echo "✅ Backend is healthy"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ Backend health check timeout"
+        docker-compose -f docker-compose.production.yml logs backend
+        exit 1
+    fi
+    sleep 5
+done
+
+# Wait for hocuspocus to be healthy
+echo "⏳ Waiting for hocuspocus service to be healthy..."
+for i in {1..30}; do
+    if docker-compose -f docker-compose.production.yml ps hocuspocus | grep -q "healthy"; then
+        echo "✅ Hocuspocus is healthy"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ Hocuspocus health check timeout"
+        docker-compose -f docker-compose.production.yml logs hocuspocus
+        exit 1
+    fi
+    sleep 5
+done
 
 # Check if nginx is accessible (assuming it's running on port 80)
 if ! curl -f http://localhost/health; then
@@ -104,6 +127,25 @@ if ! curl -f http://localhost/health; then
     docker-compose -f docker-compose.production.yml logs nginx
     exit 1
 fi
+
+# Test internal nginx -> backend connectivity
+echo "🔗 Testing internal service connectivity..."
+if ! docker-compose -f docker-compose.production.yml exec nginx wget -q --spider http://backend:8081/api/health; then
+    echo "❌ Nginx cannot reach backend service"
+    docker-compose -f docker-compose.production.yml logs nginx
+    docker-compose -f docker-compose.production.yml logs backend
+    exit 1
+fi
+
+# Test internal nginx -> hocuspocus connectivity  
+if ! docker-compose -f docker-compose.production.yml exec nginx wget -q --spider http://hocuspocus:8082/health; then
+    echo "❌ Nginx cannot reach hocuspocus service"
+    docker-compose -f docker-compose.production.yml logs nginx
+    docker-compose -f docker-compose.production.yml logs hocuspocus
+    exit 1
+fi
+
+echo "✅ All internal service connections verified"
 
 # Clean up old Docker images
 echo "🧹 Cleaning up old Docker images"
