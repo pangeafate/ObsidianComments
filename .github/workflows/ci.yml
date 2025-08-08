@@ -172,12 +172,12 @@ jobs:
         CORS_ORIGIN=http://localhost:3001
         EOF
         
-        # Start services using docker-compose for E2E testing
-        docker-compose -f docker-compose.yml --env-file .env.test up -d --build
+        # Start services using docker compose for E2E testing (v2 syntax)
+        docker compose -f docker-compose.yml --env-file .env.test up -d --build
         
         # Wait for all services to be healthy
         echo "Waiting for services to be ready..."
-        timeout 120 bash -c 'until docker-compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        timeout 120 bash -c 'until docker compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
         
         # Verify service connectivity
         echo "Testing service connectivity..."
@@ -208,15 +208,15 @@ jobs:
       if: failure()
       run: |
         echo "Collecting Docker service logs..."
-        docker-compose -f docker-compose.yml logs --tail=100
+        docker compose -f docker-compose.yml logs --tail=100
         
         echo "Container status:"
-        docker-compose -f docker-compose.yml ps
+        docker compose -f docker-compose.yml ps
 
     - name: Cleanup
       if: always()
       run: |
-        docker-compose -f docker-compose.yml down --volumes --remove-orphans
+        docker compose -f docker-compose.yml down --volumes --remove-orphans
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
@@ -255,7 +255,7 @@ jobs:
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
           "mkdir -p /opt/obsidian-comments"
         
-        # Upload docker-compose and configuration files
+        # Upload docker compose and configuration files
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
           --exclude 'node_modules' \
           --exclude '.git' \
@@ -282,7 +282,7 @@ jobs:
           
           # Clean slate deployment: stop and remove all containers
           echo "Stopping and removing existing containers..."
-          docker-compose -f docker-compose.production.yml down --volumes --remove-orphans || true
+          docker compose -f docker-compose.production.yml down --volumes --remove-orphans || true
           
           # Remove all related images to force rebuild
           echo "Cleaning up old images..."
@@ -298,15 +298,15 @@ jobs:
           
           # Build and start services with fresh environment
           echo "Building and starting services..."
-          docker-compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate
+          docker compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate
           
           # Wait for services to be healthy
           echo "Waiting for services to be healthy..."
-          timeout 300 bash -c 'until docker-compose -f docker-compose.production.yml ps | grep -E "(healthy|Up)" | wc -l | grep -q "5"; do sleep 10; echo "Waiting for all services to be ready..."; done'
+          timeout 300 bash -c 'until docker compose -f docker-compose.production.yml ps | grep -E "(healthy|Up)" | wc -l | grep -q "5"; do sleep 10; echo "Waiting for all services to be ready..."; done'
           
           # Verify deployment
           echo "Verifying deployment..."
-          docker-compose -f docker-compose.production.yml ps
+          docker compose -f docker-compose.production.yml ps
         EOF
         
         rm deploy_key
