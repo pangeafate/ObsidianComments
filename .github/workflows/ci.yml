@@ -199,6 +199,10 @@ jobs:
         # Run ShareNote plugin integration test
         echo "Testing ShareNote plugin integration..."
         timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1
+        
+        # Run Smart Title removal validation test
+        echo "Testing Smart Title removal and Untitled Document behavior..."
+        timeout 300 npx playwright test tests/e2e/untitled-document-validation.spec.js --project=chromium --max-failures=1
 
     - name: Collect logs on failure
       if: failure()
