@@ -1,8 +1,8 @@
 // Frontend test environment setup
 // Load .env.test file and configure test environment variables
 
-import path from 'path';
-import fs from 'fs';
+const path = require('path');
+const fs = require('fs');
 
 // Load .env.test file if it exists
 const envTestPath = path.resolve(process.cwd(), '.env.test');

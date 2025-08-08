@@ -1,7 +1,7 @@
 // Frontend Jest configuration for TDD development
-import path from 'path';
-import fs from 'fs';
-import { config } from 'dotenv';
+const path = require('path');
+const fs = require('fs');
+const { config } = require('dotenv');
 
 // Load .env.test file if it exists
 const envTestPath = path.resolve(process.cwd(), '.env.test');
@@ -9,7 +9,7 @@ if (fs.existsSync(envTestPath)) {
   config({ path: envTestPath });
 }
 
-export default {
+module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
