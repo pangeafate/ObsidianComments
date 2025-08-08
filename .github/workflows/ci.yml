@@ -172,16 +172,24 @@ jobs:
         CORS_ORIGIN=http://localhost:3001
         EOF
         
+        echo "Starting Docker Compose services..."
         # Start services using docker compose for E2E testing (v2 syntax)
-        docker compose -f docker-compose.yml --env-file .env.test up -d --build
+        # Use longer timeout and pull images first to avoid timeout issues
+        docker pull postgres:15 redis:7-alpine node:18-alpine nginx:alpine
         
-        # Wait for all services to be healthy
-        echo "Waiting for services to be ready..."
-        timeout 120 bash -c 'until docker compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        # Start services with build (increase timeout significantly for CI environment)
+        timeout 600 docker compose -f docker-compose.yml --env-file .env.test up -d --build
         
-        # Verify service connectivity
+        # Wait for all services to be healthy (increase timeout)
+        echo "Waiting for services to be healthy..."
+        timeout 300 bash -c 'until docker compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        
+        # Show service status for debugging
+        docker compose -f docker-compose.yml ps
+        
+        # Verify service connectivity (increase timeout)
         echo "Testing service connectivity..."
-        timeout 60 bash -c 'until curl -f http://localhost/api/health; do sleep 2; echo "Waiting for API..."; done'
+        timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 2; echo "Waiting for API..."; done'
 
     - name: Run E2E tests
       env:
@@ -191,18 +199,20 @@ jobs:
         set -e  # Exit immediately if any command fails
         
         # Run simple E2E test to verify document creation and loading works
-        timeout 300 npx playwright test tests/e2e/simple-test.spec.js --project=chromium --max-failures=1
+        echo "Running simple E2E test..."
+        timeout 450 npx playwright test tests/e2e/simple-test.spec.js --project=chromium --max-failures=1
         
         # Run critical path E2E test
-        timeout 300 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
+        echo "Running critical path E2E test..."
+        timeout 450 npx playwright test tests/e2e/critical-path.spec.js --project=chromium --max-failures=1
         
         # Run ShareNote plugin integration test
         echo "Testing ShareNote plugin integration..."
-        timeout 120 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1
+        timeout 300 npx playwright test tests/e2e/sharenote-plugin-integration.spec.js --project=chromium --max-failures=1
         
         # Run Smart Title removal validation test
         echo "Testing Smart Title removal and Untitled Document behavior..."
-        timeout 300 npx playwright test tests/e2e/untitled-document-validation.spec.js --project=chromium --max-failures=1
+        timeout 450 npx playwright test tests/e2e/untitled-document-validation.spec.js --project=chromium --max-failures=1
 
     - name: Collect logs on failure
       if: failure()
