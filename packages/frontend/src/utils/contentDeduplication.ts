@@ -149,3 +149,86 @@ export const initializeContentSafely = (
     // Yjs content is good, use it
   }
 };
+
+/**
+ * Title-specific deduplication utility
+ */
+export const deduplicateTitle = (title: string): string => {
+  if (!title || title.trim().length === 0) {
+    return title;
+  }
+
+  const trimmed = title.trim();
+  
+  // Check for obvious duplication patterns
+  const words = trimmed.split(/\s+/);
+  const uniqueWords = [...new Set(words)];
+  
+  // If more than 50% of words are duplicated, it's likely a duplication
+  if (words.length > uniqueWords.length * 1.5 && words.length > 3) {
+    console.log('🔍 Title duplication detected in:', title);
+    
+    // Try to find the original title by looking for repeating patterns
+    const halfLength = Math.floor(trimmed.length / 2);
+    const firstHalf = trimmed.substring(0, halfLength);
+    const secondHalf = trimmed.substring(halfLength);
+    
+    // If first half is repeated in second half, keep only first half
+    if (trimmed.includes(firstHalf + firstHalf)) {
+      console.log('✂️ Removing duplicated title section:', firstHalf);
+      return firstHalf;
+    }
+    
+    // Look for word-level patterns
+    const wordCount = new Map<string, number>();
+    words.forEach(word => {
+      wordCount.set(word.toLowerCase(), (wordCount.get(word.toLowerCase()) || 0) + 1);
+    });
+    
+    // Keep only first occurrence of each word if there are many duplicates
+    const deduplicatedWords: string[] = [];
+    const seen = new Set<string>();
+    
+    words.forEach(word => {
+      const lowerWord = word.toLowerCase();
+      if (!seen.has(lowerWord) || wordCount.get(lowerWord) === 1) {
+        deduplicatedWords.push(word);
+        seen.add(lowerWord);
+      }
+    });
+    
+    const result = deduplicatedWords.join(' ');
+    console.log('✅ Title deduplicated from:', title, 'to:', result);
+    return result;
+  }
+  
+  return trimmed;
+};
+
+/**
+ * Safe title initialization with deduplication
+ */
+export const initializeTitleSafely = (
+  yjsTitle: string,
+  apiTitle: string,
+  setTitleCallback: (title: string) => void
+): void => {
+  console.log('🛡️ Safe title initialization started');
+  
+  const cleanYjsTitle = yjsTitle ? deduplicateTitle(yjsTitle) : '';
+  const cleanApiTitle = apiTitle ? deduplicateTitle(apiTitle) : '';
+  
+  if (!cleanYjsTitle && cleanApiTitle) {
+    console.log('📝 Using API title:', cleanApiTitle);
+    setTitleCallback(cleanApiTitle);
+  } else if (cleanYjsTitle) {
+    // Check if Yjs title is significantly different from API title
+    if (cleanApiTitle && cleanYjsTitle !== cleanApiTitle && !cleanYjsTitle.includes(cleanApiTitle)) {
+      console.log('🔄 Using Yjs title (differs from API):', cleanYjsTitle);
+    }
+    setTitleCallback(cleanYjsTitle);
+  } else {
+    console.log('📝 Using fallback title');
+    setTitleCallback(cleanApiTitle || 'Untitled Document');
+  }
+};

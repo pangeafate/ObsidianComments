@@ -65,9 +65,6 @@ jest.mock('../utils/contentDeduplication', () => ({
   deduplicateContent: jest.fn((content) => content)
 }));
 
-jest.mock('../utils/smartTitle', () => ({
-  extractSmartTitle: jest.fn(() => 'Test Title')
-}));
 
 jest.mock('../utils/userColors', () => ({
   generateUserColor: jest.fn(() => '#ff0000')

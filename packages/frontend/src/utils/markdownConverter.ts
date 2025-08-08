@@ -303,14 +303,14 @@ export function markdownToHtml(markdown: string): string {
 
     // Task lists
     if (line.match(/^-\s+\[[x\s]\]/)) {
-      html.push('<ul class="task-list">');
+      html.push('<ul class="task-list" style="list-style: none; padding-left: 0;">');
       
       while (i < lines.length && lines[i].match(/^-\s+\[[x\s]\]/)) {
         const taskMatch = lines[i].match(/^-\s+\[([x\s])\]\s*(.*)$/);
         if (taskMatch) {
-          const checked = taskMatch[1] === 'x' ? ' checked' : '';
+          const checked = taskMatch[1] === 'x' ? ' checked="checked"' : '';
           const text = taskMatch[2] ? processInlineMarkdown(escapeHtml(taskMatch[2])) : '';
-          html.push(`<li class="task-list-item"><input type="checkbox" disabled${checked}> ${text}</li>`);
+          html.push(`<li class="task-list-item" style="display: flex; align-items: center; margin: 0.25rem 0;"><input type="checkbox" disabled${checked} style="margin-right: 0.5rem; cursor: default;"> <span>${text}</span></li>`);
         }
         i++;
       }
