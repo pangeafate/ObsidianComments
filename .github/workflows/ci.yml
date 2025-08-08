@@ -252,9 +252,9 @@ jobs:
         echo "$DEPLOY_KEY" > deploy_key
         chmod 600 deploy_key
         
-        # Create deployment directory with proper permissions
+        # Create deployment directory in user's home instead
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
-          "sudo mkdir -p /opt/obsidian-comments && sudo chown -R $USER:$USER /opt/obsidian-comments && sudo chmod -R 755 /opt/obsidian-comments"
+          "mkdir -p ~/obsidian-comments"
         
         # Upload docker compose and configuration files
         rsync -avz -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
@@ -265,11 +265,11 @@ jobs:
           --exclude 'test-results' \
           --exclude '__tests__' \
           --exclude 'test-results/' \
-          . $DEPLOY_USER@$DEPLOY_HOST:/opt/obsidian-comments/
+          . $DEPLOY_USER@$DEPLOY_HOST:~/obsidian-comments/
         
         # Deploy with clean slate approach
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
-          cd /opt/obsidian-comments
+          cd ~/obsidian-comments
           
           # Create production environment file
           cat > .env.production << EOL
