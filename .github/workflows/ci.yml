@@ -175,7 +175,10 @@ jobs:
         echo "Starting Docker Compose services..."
         # Start services using docker compose for E2E testing (v2 syntax)
         # Use longer timeout and pull images first to avoid timeout issues
-        docker pull postgres:15 redis:7-alpine node:18-alpine nginx:alpine
+        docker pull postgres:15
+        docker pull redis:7-alpine
+        docker pull node:18-alpine
+        docker pull nginx:alpine
         
         # Start services with build (increase timeout significantly for CI environment)
         timeout 600 docker compose -f docker-compose.yml --env-file .env.test up -d --build
