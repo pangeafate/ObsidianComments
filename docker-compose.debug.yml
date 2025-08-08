@@ -1,0 +1,257 @@
+# Debug version of docker-compose with extensive logging and health checks
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: obsidian-postgres-debug
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Enable extensive logging
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=md5"
+    ports:
+      - "5432:5432"  # Expose for debugging
+    volumes:
+      - postgres_debug_data:/var/lib/postgresql/data
+      - ./debug-logs:/debug-logs
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-obsidian_comments}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    command: >
+      postgres
+      -c log_statement=all
+      -c log_duration=on
+      -c log_line_prefix='%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+      -c logging_collector=on
+      -c log_directory='/debug-logs'
+      -c log_filename='postgresql-%Y-%m-%d_%H%M%S.log'
+      -c log_rotation_age=1d
+      -c log_rotation_size=100MB
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  redis:
+    image: redis:7-alpine
+    container_name: obsidian-redis-debug
+    ports:
+      - "6379:6379"  # Expose for debugging
+    volumes:
+      - redis_debug_data:/data
+      - ./debug-logs:/debug-logs
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    # Enable Redis logging
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --loglevel verbose
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile.production
+    container_name: obsidian-backend-debug
+    ports:
+      - "8081:8081"  # Expose for debugging
+    environment:
+      - NODE_ENV=development  # Use development for better logging
+      - DEBUG=*  # Enable debug logging
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - REDIS_URL=redis://redis:6379
+      - PORT=8081
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
+      - JWT_SECRET=${JWT_SECRET}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-900000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    volumes:
+      - ./debug-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  hocuspocus:
+    build:
+      context: ./packages/hocuspocus
+      dockerfile: Dockerfile.production
+    container_name: obsidian-hocuspocus-debug
+    ports:
+      - "8082:8082"  # Expose for debugging
+    environment:
+      - NODE_ENV=development  # Use development for better logging
+      - DEBUG=*  # Enable debug logging
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
+      - REDIS_URL=redis://redis:6379
+      - PORT=8082
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    volumes:
+      - ./debug-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.production
+      args:
+        - VITE_API_URL=https://obsidiancomments.serverado.app/api
+        - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
+    container_name: obsidian-frontend-debug
+    ports:
+      - "8080:80"  # Expose for debugging
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    volumes:
+      - ./debug-logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: obsidian-nginx-debug
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-debug.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/obsidiancomments.serverado.app:/etc/nginx/ssl:ro
+      - ./debug-logs:/var/log/nginx
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      hocuspocus:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - obsidian_debug_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Debug monitoring container
+  debug-monitor:
+    image: alpine:latest
+    container_name: obsidian-debug-monitor
+    volumes:
+      - ./debug-logs:/debug-logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - obsidian_debug_network
+    restart: unless-stopped
+    command: >
+      sh -c "
+      apk add --no-cache curl docker-cli &&
+      while true; do
+        echo '=== $(date) ===' >> /debug-logs/monitor.log
+        echo 'Container Status:' >> /debug-logs/monitor.log
+        docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >> /debug-logs/monitor.log
+        echo '' >> /debug-logs/monitor.log
+        echo 'Network Connectivity Tests:' >> /debug-logs/monitor.log
+        curl -s -w '%{http_code}\n' http://backend:8081/api/health >> /debug-logs/monitor.log 2>&1 || echo 'Backend: FAILED' >> /debug-logs/monitor.log
+        curl -s -w '%{http_code}\n' http://hocuspocus:8082/health >> /debug-logs/monitor.log 2>&1 || echo 'Hocuspocus: FAILED' >> /debug-logs/monitor.log
+        curl -s -w '%{http_code}\n' http://frontend/ >> /debug-logs/monitor.log 2>&1 || echo 'Frontend: FAILED' >> /debug-logs/monitor.log
+        curl -s -w '%{http_code}\n' http://nginx/health >> /debug-logs/monitor.log 2>&1 || echo 'Nginx: FAILED' >> /debug-logs/monitor.log
+        echo '===========================================' >> /debug-logs/monitor.log
+        sleep 60
+      done
+      "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  postgres_debug_data:
+  redis_debug_data:
+
+networks:
+  obsidian_debug_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

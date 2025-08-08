@@ -1,0 +1,139 @@
+# Minimal Docker Compose for incremental testing
+# Start with basic services and gradually add complexity
+
+version: '3.8'
+
+services:
+  # Stage 1: Start with just nginx + a simple frontend to test basic functionality
+  frontend-minimal:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.production
+      args:
+        - VITE_API_URL=http://localhost:8081/api
+        - VITE_WS_URL=ws://localhost:8082/ws
+    container_name: obsidian-frontend-minimal
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    environment:
+      - NODE_ENV=production
+
+  # Stage 2: Add nginx proxy
+  nginx-minimal:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: obsidian-nginx-minimal
+    ports:
+      - "8000:80"  # Use port 8000 to avoid conflicts
+    volumes:
+      - ./nginx-minimal.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      frontend-minimal:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+# Alternative Stage 1: Test individual services
+# Uncomment sections below to test services individually
+
+  # Database only
+  # postgres-test:
+  #   image: postgres:15
+  #   container_name: obsidian-postgres-test
+  #   environment:
+  #     POSTGRES_DB: obsidian_comments
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpassword}
+  #   ports:
+  #     - "5433:5432"  # Use different port to avoid conflicts
+  #   volumes:
+  #     - postgres_test_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+  # Redis only
+  # redis-test:
+  #   image: redis:7-alpine
+  #   container_name: obsidian-redis-test
+  #   ports:
+  #     - "6380:6379"  # Use different port to avoid conflicts
+  #   volumes:
+  #     - redis_test_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+  # Backend only (requires postgres and redis to be running)
+  # backend-test:
+  #   build:
+  #     context: ./packages/backend
+  #     dockerfile: Dockerfile.production
+  #   container_name: obsidian-backend-test
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-testpassword}@localhost:5433/obsidian_comments
+  #     - REDIS_URL=redis://localhost:6380
+  #     - PORT=8081
+  #     - CORS_ORIGIN=http://localhost:8000
+  #     - JWT_SECRET=${JWT_SECRET:-test_jwt_secret_change_in_production}
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   network_mode: host
+
+  # Hocuspocus only (requires postgres and redis to be running)
+  # hocuspocus-test:
+  #   build:
+  #     context: ./packages/hocuspocus
+  #     dockerfile: Dockerfile.production
+  #   container_name: obsidian-hocuspocus-test
+  #   ports:
+  #     - "8082:8082"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-testpassword}@localhost:5433/obsidian_comments
+  #     - REDIS_URL=redis://localhost:6380
+  #     - PORT=8082
+  #     - CORS_ORIGIN=http://localhost:8000
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 20s
+  #   network_mode: host
+
+# volumes:
+#   postgres_test_data:
+#   redis_test_data:
+
+networks:
+  default:
+    driver: bridge
