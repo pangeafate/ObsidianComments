@@ -29,7 +29,7 @@ export function UserPresence({ users }: UserPresenceProps) {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" data-testid="user-presence">
       <span className="text-sm text-gray-500">Active users:</span>
       <div className="flex -space-x-2">
         {users.map((user, index) => {

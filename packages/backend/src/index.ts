@@ -16,8 +16,15 @@ async function startServer() {
     // Create HTTP server
     const httpServer = createServer(app);
     
-    // WebSocket service temporarily disabled for deployment stability
-    console.log('📡 Backend running in basic mode (WebSocket features disabled for stability)');
+    // Initialize WebSocket service safely (enabled for local testing)
+    try {
+      const { websocketService } = await import('./services/websocketService');
+      websocketService.init(httpServer);
+      console.log('✅ WebSocket service enabled for real-time collaboration');
+    } catch (wsError) {
+      console.warn('⚠️ WebSocket service failed to initialize, continuing without it:', wsError);
+      console.log('📡 Backend will run in basic mode without WebSocket features');
+    }
     
     httpServer.listen(PORT, () => {
       console.log(`Backend server running on port ${PORT}`);

@@ -65,7 +65,8 @@ export const extendedDocumentService = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content,
+          // Store HTML in htmlContent for fidelity; backend switches renderMode accordingly
+          htmlContent: content,
         }),
       });
 

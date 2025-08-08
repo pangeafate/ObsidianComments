@@ -12,6 +12,8 @@ export interface UseCollaborationReturn {
   ydoc: Y.Doc | null;
   users: User[];
   status: 'connecting' | 'connected' | 'disconnected';
+  synced: boolean;
+  isInitialSyncComplete: boolean;
   setUser: (user: User) => void;
   reconnect: () => void;
   getContent: () => string;
@@ -26,6 +28,8 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [synced, setSynced] = useState<boolean>(false);
+  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState<boolean>(false);
 
   useEffect(() => {
     // Create Y.Doc only once per documentId to prevent "Type already defined" errors
@@ -36,8 +40,15 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     newYdoc.getText('title');
     setYdoc(newYdoc);
     
+    // Use Vite env in browser, fallback to process.env, then window.host default
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const viteEnv = (typeof window !== 'undefined' && (import.meta as any)?.env) ? (import.meta as any).env : undefined;
+    const fromVite = viteEnv?.VITE_WS_URL as string | undefined;
+    const fromProcess = typeof process !== 'undefined' ? (process.env?.VITE_WS_URL as string | undefined) : undefined;
+    const wsUrl = fromVite || fromProcess || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+
     const hocuspocusProvider = new HocuspocusProvider({
-      url: import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`,
+      url: wsUrl,
       name: documentId,
       document: newYdoc,
       token: 'collaboration-token', // Simple token for authentication
@@ -57,6 +68,17 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     };
 
     hocuspocusProvider.on('status', handleStatusChange);
+    
+    const handleSynced = () => {
+      setSynced(true);
+      // Add delay to ensure initial content is properly synced
+      setTimeout(() => {
+        setIsInitialSyncComplete(true);
+        console.log('✅ Initial Yjs sync complete with delay');
+      }, 500);
+    };
+    
+    hocuspocusProvider.on('synced', handleSynced);
 
     // Handle awareness changes (user presence)
     const handleAwarenessChange = () => {
@@ -79,6 +101,7 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
 
     return () => {
       hocuspocusProvider.off('status', handleStatusChange);
+      hocuspocusProvider.off('synced', handleSynced);
       hocuspocusProvider.awareness.off('change', handleAwarenessChange);
       hocuspocusProvider.destroy();
       newYdoc.destroy();
@@ -113,9 +136,19 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
   const setTitle = useCallback((title: string) => {
     if (!ydoc) return;
     const titleText = ydoc.getText('title');
-    // Replace entire title content
-    titleText.delete(0, titleText.length);
-    titleText.insert(0, title);
+    
+    // Prevent duplicate operations and race conditions
+    const currentTitle = titleText.toString();
+    if (currentTitle === title) {
+      return; // No change needed
+    }
+    
+    // Use a transaction to ensure atomic operations
+    ydoc.transact(() => {
+      // Replace entire title content atomically
+      titleText.delete(0, titleText.length);
+      titleText.insert(0, title);
+    });
   }, [ydoc]);
 
   const onTitleChange = useCallback((callback: (title: string) => void) => {
@@ -139,6 +172,8 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     ydoc,
     users,
     status,
+    synced,
+    isInitialSyncComplete,
     setUser,
     reconnect,
     getContent,

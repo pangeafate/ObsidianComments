@@ -15,12 +15,13 @@ class DocumentService {
   private baseUrl: string;
 
   constructor() {
-    // Use process.env for both environments - Vite injects this at build time
-    if (process.env.VITE_API_URL) {
-      this.baseUrl = process.env.VITE_API_URL + '/api';
-    } else {
-      this.baseUrl = '/api';
-    }
+    // Prefer import.meta.env in browser; fallback to process.env for Jest; default to relative
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const viteEnv = (typeof window !== 'undefined' && (import.meta as any)?.env) ? (import.meta as any).env : undefined;
+    const fromVite = viteEnv?.VITE_API_URL as string | undefined;
+    const fromProcess = typeof process !== 'undefined' ? (process.env?.VITE_API_URL as string | undefined) : undefined;
+    const base = fromVite || fromProcess || '';
+    this.baseUrl = base ? base + '/api' : '/api';
   }
 
   async loadDocument(documentId: string): Promise<DocumentData> {
