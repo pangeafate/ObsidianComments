@@ -181,11 +181,11 @@ jobs:
         docker pull nginx:alpine
         
         # Start services with build (increase timeout significantly for CI environment)
-        timeout 600 docker compose -f docker-compose.e2e.yml --env-file .env.test up -d --build
+        timeout 900 docker compose -f docker-compose.e2e.yml --env-file .env.test up -d --build
         
         # Wait for all services to be healthy (increase timeout)
         echo "Waiting for services to be healthy..."
-        timeout 300 bash -c 'until docker compose -f docker-compose.e2e.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        timeout 600 bash -c 'until docker compose -f docker-compose.e2e.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
         
         # Show service status for debugging
         docker compose -f docker-compose.e2e.yml ps

@@ -58,10 +58,10 @@ services:
       - obsidian_e2e_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
 
   hocuspocus:
     build:
@@ -84,10 +84,10 @@ services:
       - obsidian_e2e_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
 
   frontend:
     build:
@@ -100,11 +100,11 @@ services:
     networks:
       - obsidian_e2e_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   nginx:
     build:
@@ -126,10 +126,10 @@ services:
       - obsidian_e2e_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 volumes:
   postgres_e2e_data:
