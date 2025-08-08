@@ -267,50 +267,39 @@ jobs:
           --exclude 'test-results/' \
           . $DEPLOY_USER@$DEPLOY_HOST:~/obsidian-comments/
         
-        # Deploy with clean slate approach using sudo for Docker commands
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+        # Create environment file on server
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "
           cd ~/obsidian-comments
-          
-          # Create production environment file
-          cat > .env.production << EOL
-POSTGRES_DB=obsidian_comments
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-JWT_SECRET=${JWT_SECRET}
-NODE_ENV=production
-CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
-RATE_LIMIT_WINDOW=900000
-RATE_LIMIT_MAX=100
-EOL
-          
-          # Clean slate deployment: stop and remove all containers (using sudo)
-          echo "Stopping and removing existing containers..."
-          sudo docker compose -f docker-compose.production.yml down --volumes --remove-orphans || true
-          
-          # Remove all related images to force rebuild
-          echo "Cleaning up old images..."
-          sudo docker image prune -af || true
-          sudo docker images | grep obsidian | awk '{print $3}' | xargs -r sudo docker rmi -f || true
-          
-          # Pull latest base images
-          echo "Pulling latest base images..."
-          sudo docker pull postgres:15
-          sudo docker pull redis:7-alpine
-          sudo docker pull nginx:alpine
-          sudo docker pull node:18-alpine
-          
-          # Build and start services with fresh environment
-          echo "Building and starting services..."
-          sudo docker compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate
-          
-          # Wait for services to be healthy
-          echo "Waiting for services to be healthy..."
-          timeout 300 bash -c 'until sudo docker compose -f docker-compose.production.yml ps | grep -E "(healthy|Up)" | wc -l | grep -q "5"; do sleep 10; echo "Waiting for all services to be ready..."; done'
-          
-          # Verify deployment
-          echo "Verifying deployment..."
+          echo 'POSTGRES_DB=obsidian_comments' > .env.production
+          echo 'POSTGRES_USER=postgres' >> .env.production
+          echo 'POSTGRES_PASSWORD=$POSTGRES_PASSWORD' >> .env.production
+          echo 'JWT_SECRET=$JWT_SECRET' >> .env.production
+          echo 'NODE_ENV=production' >> .env.production
+          echo 'CORS_ORIGIN=$CORS_ORIGIN' >> .env.production
+          echo 'RATE_LIMIT_WINDOW=900000' >> .env.production
+          echo 'RATE_LIMIT_MAX=100' >> .env.production
+        "
+        
+        # Deploy with clean slate approach using sudo for Docker commands
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "
+          cd ~/obsidian-comments &&
+          echo 'Stopping and removing existing containers...' &&
+          sudo docker compose -f docker-compose.production.yml down --volumes --remove-orphans || true &&
+          echo 'Cleaning up old images...' &&
+          sudo docker image prune -af || true &&
+          sudo docker images | grep obsidian | awk '{print \$3}' | xargs -r sudo docker rmi -f || true &&
+          echo 'Pulling latest base images...' &&
+          sudo docker pull postgres:15 &&
+          sudo docker pull redis:7-alpine &&
+          sudo docker pull nginx:alpine &&
+          sudo docker pull node:18-alpine &&
+          echo 'Building and starting services...' &&
+          sudo docker compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate &&
+          echo 'Waiting for services to be healthy...' &&
+          timeout 300 bash -c 'until sudo docker compose -f docker-compose.production.yml ps | grep -E \"(healthy|Up)\" | wc -l | grep -q \"5\"; do sleep 10; echo \"Waiting for all services to be ready...\"; done' &&
+          echo 'Verifying deployment...' &&
           sudo docker compose -f docker-compose.production.yml ps
-        EOF
+        "
         
         rm deploy_key
 
