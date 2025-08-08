@@ -99,8 +99,8 @@ jobs:
         MOCK_EXTERNAL_SERVICES: true
       run: |
         set -e  # Exit immediately if any command fails
-        # Run backend tests (database is already set up) - MUST PASS
-        cd packages/backend && npm test -- --testPathPattern="ci-validation.test.ts"
+        # Run backend CI validation tests (mocked, no database needed) - MUST PASS
+        cd packages/backend && npx jest --config jest.ci.config.js
 
     - name: Run frontend unit tests
       env:

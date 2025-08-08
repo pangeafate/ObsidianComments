@@ -1,4 +1,17 @@
 // Simple CI/CD validation tests that don't require external services
+// This test file runs WITHOUT database/redis connections for CI environments
+
+// Mock PrismaClient to avoid database connection attempts
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn().mockImplementation(() => ({
+    $connect: jest.fn(),
+    $disconnect: jest.fn(),
+    comment: { deleteMany: jest.fn() },
+    version: { deleteMany: jest.fn() },
+    document: { deleteMany: jest.fn() },
+    user: { deleteMany: jest.fn() }
+  }))
+}));
 
 describe('CI/CD Validation', () => {
   it('should have correct environment variables', () => {
@@ -33,5 +46,13 @@ describe('CI/CD Validation', () => {
     };
     
     expect(() => validateDocumentData(invalidData)).toThrow();
+  });
+
+  it('should be able to import app module without errors', () => {
+    // Test that the app can be imported without throwing due to missing env vars
+    expect(() => {
+      const app = require('../app');
+      expect(app).toBeDefined();
+    }).not.toThrow();
   });
 });
