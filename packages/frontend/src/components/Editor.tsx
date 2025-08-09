@@ -101,7 +101,7 @@ export function Editor({ documentId }: EditorProps) {
           // Document doesn't exist - create it immediately with default content
           console.log('📝 Document not found, creating new document in database:', documentId);
           
-          const defaultTitle = `New Document ${new Date().toLocaleDateString()}`;
+          const defaultTitle = 'Untitled Document';
           const defaultContent = `# ${defaultTitle}\n\nStart typing here...`;
           
           const newDocument = await extendedDocumentService.createDocument(
@@ -163,6 +163,12 @@ export function Editor({ documentId }: EditorProps) {
       setDocumentTitle(currentYjsTitle);
     }
   }, [ydoc, documentTitle, getTitle, setTitle]);
+
+  // Update browser tab title when document title changes
+  useEffect(() => {
+    const title = documentTitle || 'Untitled Document';
+    document.title = `${title} - Obsidian Comments`;
+  }, [documentTitle]);
 
   // Listen for collaborative title changes from other users
   useEffect(() => {
