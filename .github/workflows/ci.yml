@@ -328,17 +328,26 @@ jobs:
           echo 'CORS_ORIGIN=$CORS_ORIGIN' >> .env.production
           echo 'RATE_LIMIT_WINDOW=900000' >> .env.production
           echo 'RATE_LIMIT_MAX=100' >> .env.production
+          echo 'FRONTEND_URL=http://obsidiancomments.serverado.app' >> .env.production
+          echo 'DATABASE_URL=postgresql://postgres:$POSTGRES_PASSWORD@postgres:5432/obsidian_comments' >> .env.production
         "
         
-        # Fix Docker permissions and deploy
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && chmod +x scripts/fix-docker-permissions.sh && ./scripts/fix-docker-permissions.sh"
+        # Install docker-compose if not already installed
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "
+          if ! [ -f ~/docker-compose ]; then
+            echo 'Installing docker-compose...'
+            curl -L 'https://github.com/docker/compose/releases/download/v2.29.1/docker-compose-linux-x86_64' -o ~/docker-compose
+            chmod +x ~/docker-compose
+          fi
+          ~/docker-compose version
+        "
         
-        # Deploy using sudo for Docker commands (simpler approach)
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Stopping existing containers...' && (sudo docker compose -f docker-compose.production.yml down --volumes --remove-orphans || true)"
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Cleaning up images...' && (sudo docker image prune -af || true)"
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Pulling base images...' && sudo docker pull postgres:15 && sudo docker pull redis:7-alpine && sudo docker pull nginx:alpine && sudo docker pull node:18-alpine"
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Building and starting services...' && sudo docker compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate"
-        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Waiting for services...' && sleep 60 && sudo docker compose -f docker-compose.production.yml ps"
+        # Deploy without sudo (user has Docker permissions)
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Stopping existing containers...' && (~/docker-compose -f docker-compose.production.yml down --volumes --remove-orphans || true)"
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Cleaning up images...' && (docker image prune -af || true)"
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Pulling base images...' && docker pull postgres:15 && docker pull redis:7-alpine && docker pull nginx:alpine && docker pull node:18-alpine"
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Building and starting services...' && ~/docker-compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate"
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Waiting for services...' && sleep 60 && ~/docker-compose -f docker-compose.production.yml ps"
         
         rm deploy_key
 
@@ -347,13 +356,13 @@ jobs:
         echo "Waiting for services to fully start..."
         sleep 60
         
-        echo "Testing HTTPS connectivity..."
-        curl -I https://obsidiancomments.serverado.app/ || echo "HTTPS not ready yet"
+        echo "Testing HTTP connectivity..."
+        curl -I http://obsidiancomments.serverado.app/ || echo "HTTP not ready yet"
         
         echo "Testing API health endpoint..."
         HEALTH_SUCCESS=false
         for i in {1..10}; do
-          if curl -f https://obsidiancomments.serverado.app/api/health; then
+          if curl -f http://obsidiancomments.serverado.app/api/health; then
             echo "Production deployment successful!"
             HEALTH_SUCCESS=true
             break
@@ -368,10 +377,10 @@ jobs:
         fi
         
         echo "Testing CORS headers..."
-        curl -si -X POST https://obsidiancomments.serverado.app/api/notes/share \
+        curl -si -X POST http://obsidiancomments.serverado.app/api/notes/share \
           -H "Content-Type: application/json" \
           -H "Origin: app://obsidian.md" \
-          -d '{}' | head -20 | tee headers.txt
+          -d '{"content":"Test content"}' | head -20 | tee headers.txt
         
         if grep -i 'access-control-allow-origin: app://obsidian.md' headers.txt; then
           echo "CORS headers configured correctly!"
@@ -380,7 +389,7 @@ jobs:
         fi
         
         echo "Testing ShareNote plugin endpoints..."
-        curl -X POST https://obsidiancomments.serverado.app/api/notes/share \
+        curl -X POST http://obsidiancomments.serverado.app/api/notes/share \
           -H "Content-Type: application/json" \
           -H "Origin: app://obsidian.md" \
           -d '{"title":"CI Health Check","content":"# CI Health Check\n\nTesting deployment","htmlContent":"<h1>CI Health Check</h1><p>Testing deployment</p>"}' \
