@@ -26,8 +26,11 @@ const corsOptions = {
     
     const allowedOrigins = [
       'https://obsidiancomments.serverado.app',
+      'http://obsidiancomments.serverado.app', // Production HTTP (redirects to HTTPS but needed for tests)
       'http://localhost:3001', // Local development
       'http://localhost:5173', // Vite dev server
+      'http://localhost', // E2E testing
+      'http://localhost:80', // E2E testing (explicit port)
       'app://obsidian.md', // Obsidian desktop app
     ];
     

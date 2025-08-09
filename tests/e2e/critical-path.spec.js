@@ -12,7 +12,7 @@ test.describe('Critical User Paths - ObsidianComments', () => {
     const createResponse = await request.post('/api/notes/share', {
       data: {
         title: 'Critical Path Test Document',
-        content: '# Critical Path Test\n\nThis document was pre-created for testing.',
+        content: '# Critical Path Test\n\nThis document was pre-created for testing. It includes proper markdown content to ensure the document creation API works correctly.',
         shareId: documentId
       }
     });

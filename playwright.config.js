@@ -7,7 +7,7 @@ module.exports = {
   reporter: 'html',
   
   use: {
-    baseURL: process.env.TEST_URL || 'http://localhost:8080',
+    baseURL: process.env.TEST_URL || 'http://localhost',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

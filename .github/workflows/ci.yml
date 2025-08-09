@@ -183,9 +183,25 @@ jobs:
         # Start services with build (increase timeout significantly for CI environment)
         timeout 900 docker compose -f docker-compose.e2e.yml --env-file .env.test up -d --build
         
-        # Wait for all services to be healthy (increase timeout)
+        # Wait for all services to be healthy (increase timeout and better error handling)
         echo "Waiting for services to be healthy..."
-        timeout 600 bash -c 'until docker compose -f docker-compose.e2e.yml ps | grep -q "healthy"; do sleep 5; echo "Waiting for services..."; done'
+        for i in {1..120}; do
+          HEALTHY_COUNT=$(docker compose -f docker-compose.e2e.yml ps | grep -c "healthy" || echo "0")
+          TOTAL_SERVICES=5  # backend, frontend, nginx, postgres, redis
+          
+          if [ "$HEALTHY_COUNT" -ge 4 ]; then  # Allow some flexibility
+            echo "Services are healthy after $((i*5)) seconds (found $HEALTHY_COUNT healthy services)"
+            break
+          fi
+          if [ $i -eq 120 ]; then
+            echo "❌ Services failed to become healthy after 600 seconds (found $HEALTHY_COUNT/$TOTAL_SERVICES healthy)"
+            docker compose -f docker-compose.e2e.yml ps
+            docker compose -f docker-compose.e2e.yml logs --tail=50
+            exit 1
+          fi
+          echo "Waiting for services... ($i/120) - $HEALTHY_COUNT healthy"
+          sleep 5
+        done
         
         # Show service status for debugging
         docker compose -f docker-compose.e2e.yml ps
@@ -193,6 +209,18 @@ jobs:
         # Verify service connectivity through nginx (port 80)
         echo "Testing service connectivity..."
         timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 2; echo "Waiting for API via nginx..."; done'
+        
+        # Test CORS functionality for E2E tests
+        echo "Testing CORS headers..."
+        curl -sI -H 'Origin: http://localhost' http://localhost/api/health | grep -i 'access-control-allow-origin'
+        
+        # Test a simple API call to ensure backend is ready
+        echo "Testing API endpoint with sample data..."
+        TEST_RESPONSE=$(curl -s -X POST http://localhost/api/notes/share \
+          -H "Content-Type: application/json" \
+          -H "Origin: http://localhost" \
+          -d '{"content":"# Test\n\nCI Health Check","title":"CI Test"}' || echo "FAILED")
+        echo "API test response: $TEST_RESPONSE"
 
     - name: Validate nginx configuration
       run: |
@@ -323,14 +351,21 @@ jobs:
         curl -I https://obsidiancomments.serverado.app/ || echo "HTTPS not ready yet"
         
         echo "Testing API health endpoint..."
+        HEALTH_SUCCESS=false
         for i in {1..10}; do
           if curl -f https://obsidiancomments.serverado.app/api/health; then
             echo "Production deployment successful!"
+            HEALTH_SUCCESS=true
             break
           fi
           echo "Attempt $i failed, retrying in 15 seconds..."
           sleep 15
         done
+        
+        if [ "$HEALTH_SUCCESS" != "true" ]; then
+          echo "❌ Production health checks failed after 10 attempts"
+          exit 1
+        fi
         
         echo "Testing CORS headers..."
         curl -si -X POST https://obsidiancomments.serverado.app/api/notes/share \

@@ -9,7 +9,7 @@ test.describe('Simple Test - Document Creation Flow', () => {
     const createResponse = await request.post('/api/notes/share', {
       data: {
         title: 'Simple Test Document',
-        content: 'This is a simple test document',
+        content: '# Simple Test Document\n\nThis is a simple test document content.',
         shareId: documentId
       }
     });

@@ -163,7 +163,7 @@ test.describe('Smart Title Removal - Untitled Document Validation', () => {
     // Create document via API without providing title
     const createResponse = await request.post(`${apiBase}/notes/share`, {
       data: {
-        content: 'This is content without an explicit title',
+        content: '# Default Content\n\nThis is content without an explicit title but with sufficient content for validation.',
         shareId: documentId
       }
     });
@@ -181,7 +181,7 @@ test.describe('Smart Title Removal - Untitled Document Validation', () => {
     
     const document = await getResponse.json();
     expect(document.title).toBe('Untitled Document');
-    expect(document.content).toContain('This is content without an explicit title');
+    expect(document.content).toContain('This is content without an explicit title but with sufficient content');
     
     console.log('✅ API document creation with default title validated');
   });
