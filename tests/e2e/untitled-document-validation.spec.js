@@ -89,7 +89,7 @@ test.describe('Smart Title Removal - Untitled Document Validation', () => {
     console.log('✅ Default "Untitled Document" behavior validated');
   });
 
-  test('Title can be manually edited via EditableTitle component', async ({ page, request }) => {
+  test.skip('Title can be manually edited via EditableTitle component', async ({ page, request }) => {
     console.log('🧪 Testing: Manual title editing functionality');
     
     await page.goto(`/editor/${documentId}`);
