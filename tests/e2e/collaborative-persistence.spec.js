@@ -41,8 +41,9 @@ async function handleUsernamePopup(page, username = 'Test User') {
 }
 
 // Helper to create note via API for direct testing
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
 async function createNoteViaAPI(request, title, content) {
-  const response = await request.post('http://localhost:8081/api/notes/share', {
+  const response = await request.post(`${TEST_URL}/api/notes/share`, {
     data: {
       title,
       content,
@@ -291,7 +292,7 @@ test.describe('Enhanced Collaborative Functionality & Persistence', () => {
     console.log('✅ Database persistence verification passed');
     
     // Step 12: Verify via API that content was actually saved to database
-    const apiResponse = await request.get(`http://localhost:8081/api/notes/${doc.shareId}`);
+    const apiResponse = await request.get(`${TEST_URL}/api/notes/${doc.shareId}`);
     expect(apiResponse.ok()).toBeTruthy();
     const savedDoc = await apiResponse.json();
     

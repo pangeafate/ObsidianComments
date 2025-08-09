@@ -8,8 +8,9 @@
 const { test, expect } = require('@playwright/test');
 
 // Helper to create a document with markdown content
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
 async function createMarkdownDocument(request, title, markdownContent) {
-  const response = await request.post('http://localhost:8081/api/notes/share', {
+  const response = await request.post(`${TEST_URL}/api/notes/share`, {
     data: {
       title,
       content: markdownContent,

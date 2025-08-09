@@ -10,9 +10,10 @@
 
 const { test, expect } = require('@playwright/test');
 
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
 // Helper to create a test document
 async function createTestDocument(request) {
-  const response = await request.post('http://localhost:8081/api/notes/share', {
+  const response = await request.post(`${TEST_URL}/api/notes/share`, {
     data: {
       title: 'UI Test Document',
       content: 'Content for UI testing'

@@ -8,9 +8,9 @@
 const { test, expect } = require('@playwright/test');
 
 // Test configuration
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8081';
-const FRONTEND_URL = process.env.TEST_URL || 'http://localhost:8080';
-const API_BASE = `${BACKEND_URL}/api`;
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
+const FRONTEND_URL = TEST_URL;
+const API_BASE = `${TEST_URL}/api`;
 
 test.describe('ViewPage Integration', () => {
   test('should display HTML content in ViewPage', async ({ page, request }) => {

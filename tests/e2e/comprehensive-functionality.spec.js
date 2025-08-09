@@ -10,8 +10,9 @@ const { test, expect } = require('@playwright/test');
 const generateTestId = () => `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // API Helper functions
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
 async function createDocument(request, title, content) {
-  const response = await request.post('http://localhost:8081/api/notes/share', {
+  const response = await request.post(`${TEST_URL}/api/notes/share`, {
     data: {
       title,
       content,
@@ -26,7 +27,7 @@ async function createDocument(request, title, content) {
 }
 
 async function deleteDocument(request, documentId) {
-  const response = await request.delete(`http://localhost:8081/api/notes/${documentId}`);
+  const response = await request.delete(`${TEST_URL}/api/notes/${documentId}`);
   return response;
 }
 
@@ -263,7 +264,7 @@ test.describe('ObsidianComments Comprehensive Functionality', () => {
 Safe text content should remain.
     `;
     
-    const response = await request.post('http://localhost:8081/api/notes/share', {
+    const response = await request.post(`${TEST_URL}/api/notes/share`, {
       data: {
         title: 'Media Filtering Test',
         content: contentWithMedia
@@ -439,7 +440,7 @@ Safe text content should remain.
     console.log('🔌 Testing all API endpoints...');
     
     // Test health endpoint
-    const healthResponse = await request.get('http://localhost:8081/api/health');
+    const healthResponse = await request.get(`${TEST_URL}/api/health`);
     expect(healthResponse.ok()).toBeTruthy();
     const health = await healthResponse.json();
     expect(health.status).toBe('healthy');
@@ -458,13 +459,13 @@ Safe text content should remain.
     expect(newDoc.viewUrl).toContain('/view/');
     
     // Test document retrieval
-    const getResponse = await request.get(`http://localhost:8081/api/notes/${newDoc.shareId}`);
+    const getResponse = await request.get(`${TEST_URL}/api/notes/${newDoc.shareId}`);
     expect(getResponse.ok()).toBeTruthy();
     const retrievedDoc = await getResponse.json();
     expect(retrievedDoc.title).toBe('API Test Document');
     
     // Test document update
-    const updateResponse = await request.patch(`http://localhost:8081/api/notes/${newDoc.shareId}`, {
+    const updateResponse = await request.patch(`${TEST_URL}/api/notes/${newDoc.shareId}`, {
       data: {
         title: 'Updated API Test Document'
       }
@@ -472,13 +473,13 @@ Safe text content should remain.
     expect(updateResponse.ok()).toBeTruthy();
     
     // Test document listing
-    const listResponse = await request.get('http://localhost:8081/api/notes');
+    const listResponse = await request.get(`${TEST_URL}/api/notes`);
     expect(listResponse.ok()).toBeTruthy();
     const documents = await listResponse.json();
     expect(Array.isArray(documents)).toBeTruthy();
     
     // Test document deletion
-    const deleteResponse = await request.delete(`http://localhost:8081/api/notes/${newDoc.shareId}`);
+    const deleteResponse = await request.delete(`${TEST_URL}/api/notes/${newDoc.shareId}`);
     expect(deleteResponse.ok()).toBeTruthy();
     
     console.log('✅ All API endpoints verified');

@@ -139,6 +139,7 @@ export function EditableTitle({
           onBlur={handleInputBlur}
           placeholder={placeholder}
           disabled={isSaving}
+          data-testid="editable-title-input"
           className={`
             w-full text-xl font-semibold text-gray-900 bg-transparent
             border-2 border-blue-500 rounded px-2 py-1 
@@ -179,8 +180,9 @@ export function EditableTitle({
   return (
     <div className={`relative group ${className}`}>
       <h1 
+        data-testid="editable-title"
         className={`
-          text-xl font-semibold text-gray-900 truncate cursor-pointer
+          editable-title text-xl font-semibold text-gray-900 truncate cursor-pointer
           ${!isReadOnly ? 'hover:bg-gray-50 rounded px-2 py-1 -mx-2 -my-1 transition-colors' : ''}
           ${!isReadOnly ? 'group-hover:outline group-hover:outline-1 group-hover:outline-gray-300' : ''}
         `}
