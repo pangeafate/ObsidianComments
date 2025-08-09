@@ -7,9 +7,9 @@
 
 const { test, expect } = require('@playwright/test');
 
-// Test configuration
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8081';
-const API_BASE = `${BACKEND_URL}/api`;
+// Test configuration - use nginx proxy for E2E tests  
+const TEST_URL = process.env.TEST_URL || 'http://localhost';
+const API_BASE = `${TEST_URL}/api`;
 
 test.describe('ShareNote Plugin Integration', () => {
   test('should share note with HTML content via API', async ({ request }) => {
