@@ -16,7 +16,7 @@ const noteContentSchema = Joi.object({
 });
 
 const noteShareSchema = Joi.object({
-  title: Joi.string().required().min(1).max(255),
+  title: Joi.string().optional().allow('').max(255),
   content: Joi.string().required().min(1).max(1000000),
   htmlContent: Joi.string().optional().allow('').max(5000000), // Allow larger HTML content, including empty strings
   metadata: Joi.object().optional()
@@ -51,7 +51,7 @@ export interface NoteContentRequest {
 }
 
 export interface NoteShareRequest {
-  title: string;
+  title?: string;
   content: string;
   htmlContent?: string;
   metadata?: any;

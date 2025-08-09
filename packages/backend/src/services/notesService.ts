@@ -37,23 +37,17 @@ interface NoteData {
 export async function createSharedNote(data: NoteData, customId?: string) {
   console.log('🔧 [DEBUG] createSharedNote called with:', { title: data.title?.length, content: data.content?.length, htmlContent: data.htmlContent?.length, customId });
   
-  // Title is now REQUIRED - no automatic extraction
-  if (!data.title) {
-    console.error('❌ [DEBUG] Validation failed: Title is required');
-    throw new ValidationError('Title is required and must be provided explicitly');
-  }
-  console.log('✅ [DEBUG] Title validation passed');
+  // Handle title: default to "Untitled Document" if not provided or empty
+  let cleanTitle = (data.title && data.title.trim().length > 0) 
+    ? data.title.trim() 
+    : 'Untitled Document';
+  console.log('✅ [DEBUG] Title handling completed:', { provided: data.title, final: cleanTitle });
 
   // Clean markdown content first
   console.log('🧹 [DEBUG] Starting content cleaning...');
   const cleanedContent = data.content ? cleanMarkdownContent(data.content) : '';
   console.log('✅ [DEBUG] Content cleaning successful:', { originalLength: data.content?.length, cleanedLength: cleanedContent.length });
 
-  // Extract clean title if not provided or improve existing title
-  let cleanTitle = data.title;
-  if (!cleanTitle || cleanTitle.trim().length === 0) {
-    cleanTitle = extractCleanTitle(cleanedContent);
-  }
 
   // Sanitize HTML if provided
   console.log('🧹 [DEBUG] Starting HTML sanitization...');
@@ -69,7 +63,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
   console.log('💾 [DEBUG] Starting Prisma document.create...');
   console.log('💾 [DEBUG] Prisma data payload:', {
     customId: customId, // Frontend-provided ID (now allowed as arbitrary string)
-    title: data.title,
+    title: cleanTitle,
     contentLength: data.content?.length || 0,
     htmlContentLength: sanitizedHtml?.length || 0,
     renderMode: sanitizedHtml ? 'html' : 'markdown',

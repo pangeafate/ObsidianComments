@@ -111,19 +111,20 @@ const checks = {
 
   'Docker containers can be built': () => {
     try {
-      // Check if Dockerfiles exist
+      // Check if Dockerfiles exist (updated paths)
       const dockerfiles = [
-        'packages/docker/Dockerfile.backend',
-        'packages/docker/Dockerfile.hocuspocus'
+        'packages/backend/Dockerfile.production',
+        'packages/hocuspocus/Dockerfile.production',
+        'packages/frontend/Dockerfile.production'
       ];
-      
+
       for (const dockerfile of dockerfiles) {
         if (!fs.existsSync(dockerfile)) {
           console.log(`❌ ${dockerfile} not found`);
           return false;
         }
       }
-      
+
       console.log('✅ All Dockerfiles present');
       return true;
     } catch (error) {
@@ -134,13 +135,20 @@ const checks = {
 
   'Local environment can start': () => {
     try {
-      // Check if docker-compose file exists
-      if (!fs.existsSync('docker-compose.local.yml')) {
-        console.log('❌ docker-compose.local.yml not found');
+      // Accept any of the known local compose configs
+      const candidates = [
+        'docker-compose.yml',
+        'docker-compose.debug.yml',
+        'docker-compose.simple.yml'
+      ];
+
+      const found = candidates.find((f) => fs.existsSync(f));
+      if (!found) {
+        console.log('❌ No local docker-compose file found (checked: ' + candidates.join(', ') + ')');
         return false;
       }
-      
-      console.log('✅ Local docker-compose configuration found');
+
+      console.log(`✅ Local docker-compose configuration found: ${found}`);
       return true;
     } catch (error) {
       console.log('❌ Error checking local environment:', error.message);
