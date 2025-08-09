@@ -21,7 +21,7 @@ jobs:
         # Test with Obsidian origin
         echo "=== Testing with app://obsidian.md origin ==="
         curl -sI -H 'Origin: app://obsidian.md' \
-          https://obsidiancomments.serverado.app/api/notes/share | tee headers.txt
+          http://obsidiancomments.serverado.app/api/notes/share | tee headers.txt
         
         # Fail if wildcard appears
         if grep -i 'access-control-allow-origin: \*' headers.txt; then
@@ -52,8 +52,8 @@ jobs:
         # Test with web origin
         echo ""
         echo "=== Testing with web origin ==="
-        curl -sI -H 'Origin: https://obsidiancomments.serverado.app' \
-          https://obsidiancomments.serverado.app/api/notes/share | tee headers2.txt
+        curl -sI -H 'Origin: http://obsidiancomments.serverado.app' \
+          http://obsidiancomments.serverado.app/api/notes/share | tee headers2.txt
         
         CORS_COUNT=$(grep -i '^access-control-allow-origin:' headers2.txt | wc -l)
         if [ "$CORS_COUNT" -ne 1 ]; then
@@ -70,7 +70,7 @@ jobs:
           -H 'Origin: app://obsidian.md' \
           -H 'Access-Control-Request-Method: POST' \
           -H 'Access-Control-Request-Headers: Content-Type,Authorization' \
-          https://obsidiancomments.serverado.app/api/notes/share | tee options.txt
+          http://obsidiancomments.serverado.app/api/notes/share | tee options.txt
         
         # Should get single CORS header
         CORS_COUNT=$(grep -i '^access-control-allow-origin:' options.txt | wc -l)
