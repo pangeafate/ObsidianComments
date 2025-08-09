@@ -120,11 +120,15 @@ test.describe('Smart Title Removal - Untitled Document Validation', () => {
       // Submit the title change (press Enter or click save)
       await page.keyboard.press('Enter');
       
-      // Wait for title to update
+      // Wait for editing mode to finish and re-select the title element
       await page.waitForTimeout(2000);
       
+      // Re-select title element after editing (DOM structure changed)
+      const updatedTitleElement = page.locator('[data-testid="editable-title"], .editable-title, h1').first();
+      await expect(updatedTitleElement).toBeVisible({ timeout: 5000 });
+      
       // Verify title changed in UI
-      const updatedTitle = await titleElement.textContent();
+      const updatedTitle = await updatedTitleElement.textContent();
       console.log(`📋 Updated title: "${updatedTitle}"`);
       expect(updatedTitle).toBe(newTitle);
       
