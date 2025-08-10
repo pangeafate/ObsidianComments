@@ -345,6 +345,7 @@ jobs:
         # Deploy without sudo (user has Docker permissions)
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Stopping existing containers...' && (~/docker-compose -f docker-compose.production.yml down --volumes --remove-orphans || true)"
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Cleaning up images...' && (docker image prune -af || true)"
+        ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Setting up SSL certificates...' && chmod +x scripts/setup-ssl-certificates.sh && ./scripts/setup-ssl-certificates.sh"
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Pulling base images...' && docker pull postgres:15 && docker pull redis:7-alpine && docker pull nginx:alpine && docker pull node:18-alpine"
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Building and starting services...' && ~/docker-compose -f docker-compose.production.yml --env-file .env.production up -d --build --force-recreate"
         ssh -i deploy_key -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST "cd ~/obsidian-comments && echo 'Waiting for services...' && sleep 60 && ~/docker-compose -f docker-compose.production.yml ps"
@@ -356,13 +357,16 @@ jobs:
         echo "Waiting for services to fully start..."
         sleep 60
         
-        echo "Testing HTTP connectivity..."
+        echo "Testing HTTP to HTTPS redirect..."
         curl -I http://obsidiancomments.serverado.app/ || echo "HTTP not ready yet"
+        
+        echo "Testing HTTPS connectivity..."
+        curl -kI https://obsidiancomments.serverado.app/ || echo "HTTPS not ready yet"
         
         echo "Testing API health endpoint..."
         HEALTH_SUCCESS=false
         for i in {1..10}; do
-          if curl -f http://obsidiancomments.serverado.app/api/health; then
+          if curl -kf https://obsidiancomments.serverado.app/api/health || curl -f http://obsidiancomments.serverado.app/api/health; then
             echo "Production deployment successful!"
             HEALTH_SUCCESS=true
             break
@@ -377,7 +381,7 @@ jobs:
         fi
         
         echo "Testing CORS headers..."
-        curl -si -X POST http://obsidiancomments.serverado.app/api/notes/share \
+        curl -ksi -X POST https://obsidiancomments.serverado.app/api/notes/share \
           -H "Content-Type: application/json" \
           -H "Origin: app://obsidian.md" \
           -d '{"content":"Test content"}' | head -20 | tee headers.txt
@@ -389,7 +393,7 @@ jobs:
         fi
         
         echo "Testing ShareNote plugin endpoints..."
-        curl -X POST http://obsidiancomments.serverado.app/api/notes/share \
+        curl -kX POST https://obsidiancomments.serverado.app/api/notes/share \
           -H "Content-Type: application/json" \
           -H "Origin: app://obsidian.md" \
           -d '{"title":"CI Health Check","content":"# CI Health Check\n\nTesting deployment","htmlContent":"<h1>CI Health Check</h1><p>Testing deployment</p>"}' \
