@@ -112,29 +112,28 @@ export class ShareNotePlugin extends Plugin {
 	cleanHTML(element: Element): string {
 		const cloned = element.cloneNode(true) as Element;
 
-		// Remove Obsidian-specific elements
+		// Remove Obsidian-specific elements only
 		cloned.querySelectorAll('.frontmatter').forEach(el => el.remove());
 		cloned.querySelectorAll('.edit-block-button').forEach(el => el.remove());
 
-		// Remove images and media elements
-		cloned.querySelectorAll('img').forEach(el => el.remove());
-		cloned.querySelectorAll('video').forEach(el => el.remove());
-		cloned.querySelectorAll('audio').forEach(el => el.remove());
+		// Keep images but ensure they use standard HTML attributes
+		cloned.querySelectorAll('img').forEach(img => {
+			// Remove any Obsidian-specific attributes but keep the image
+			img.removeAttribute('data-obsidian-id');
+			img.removeAttribute('data-embed-name');
+		});
+
+		// Remove only dangerous elements
+		cloned.querySelectorAll('script').forEach(el => el.remove());
 		cloned.querySelectorAll('iframe').forEach(el => el.remove());
 		cloned.querySelectorAll('embed').forEach(el => el.remove());
 		cloned.querySelectorAll('object').forEach(el => el.remove());
 
-		// Remove attachment and file links
-		cloned.querySelectorAll('a[href^="file:"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".pdf"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".doc"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".docx"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".xls"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".xlsx"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".ppt"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".pptx"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".zip"]').forEach(el => el.remove());
-		cloned.querySelectorAll('a[href*=".rar"]').forEach(el => el.remove());
+		// Remove only binary file links, keep others
+		const binaryExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar'];
+		binaryExtensions.forEach(ext => {
+			cloned.querySelectorAll(`a[href*="${ext}"]`).forEach(el => el.remove());
+		});
 
 		// Convert internal links to plain text
 		cloned.querySelectorAll('a.internal-link').forEach(link => {
@@ -174,32 +173,22 @@ export class ShareNotePlugin extends Plugin {
 
 		let cleanedContent = content;
 
-		// Remove image syntax ![alt](url) and ![alt](url "title")
-		cleanedContent = cleanedContent.replace(/!\[.*?\]\([^)]+\)/g, '');
+		// Only remove potentially harmful content, preserve markdown formatting
+		// Keep images but convert to standard markdown format if needed
 		
-		// Remove attachment links [[filename.ext]]
-		const attachmentExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
-									 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp',
-									 'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm',
-									 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a',
-									 'zip', 'rar', '7z', 'tar', 'gz', 'exe'];
+		// Remove only binary attachment links (keep text-based wikilinks)
+		const binaryExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+								 'zip', 'rar', '7z', 'tar', 'gz', 'exe'];
 		
-		const attachmentPattern = new RegExp(`\\[\\[([^\\]]+\\.(${attachmentExtensions.join('|')}))(\\|[^\\]]*)?\\]\\]`, 'gi');
-		cleanedContent = cleanedContent.replace(attachmentPattern, '');
+		const binaryAttachmentPattern = new RegExp(`\\[\\[([^\\]]+\\.(${binaryExtensions.join('|')}))(\\|[^\\]]*)?\\]\\]`, 'gi');
+		cleanedContent = cleanedContent.replace(binaryAttachmentPattern, '');
 
-		// Remove embedded/transcluded content ![[filename]]
+		// Remove embedded/transcluded content but keep regular images
 		cleanedContent = cleanedContent.replace(/!\[\[([^\]]+)\]\]/g, '');
 
-		// Remove HTML img tags that might have been missed
-		cleanedContent = cleanedContent.replace(/<img[^>]*>/gi, '');
-		
-		// Remove video/audio HTML tags
-		cleanedContent = cleanedContent.replace(/<(video|audio)[^>]*>[\s\S]*?<\/\1>/gi, '');
-		cleanedContent = cleanedContent.replace(/<(video|audio)[^>]*\/>/gi, '');
-
-		// Remove iframe, embed, object tags
-		cleanedContent = cleanedContent.replace(/<(iframe|embed|object)[^>]*>[\s\S]*?<\/\1>/gi, '');
-		cleanedContent = cleanedContent.replace(/<(iframe|embed|object)[^>]*\/>/gi, '');
+		// Remove only dangerous HTML tags, keep basic ones
+		cleanedContent = cleanedContent.replace(/<(script|style|object|embed|iframe)[^>]*>[\s\S]*?<\/\1>/gi, '');
+		cleanedContent = cleanedContent.replace(/<(script|style|object|embed|iframe)[^>]*\/>/gi, '');
 
 		// Clean up excessive whitespace but preserve intentional line breaks
 		cleanedContent = cleanedContent.replace(/\n\s*\n\s*\n/g, '\n\n');
@@ -208,19 +197,7 @@ export class ShareNotePlugin extends Plugin {
 	}
 
 	extractCleanTitle(file: TFile, content: string): string {
-		// First, try to extract title from H1 header in content
-		const h1Match = content.match(/^#\s+(.+)$/m);
-		if (h1Match && h1Match[1].trim()) {
-			let title = h1Match[1].trim();
-			// Clean up title - remove any remaining markdown or HTML
-			title = title.replace(/[*_`~]/g, ''); // Remove markdown formatting
-			title = title.replace(/<[^>]*>/g, ''); // Remove HTML tags
-			if (title.length > 0) {
-				return title;
-			}
-		}
-
-		// Fallback to filename without extension
+		// Primary: use filename without extension
 		let title = file.basename;
 		
 		// Clean up filename-based title
@@ -228,7 +205,18 @@ export class ShareNotePlugin extends Plugin {
 		title = title.replace(/\s+/g, ' '); // Normalize multiple spaces
 		title = title.trim();
 		
-		// If title is still empty or just whitespace, provide a default
+		// Only fallback to H1 if filename is empty or just whitespace
+		if (!title || title.length === 0) {
+			const h1Match = content.match(/^#\s+(.+)$/m);
+			if (h1Match && h1Match[1].trim()) {
+				title = h1Match[1].trim();
+				// Clean up title - remove any remaining markdown or HTML
+				title = title.replace(/[*_`~]/g, ''); // Remove markdown formatting
+				title = title.replace(/<[^>]*>/g, ''); // Remove HTML tags
+			}
+		}
+		
+		// Final fallback if still empty
 		if (!title || title.length === 0) {
 			title = 'Untitled Note';
 		}

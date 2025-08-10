@@ -103,11 +103,17 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         new import_obsidian.Notice("No active file");
         return;
       }
+      if (!this.isTextFile(file)) {
+        new import_obsidian.Notice("Only text files can be shared");
+        return;
+      }
       const content = await this.app.vault.read(file);
+      const cleanedContent = this.cleanMarkdownContent(content);
       const htmlContent = await this.renderToHTML();
+      const cleanTitle = this.extractCleanTitle(file, cleanedContent);
       const shareData = {
-        title: file.basename,
-        content,
+        title: cleanTitle,
+        content: cleanedContent,
         htmlContent
       };
       const result = await this.api.shareNote(shareData);
@@ -149,11 +155,116 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     const cloned = element.cloneNode(true);
     cloned.querySelectorAll(".frontmatter").forEach((el) => el.remove());
     cloned.querySelectorAll(".edit-block-button").forEach((el) => el.remove());
+    cloned.querySelectorAll("img").forEach((img) => {
+      img.removeAttribute("data-obsidian-id");
+      img.removeAttribute("data-embed-name");
+    });
+    cloned.querySelectorAll("script").forEach((el) => el.remove());
+    cloned.querySelectorAll("iframe").forEach((el) => el.remove());
+    cloned.querySelectorAll("embed").forEach((el) => el.remove());
+    cloned.querySelectorAll("object").forEach((el) => el.remove());
+    const binaryExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar"];
+    binaryExtensions.forEach((ext) => {
+      cloned.querySelectorAll(`a[href*="${ext}"]`).forEach((el) => el.remove());
+    });
     cloned.querySelectorAll("a.internal-link").forEach((link) => {
       const textNode = document.createTextNode(link.textContent || "");
       link.replaceWith(textNode);
     });
     return cloned.innerHTML;
+  }
+  isTextFile(file) {
+    const textExtensions = [".md", ".txt", ".org", ".tex", ".rst"];
+    const binaryExtensions = [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".ppt",
+      ".pptx",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".bmp",
+      ".svg",
+      ".webp",
+      ".mp4",
+      ".avi",
+      ".mov",
+      ".wmv",
+      ".flv",
+      ".mkv",
+      ".webm",
+      ".mp3",
+      ".wav",
+      ".flac",
+      ".aac",
+      ".ogg",
+      ".m4a",
+      ".zip",
+      ".rar",
+      ".7z",
+      ".tar",
+      ".gz",
+      ".exe",
+      ".dll",
+      ".so"
+    ];
+    const extension = "." + (file.extension || "");
+    if (textExtensions.includes(extension.toLowerCase())) {
+      return true;
+    }
+    if (binaryExtensions.includes(extension.toLowerCase())) {
+      return false;
+    }
+    return true;
+  }
+  cleanMarkdownContent(content) {
+    if (!content || typeof content !== "string")
+      return "";
+    let cleanedContent = content;
+    const binaryExtensions = [
+      "pdf",
+      "doc",
+      "docx",
+      "xls",
+      "xlsx",
+      "ppt",
+      "pptx",
+      "zip",
+      "rar",
+      "7z",
+      "tar",
+      "gz",
+      "exe"
+    ];
+    const binaryAttachmentPattern = new RegExp(`\\[\\[([^\\]]+\\.(${binaryExtensions.join("|")}))(\\|[^\\]]*)?\\]\\]`, "gi");
+    cleanedContent = cleanedContent.replace(binaryAttachmentPattern, "");
+    cleanedContent = cleanedContent.replace(/!\[\[([^\]]+)\]\]/g, "");
+    cleanedContent = cleanedContent.replace(/<(script|style|object|embed|iframe)[^>]*>[\s\S]*?<\/\1>/gi, "");
+    cleanedContent = cleanedContent.replace(/<(script|style|object|embed|iframe)[^>]*\/>/gi, "");
+    cleanedContent = cleanedContent.replace(/\n\s*\n\s*\n/g, "\n\n");
+    return cleanedContent.trim();
+  }
+  extractCleanTitle(file, content) {
+    let title = file.basename;
+    title = title.replace(/[-_]/g, " ");
+    title = title.replace(/\s+/g, " ");
+    title = title.trim();
+    if (!title || title.length === 0) {
+      const h1Match = content.match(/^#\s+(.+)$/m);
+      if (h1Match && h1Match[1].trim()) {
+        title = h1Match[1].trim();
+        title = title.replace(/[*_`~]/g, "");
+        title = title.replace(/<[^>]*>/g, "");
+      }
+    }
+    if (!title || title.length === 0) {
+      title = "Untitled Note";
+    }
+    return title;
   }
   async updateFrontmatter(file, shareResult) {
     var _a;
