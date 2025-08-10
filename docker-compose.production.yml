@@ -117,7 +117,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx-minimal.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-ssl.conf:/etc/nginx/nginx.conf:ro
+      - ssl_certs:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       frontend:
@@ -140,6 +142,8 @@ volumes:
   postgres_data:
   redis_data:
   nginx_logs:
+  ssl_certs:
+  certbot_webroot:
 
 networks:
   obsidian_network:

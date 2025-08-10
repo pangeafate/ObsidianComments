@@ -24,15 +24,26 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = [
-      'https://obsidiancomments.serverado.app',
-      'http://obsidiancomments.serverado.app', // Production HTTP (redirects to HTTPS but needed for tests)
+    // Default allowed origins (always included for backwards compatibility)
+    const defaultOrigins = [
+      'app://obsidian.md', // Obsidian desktop app
       'http://localhost:3001', // Local development
       'http://localhost:5173', // Vite dev server
       'http://localhost', // E2E testing
       'http://localhost:80', // E2E testing (explicit port)
-      'app://obsidian.md', // Obsidian desktop app
     ];
+    
+    // Parse CORS_ORIGIN environment variable if set
+    const envOrigins: string[] = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(o => o.length > 0)
+      : [
+          // Fallback origins if CORS_ORIGIN not set
+          'https://obsidiancomments.serverado.app',
+          'http://obsidiancomments.serverado.app', // Production HTTP (redirects to HTTPS but needed for tests)
+        ];
+    
+    // Combine default and environment-configured origins
+    const allowedOrigins = [...defaultOrigins, ...envOrigins];
     
     const isAllowed = allowedOrigins.includes(origin) ||
                      /^capacitor:\/\/localhost/.test(origin) || // Obsidian mobile app
@@ -42,6 +53,7 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);
+      console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'), false);
     }
   },

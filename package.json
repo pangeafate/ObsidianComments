@@ -59,6 +59,7 @@
     "@playwright/test": "^1.54.2",
     "@types/node": "^20.0.0",
     "concurrently": "^8.2.2",
+    "js-yaml": "^4.1.0",
     "typescript": "^5.0.0"
   },
   "engines": {
