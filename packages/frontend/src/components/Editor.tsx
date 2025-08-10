@@ -24,7 +24,7 @@ import { documentService, DocumentData } from '../services/documentService';
 import { extendedDocumentService } from '../services/documentServiceExtensions';
 import { markdownToProseMirror } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
-import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
+import { initializeContentSafely, deduplicateContent, deduplicateTitle, initializeTitleSafely } from '../utils/contentDeduplication';
 import { generateUserColor } from '../utils/userColors';
 
 interface EditorProps {
@@ -93,10 +93,13 @@ export function Editor({ documentId }: EditorProps) {
         if (exists) {
           const document = await documentService.loadDocument(documentId);
           setObsidianDocument(document);
-          const title = document.title || 'Untitled Document';
-          setDocumentTitle(title);
-          setLastSavedTitle(title);
-          console.log('✅ Loaded existing document from database:', title);
+          const rawTitle = document.title || 'Untitled Document';
+          // Apply deduplication to loaded title to handle any existing duplicated data
+          const cleanTitle = deduplicateTitle(rawTitle);
+          console.log('🛡️ Document title loaded and deduplicated:', { raw: rawTitle, clean: cleanTitle });
+          setDocumentTitle(cleanTitle);
+          setLastSavedTitle(cleanTitle);
+          console.log('✅ Loaded existing document from database:', cleanTitle);
         } else {
           // Document doesn't exist - create it immediately with default content
           console.log('📝 Document not found, creating new document in database:', documentId);
@@ -152,16 +155,23 @@ export function Editor({ documentId }: EditorProps) {
 
     const currentYjsTitle = getTitle();
     
-    // If Yjs title is empty but we have a document title, initialize Yjs
-    if (!currentYjsTitle && documentTitle) {
-      console.log('🔄 Initializing Yjs title with document title:', documentTitle);
-      setTitle(documentTitle);
-    }
-    // If Yjs has a title but local state doesn't match, update local state
-    else if (currentYjsTitle && currentYjsTitle !== documentTitle) {
-      console.log('🔄 Updating local title from Yjs:', currentYjsTitle);
-      setDocumentTitle(currentYjsTitle);
-    }
+    // Use safe title initialization with deduplication to prevent title duplication bugs
+    initializeTitleSafely(
+      currentYjsTitle || '',
+      documentTitle,
+      (finalTitle: string) => {
+        console.log('🛡️ Safe title initialized:', finalTitle);
+        
+        // Update both local state and Yjs with the deduplicated title
+        if (finalTitle !== documentTitle) {
+          setDocumentTitle(finalTitle);
+        }
+        
+        if (finalTitle !== currentYjsTitle) {
+          setTitle(finalTitle);
+        }
+      }
+    );
   }, [ydoc, documentTitle, getTitle, setTitle]);
 
   // Update browser tab title when document title changes
@@ -178,7 +188,10 @@ export function Editor({ documentId }: EditorProps) {
     const cleanup = onTitleChange((newTitle: string) => {
       console.log('📨 Received collaborative title change:', newTitle);
       if (newTitle && newTitle !== documentTitle) {
-        setDocumentTitle(newTitle);
+        // Apply title deduplication to prevent collaborative duplication bugs
+        const deduplicatedTitle = deduplicateTitle(newTitle);
+        console.log('🛡️ Collaborative title deduplicated:', { original: newTitle, deduplicated: deduplicatedTitle });
+        setDocumentTitle(deduplicatedTitle);
       }
     });
 
@@ -194,16 +207,20 @@ export function Editor({ documentId }: EditorProps) {
   const handleTitleChange = useCallback((newTitle: string) => {
     console.log('📝 Local title change:', newTitle);
     
+    // Apply deduplication to user input to prevent typing-induced duplications
+    const deduplicatedTitle = deduplicateTitle(newTitle);
+    console.log('🛡️ User title input deduplicated:', { original: newTitle, deduplicated: deduplicatedTitle });
+    
     // Update local state immediately (optimistic update)
-    setDocumentTitle(newTitle);
+    setDocumentTitle(deduplicatedTitle);
     
     // Update Yjs for real-time collaboration
     if (setTitle) {
-      setTitle(newTitle);
+      setTitle(deduplicatedTitle);
     }
     
     // Trigger debounced save to backend
-    debouncedSaveTitle(newTitle);
+    debouncedSaveTitle(deduplicatedTitle);
   }, [setTitle, debouncedSaveTitle]);
 
   // Handle immediate title save (e.g., on blur or Enter key)
@@ -487,19 +504,19 @@ export function Editor({ documentId }: EditorProps) {
           )}
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-          <div className="hidden sm:flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-4" data-testid="dashboard-section">
             <UserPresence users={users} />
             <ConnectionStatus status={status} />
           </div>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto" data-testid="button-section">
             {/* Mode Indicator and View Button */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-testid="mode-indicator">
                 Edit Mode
               </span>
               <button
                 onClick={() => navigate(`/view/${documentId}`)}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -509,7 +526,7 @@ export function Editor({ documentId }: EditorProps) {
               </button>
             </div>
             <button
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isMyLinksPaneOpen 
                   ? 'bg-purple-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -517,18 +534,19 @@ export function Editor({ documentId }: EditorProps) {
               onClick={toggleMyLinksPane}
             >
               <span className="hidden sm:inline">My Links</span>
-              <span className="sm:hidden">Links</span>
+              <span className="sm:hidden">📎</span>
             </button>
             <NewNoteButton />
             <button
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isCommentsPaneOpen 
                   ? 'bg-blue-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
               onClick={toggleCommentsPane}
             >
-              Comments
+              <span className="hidden sm:inline">Comments</span>
+              <span className="sm:hidden">💬</span>
             </button>
           </div>
           {/* Mobile User Presence */}
