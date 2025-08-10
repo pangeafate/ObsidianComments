@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
-import { sanitizeHtml, cleanMarkdownContent, extractCleanTitle } from '../utils/html-sanitizer';
+import { sanitizeHtml, cleanMarkdownContent } from '../utils/html-sanitizer';
 
 const prisma = new PrismaClient();
 

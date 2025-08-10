@@ -40,8 +40,8 @@ export class ApiClient {
   async shareNote(content: string, title?: string, shareId?: string): Promise<ShareResponse> {
     const url = `${this.config.serverUrl}/api/notes/share`;
     
-    // Extract title from content if not provided
-    const extractedTitle = title || this.extractTitleFromContent(content);
+    // Use provided title or fallback to 'Untitled Document'
+    const extractedTitle = title || 'Untitled Document';
     
     try {
       const requestBody: any = { 
@@ -82,26 +82,6 @@ export class ApiClient {
     }
   }
 
-  private extractTitleFromContent(content: string): string {
-    // Extract title from first H1 heading
-    const lines = content.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('# ')) {
-        return trimmed.substring(2).trim();
-      }
-    }
-    
-    // Fallback: use first non-empty line
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0 && !trimmed.startsWith('#')) {
-        return trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed;
-      }
-    }
-    
-    return 'Untitled Document';
-  }
 
   async updateNote(shareId: string, content: string): Promise<UpdateResponse> {
     const url = `${this.config.serverUrl}/api/notes/${shareId}`;

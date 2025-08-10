@@ -113,36 +113,6 @@ export function cleanMarkdownContent(content: string): string {
   return cleanedContent.trim();
 }
 
-/**
- * Extract clean title from content or filename
- */
-export function extractCleanTitle(content: string, filename?: string): string {
-  // First, try to extract title from H1 header in content
-  const h1Match = content.match(/^#\s+(.+)$/m);
-  if (h1Match && h1Match[1].trim()) {
-    let title = h1Match[1].trim();
-    // Clean up title - remove any remaining markdown or HTML
-    title = title.replace(/[*_`~]/g, ''); // Remove markdown formatting
-    title = title.replace(/<[^>]*>/g, ''); // Remove HTML tags
-    if (title.length > 0) {
-      return title;
-    }
-  }
-
-  // Fallback to filename without extension if provided
-  if (filename) {
-    let title = filename.replace(/\.[^/.]+$/, ''); // Remove extension
-    title = title.replace(/[-_]/g, ' '); // Replace dashes and underscores with spaces
-    title = title.replace(/\s+/g, ' '); // Normalize multiple spaces
-    title = title.trim();
-    
-    if (title.length > 0) {
-      return title;
-    }
-  }
-
-  return 'Untitled Note';
-}
 
 /**
  * Check if content contains binary data or media references

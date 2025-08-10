@@ -215,9 +215,9 @@ export class ShareManager {
         wasUpdate: true
       };
     } else {
-      // Create new share - generate unique ID and extract title
+      // Create new share - generate unique ID
       const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const extractedTitle = this.extractTitleFromContent(content);
+      const extractedTitle = 'Untitled Document';
       
       const shareResponse = await this.apiClient.shareNote(content, extractedTitle, uniqueShareId);
       
@@ -340,26 +340,6 @@ export class ShareManager {
     return withoutExtension;
   }
 
-  private extractTitleFromContent(content: string): string {
-    // Extract title from first H1 heading
-    const lines = content.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('# ')) {
-        return trimmed.substring(2).trim();
-      }
-    }
-    
-    // Fallback: use first non-empty line
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0 && !trimmed.startsWith('#')) {
-        return trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed;
-      }
-    }
-    
-    return 'New Document';
-  }
 
   async unshareNote(content: string): Promise<string> {
     const shareId = this.getShareId(content);

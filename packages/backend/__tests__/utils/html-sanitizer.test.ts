@@ -1,4 +1,4 @@
-import { sanitizeHtml, cleanMarkdownContent, extractCleanTitle, containsMediaContent } from '../../src/utils/html-sanitizer';
+import { sanitizeHtml, cleanMarkdownContent, containsMediaContent } from '../../src/utils/html-sanitizer';
 
 describe('html-sanitizer', () => {
   describe('sanitizeHtml', () => {
@@ -297,59 +297,6 @@ More content.
     });
   });
 
-  describe('extractCleanTitle', () => {
-    it('should extract title from H1 header', () => {
-      const content = `
-# My Document Title
-
-Content here.
-
-## Subsection
-
-More content.
-      `;
-      const result = extractCleanTitle(content);
-      expect(result).toBe('My Document Title');
-    });
-
-    it('should clean markdown formatting from title', () => {
-      const content = '# **Bold** and *italic* and `code` title';
-      const result = extractCleanTitle(content);
-      expect(result).toBe('Bold and italic and code title');
-    });
-
-    it('should clean HTML tags from title', () => {
-      const content = '# Title with <strong>HTML</strong> and <em>tags</em>';
-      const result = extractCleanTitle(content);
-      expect(result).toBe('Title with HTML and tags');
-    });
-
-    it('should use filename as fallback', () => {
-      const content = 'No H1 header in this content.';
-      const filename = 'my-document-file.md';
-      const result = extractCleanTitle(content, filename);
-      expect(result).toBe('my document file');
-    });
-
-    it('should normalize filename-based title', () => {
-      const content = 'No header';
-      const filename = 'test_file-name_with-dashes.md';
-      const result = extractCleanTitle(content, filename);
-      expect(result).toBe('test file name with dashes');
-    });
-
-    it('should return default for empty content and no filename', () => {
-      const result = extractCleanTitle('');
-      expect(result).toBe('Untitled Note');
-    });
-
-    it('should handle edge cases', () => {
-      expect(extractCleanTitle('# ')).toBe('Untitled Note');
-      expect(extractCleanTitle('# \n\nContent')).toBe('Untitled Note');
-      expect(extractCleanTitle('', '')).toBe('Untitled Note');
-      expect(extractCleanTitle('', '.md')).toBe('Untitled Note');
-    });
-  });
 
   describe('containsMediaContent', () => {
     it('should detect image markdown syntax', () => {
