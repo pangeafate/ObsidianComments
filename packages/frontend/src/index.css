@@ -143,3 +143,33 @@ body {
   user-select: none;
   white-space: nowrap;
 }
+
+/* Ensure typing caret visibility in track changes mode */
+.ProseMirror {
+  caret-color: #000000 !important;
+}
+
+/* Track changes styling - ensure caret visibility */
+mark[data-track-change] {
+  position: relative;
+}
+
+/* Override any mark styling that might hide the caret */
+.ProseMirror mark {
+  caret-color: #000000 !important;
+}
+
+/* Specific styling for track changes to maintain caret visibility */
+.ProseMirror .track-change-insertion {
+  background-color: rgba(34, 197, 94, 0.2);
+  text-decoration: underline;
+  text-decoration-color: #22c55e;
+  caret-color: #000000 !important;
+}
+
+.ProseMirror .track-change-deletion {
+  background-color: rgba(239, 68, 68, 0.2);
+  text-decoration: line-through;
+  text-decoration-color: #ef4444;
+  caret-color: #000000 !important;
+}

@@ -438,54 +438,63 @@ export function Editor({ documentId }: EditorProps) {
             </div>
           )}
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-          <div className="hidden sm:flex items-center gap-4" data-testid="dashboard-section">
-            <UserPresence users={users} />
-            <ConnectionStatus status={status} />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
+          {/* Dashboard Section */}
+          <div className="flex items-center gap-4 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200" data-testid="dashboard-section">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-testid="mode-indicator">
+              Edit Mode
+            </span>
+            <div className="hidden sm:flex items-center gap-3">
+              <UserPresence users={users} />
+              <ConnectionStatus status={status} />
+            </div>
           </div>
+          
+          {/* Action Buttons Section */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto" data-testid="button-section">
-            {/* Mode Indicator and View Button */}
+            {/* View Button */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-testid="mode-indicator">
-                Edit Mode
-              </span>
               <button
                 onClick={() => navigate(`/view/${documentId}`)}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <span className="hidden sm:inline">View</span>
               </button>
             </div>
             <button
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                 isMyLinksPaneOpen 
                   ? 'bg-purple-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
               onClick={toggleMyLinksPane}
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+              </svg>
               <span className="hidden sm:inline">My Links</span>
-              <span className="sm:hidden">📎</span>
             </button>
             <NewNoteButton />
             <button
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                 isCommentsPaneOpen 
                   ? 'bg-blue-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
               onClick={toggleCommentsPane}
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+              </svg>
               <span className="hidden sm:inline">Comments</span>
-              <span className="sm:hidden">💬</span>
             </button>
           </div>
-          {/* Mobile User Presence */}
-          <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
+          {/* Mobile Dashboard Section */}
+          <div className="flex sm:hidden items-center gap-2 mt-2 w-full bg-gray-50 rounded-lg border border-gray-200 p-2">
             <UserPresence users={users} />
             <ConnectionStatus status={status} />
           </div>
