@@ -128,5 +128,9 @@ export const extendedDocumentService = {
       console.error('❌ Failed to update document title:', error);
       throw error;
     }
+  },
+
+  async saveTitle(documentId: string, title: string): Promise<void> {
+    return this.updateDocumentTitle(documentId, title);
   }
 };

@@ -9,7 +9,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import { useCollaboration } from '../hooks/useCollaboration';
 import { useComments } from '../hooks/useComments';
 import { useLinkTracking } from '../hooks/useLinkTracking';
-import { useDebouncedTitleSave } from '../hooks/useDebouncedTitleSave';
+import { useTitleManager } from '../hooks/useTitleManager';
 import { UserPresence } from './UserPresence';
 import { ConnectionStatus } from './ConnectionStatus';
 import { EnhancedCommentPanel } from './EnhancedCommentPanel';
@@ -24,7 +24,7 @@ import { documentService, DocumentData } from '../services/documentService';
 import { extendedDocumentService } from '../services/documentServiceExtensions';
 import { markdownToProseMirror } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
-import { initializeContentSafely, deduplicateContent, deduplicateTitle, initializeTitleSafely } from '../utils/contentDeduplication';
+import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
 import { generateUserColor } from '../utils/userColors';
 
 interface EditorProps {
@@ -59,24 +59,21 @@ export function Editor({ documentId }: EditorProps) {
   // Obsidian document state
   const [obsidianDocument, setObsidianDocument] = useState<DocumentData | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState<boolean>(true);
-  const [documentTitle, setDocumentTitle] = useState<string>('');
-  const [isTitleSaving, setIsTitleSaving] = useState<boolean>(false);
   
-  // Debounced title saving
-  const {
-    debouncedSaveTitle,
-    saveImmediately: saveTitleImmediately,
-    setLastSavedTitle
-  } = useDebouncedTitleSave({
+  // Centralized title management
+  const titleManager = useTitleManager({
     documentId,
-    debounceMs: 1500,
-    onSaveStart: () => setIsTitleSaving(true),
-    onSaveSuccess: () => setIsTitleSaving(false),
-    onSaveError: () => setIsTitleSaving(false)
+    getTitle,
+    setTitle,
+    onTitleChange,
+    onSaveTitle: async (title: string) => {
+      await extendedDocumentService.saveTitle(documentId, title);
+    },
+    debounceMs: 1500
   });
   
-  // Track this document in user's links with dynamic title (AFTER documentTitle is initialized)
-  useLinkTracking(documentId, documentTitle);
+  // Track this document in user's links with dynamic title
+  useLinkTracking(documentId, titleManager.title);
   
   // Auto-save state
   const [lastSavedContent, setLastSavedContent] = useState<string>('');
@@ -93,13 +90,11 @@ export function Editor({ documentId }: EditorProps) {
         if (exists) {
           const document = await documentService.loadDocument(documentId);
           setObsidianDocument(document);
-          const rawTitle = document.title || 'Untitled Document';
-          // Apply deduplication to loaded title to handle any existing duplicated data
-          const cleanTitle = deduplicateTitle(rawTitle);
-          console.log('🛡️ Document title loaded and deduplicated:', { raw: rawTitle, clean: cleanTitle });
-          setDocumentTitle(cleanTitle);
-          setLastSavedTitle(cleanTitle);
-          console.log('✅ Loaded existing document from database:', cleanTitle);
+          const apiTitle = document.title || 'Untitled Document';
+          console.log('✅ Loaded existing document from database:', apiTitle);
+          
+          // Initialize title through centralized manager
+          titleManager.initializeFromAPI(apiTitle);
         } else {
           // Document doesn't exist - create it immediately with default content
           console.log('📝 Document not found, creating new document in database:', documentId);
@@ -114,10 +109,11 @@ export function Editor({ documentId }: EditorProps) {
           );
           
           setObsidianDocument(newDocument);
-          setDocumentTitle(newDocument.title);
-          setLastSavedTitle(newDocument.title);
           setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
           console.log('✅ New document created in database with default content:', newDocument.title);
+          
+          // Initialize title through centralized manager
+          titleManager.initializeFromAPI(newDocument.title);
           
           // Clear the flag after a delay to allow normal initialization later
           setTimeout(() => setJustCreatedDocument(false), 5000);
@@ -149,54 +145,7 @@ export function Editor({ documentId }: EditorProps) {
     }
   }, [setUser, currentUser, userColor]);
 
-  // Initialize Yjs title when document is loaded and sync with collaborative state
-  useEffect(() => {
-    if (!ydoc || !documentTitle || !getTitle || !setTitle) return;
-
-    const currentYjsTitle = getTitle();
-    
-    // Use safe title initialization with deduplication to prevent title duplication bugs
-    initializeTitleSafely(
-      currentYjsTitle || '',
-      documentTitle,
-      (finalTitle: string) => {
-        console.log('🛡️ Safe title initialized:', finalTitle);
-        
-        // Update both local state and Yjs with the deduplicated title
-        if (finalTitle !== documentTitle) {
-          setDocumentTitle(finalTitle);
-        }
-        
-        if (finalTitle !== currentYjsTitle) {
-          setTitle(finalTitle);
-        }
-      }
-    );
-  }, [ydoc, documentTitle, getTitle, setTitle]);
-
-  // Update browser tab title when document title changes
-  useEffect(() => {
-    const title = documentTitle || 'Untitled Document';
-    document.title = `${title} - Obsidian Comments`;
-  }, [documentTitle]);
-
-  // Listen for collaborative title changes from other users
-  useEffect(() => {
-    if (!onTitleChange) return;
-
-    console.log('👂 Setting up collaborative title change listener');
-    const cleanup = onTitleChange((newTitle: string) => {
-      console.log('📨 Received collaborative title change:', newTitle);
-      if (newTitle && newTitle !== documentTitle) {
-        // Apply title deduplication to prevent collaborative duplication bugs
-        const deduplicatedTitle = deduplicateTitle(newTitle);
-        console.log('🛡️ Collaborative title deduplicated:', { original: newTitle, deduplicated: deduplicatedTitle });
-        setDocumentTitle(deduplicatedTitle);
-      }
-    });
-
-    return cleanup;
-  }, [onTitleChange, documentTitle]);
+  // Title management is now handled by useTitleManager hook
 
 
   const handleNameSet = (name: string) => {
@@ -205,29 +154,13 @@ export function Editor({ documentId }: EditorProps) {
 
   // Handle title changes from EditableTitle component
   const handleTitleChange = useCallback((newTitle: string) => {
-    console.log('📝 Local title change:', newTitle);
-    
-    // Apply deduplication to user input to prevent typing-induced duplications
-    const deduplicatedTitle = deduplicateTitle(newTitle);
-    console.log('🛡️ User title input deduplicated:', { original: newTitle, deduplicated: deduplicatedTitle });
-    
-    // Update local state immediately (optimistic update)
-    setDocumentTitle(deduplicatedTitle);
-    
-    // Update Yjs for real-time collaboration
-    if (setTitle) {
-      setTitle(deduplicatedTitle);
-    }
-    
-    // Trigger debounced save to backend
-    debouncedSaveTitle(deduplicatedTitle);
-  }, [setTitle, debouncedSaveTitle]);
+    titleManager.handleTitleChange(newTitle);
+  }, [titleManager.handleTitleChange]);
 
   // Handle immediate title save (e.g., on blur or Enter key)
   const handleTitleSave = useCallback(async (title: string): Promise<void> => {
-    console.log('💾 Immediate title save requested:', title);
-    await saveTitleImmediately(title);
-  }, [saveTitleImmediately]);
+    await titleManager.handleTitleSave(title);
+  }, [titleManager.handleTitleSave]);
 
   const toggleCommentsPane = () => {
     setIsCommentsPaneOpen(!isCommentsPaneOpen);
@@ -362,9 +295,11 @@ export function Editor({ documentId }: EditorProps) {
           deduplicatedContent
         );
         setObsidianDocument(newDocument);
-        setDocumentTitle(newDocument.title);
         setJustCreatedDocument(true); // Flag to prevent content overwrite on refresh
         console.log('✅ New document created in database with default title');
+        
+        // Initialize title through centralized manager
+        titleManager.initializeFromAPI(newDocument.title);
         
         // Clear the flag after a delay to allow normal initialization later
         setTimeout(() => setJustCreatedDocument(false), 5000);
@@ -489,14 +424,14 @@ export function Editor({ documentId }: EditorProps) {
       <div className="border-b bg-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div className="flex-1 min-w-0">
           <EditableTitle
-            title={documentTitle}
+            title={titleManager.title}
             onTitleChange={handleTitleChange}
             onSave={handleTitleSave}
             placeholder="Untitled Document"
             maxLength={200}
             className="w-full"
           />
-          {isTitleSaving && (
+          {titleManager.isSaving && (
             <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
               <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               Saving title...
