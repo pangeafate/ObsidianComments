@@ -156,15 +156,18 @@ jobs:
         run: |
           echo "🔧 Setting up production environment..."
           
+          # Convert repository name to lowercase for Docker tags
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          
           # Create production docker-compose override
           cat > docker-compose.override.yml << EOF
           services:
             backend:
-              image: ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+              image: ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
             frontend:
-              image: ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+              image: ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
             hocuspocus:
-              image: ghcr.io/${{ github.repository }}-hocuspocus:${{ github.sha }}
+              image: ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           EOF
       
       - name: Deploy with docker compose
