@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { sanitizeHtml, cleanMarkdownContent } from '../utils/html-sanitizer';
+import * as Y from 'yjs';
 
 const prisma = new PrismaClient();
 
@@ -34,6 +35,36 @@ interface NoteData {
   metadata?: any;
 }
 
+// Initialize Yjs document with content for collaborative editing
+function initializeYjsDocument(content: string): Buffer {
+  console.log('🔧 [YJS] Initializing Yjs document with content length:', content?.length || 0);
+  
+  const ydoc = new Y.Doc();
+  
+  if (content && content.trim()) {
+    // Get the prosemirror fragment (used by TipTap/ProseMirror)
+    const prosemirrorFragment = ydoc.getXmlFragment('default');
+    
+    // For simple text content, create a paragraph node
+    // This matches how TipTap initializes content
+    const paragraph = new Y.XmlElement('paragraph');
+    const textNode = new Y.XmlText();
+    textNode.insert(0, content);
+    paragraph.insert(0, [textNode]);
+    prosemirrorFragment.insert(0, [paragraph]);
+    
+    console.log('✅ [YJS] Yjs document initialized with content');
+  } else {
+    console.log('ℹ️ [YJS] Yjs document initialized empty (no content provided)');
+  }
+  
+  // Encode the document state and return as Buffer
+  const state = Y.encodeStateAsUpdate(ydoc);
+  console.log('📦 [YJS] Encoded state size:', state.length, 'bytes');
+  
+  return Buffer.from(state);
+}
+
 export async function createSharedNote(data: NoteData, customId?: string) {
   console.log('🔧 [DEBUG] createSharedNote called with:', { title: data.title?.length, content: data.content?.length, htmlContent: data.htmlContent?.length, customId });
   
@@ -60,6 +91,11 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     throw new ValidationError(`HTML sanitization failed: ${(error as Error).message}`);
   }
 
+  // Initialize Yjs state for collaborative editing
+  console.log('🔧 [DEBUG] Initializing Yjs state for collaborative editing...');
+  const yjsState = initializeYjsDocument(cleanedContent);
+  console.log('✅ [DEBUG] Yjs state initialization completed:', { stateSize: yjsState.length });
+
   console.log('💾 [DEBUG] Starting Prisma document.create...');
   console.log('💾 [DEBUG] Prisma data payload:', {
     customId: customId, // Frontend-provided ID (now allowed as arbitrary string)
@@ -67,7 +103,8 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     contentLength: data.content?.length || 0,
     htmlContentLength: sanitizedHtml?.length || 0,
     renderMode: sanitizedHtml ? 'html' : 'markdown',
-    hasMetadata: !!data.metadata
+    hasMetadata: !!data.metadata,
+    yjsStateSize: yjsState.length
   });
   
   let document;
@@ -80,6 +117,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
         id: documentId, // Now works with any string format
         title: cleanTitle, // Use cleaned title
         content: cleanedContent,
+        yjsState: yjsState, // CRITICAL FIX: Initialize Yjs state for collaborative editing
         htmlContent: sanitizedHtml,
         renderMode: sanitizedHtml ? 'html' : 'markdown',
         metadata: {
@@ -153,6 +191,9 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
   // Update content without touching title (no auto-extraction)
   if (updates.content !== undefined) {
     updateData.content = updates.content;
+    // CRITICAL FIX: Update Yjs state when content changes
+    updateData.yjsState = initializeYjsDocument(updates.content);
+    console.log('🔧 [DEBUG] Updated Yjs state for content change:', { stateSize: updateData.yjsState.length });
     // REMOVED: automatic title extraction
   }
 

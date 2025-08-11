@@ -68,13 +68,40 @@ export function createServer() {
             console.log(`✅ [DATABASE] Found existing Yjs state for ${documentName}`);
             return new Uint8Array(document.yjsState);
           } else {
-            console.log(`📝 [DATABASE] Initializing Yjs document with content for ${documentName}`);
-            // Create new Yjs doc with initial content
+            console.log(`📝 [DATABASE] No Yjs state found, initializing with content for ${documentName}`);
+            // Create new Yjs doc with initial content from database
             const ydoc = new Y.Doc();
-            // Use XmlFragment to match frontend TipTap usage
-            const xmlFragment = ydoc.getXmlFragment('content');
-            // For now, just initialize empty - TipTap will handle content
-            return Y.encodeStateAsUpdate(ydoc);
+            
+            if (document.content && document.content.trim()) {
+              // Use 'default' fragment to match TipTap/ProseMirror structure
+              const prosemirrorFragment = ydoc.getXmlFragment('default');
+              
+              // Create a paragraph node with the content
+              const paragraph = new Y.XmlElement('paragraph');
+              const textNode = new Y.XmlText();
+              textNode.insert(0, document.content);
+              paragraph.insert(0, [textNode]);
+              prosemirrorFragment.insert(0, [paragraph]);
+              
+              console.log(`✅ [DATABASE] Initialized Yjs state with content for ${documentName}`);
+            } else {
+              console.log(`ℹ️ [DATABASE] Initialized empty Yjs state for ${documentName}`);
+            }
+            
+            const state = Y.encodeStateAsUpdate(ydoc);
+            
+            // Store the initialized state back to database for future use
+            try {
+              await prisma.document.update({
+                where: { id: documentName },
+                data: { yjsState: Buffer.from(state) }
+              });
+              console.log(`💾 [DATABASE] Stored initialized Yjs state for ${documentName}`);
+            } catch (error) {
+              console.error(`❌ [DATABASE] Failed to store Yjs state for ${documentName}:`, error);
+            }
+            
+            return state;
           }
         }
         

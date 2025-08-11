@@ -213,6 +213,10 @@ jobs:
           echo "🧪 Running production validation tests..."
           PLAYWRIGHT_BASE_URL=https://obsidiancomments.serverado.app \
           npx playwright test tests/e2e/production-validation.spec.js --reporter=list --timeout=30000 || echo "⚠️ Some tests failed - this is expected for first deployment"
+          
+          echo "🧪 Running Obsidian plugin editor visibility tests..."
+          BASE_URL=https://obsidiancomments.serverado.app \
+          npx playwright test tests/e2e/obsidian-plugin-editor-visibility.spec.js --reporter=list --timeout=30000
       
       - name: Performance test
         run: |
