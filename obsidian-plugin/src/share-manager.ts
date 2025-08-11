@@ -289,49 +289,10 @@ export class ShareManager {
   }
 
   private prepareContentWithTitle(content: string, filename: string): string {
-    const cleanFilename = this.cleanFilename(filename);
-    
-    // Handle frontmatter
-    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
-    const frontmatterMatch = content.match(frontmatterRegex);
-    
-    let bodyContent: string;
-    let frontmatter: string = '';
-    
-    if (frontmatterMatch) {
-      frontmatter = frontmatterMatch[0];
-      bodyContent = content.substring(frontmatterMatch[0].length);
-    } else {
-      bodyContent = content;
-    }
-    
-    // Check if content already has the correct H1 title
-    const lines = bodyContent.split('\n');
-    const firstNonEmptyLine = lines.find(line => line.trim() !== '');
-    
-    if (firstNonEmptyLine && firstNonEmptyLine.startsWith('# ')) {
-      const existingTitle = firstNonEmptyLine.substring(2).trim();
-      if (existingTitle === cleanFilename) {
-        // Title already matches, return as-is
-        return content;
-      } else {
-        // Replace the existing H1 with the filename
-        const newLines = lines.map(line => 
-          line.trim() !== '' && line.startsWith('# ') && line === firstNonEmptyLine
-            ? `# ${cleanFilename}`
-            : line
-        );
-        return frontmatter + newLines.join('\n');
-      }
-    } else {
-      // No H1 title exists, prepend the filename as H1
-      const titleLine = `# ${cleanFilename}`;
-      if (bodyContent.trim() === '') {
-        return frontmatter + titleLine + '\n\n';
-      } else {
-        return frontmatter + titleLine + '\n\n' + bodyContent;
-      }
-    }
+    // DON'T modify the content - the main.ts already handles title extraction
+    // and removal. We should NOT add titles back to prevent duplication.
+    // The backend will use the filename parameter as the title.
+    return content;
   }
 
   private cleanFilename(filename: string): string {

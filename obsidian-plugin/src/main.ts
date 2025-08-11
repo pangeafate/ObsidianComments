@@ -1,15 +1,23 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView, Modal, Menu } from 'obsidian';
 import { ShareNoteSettings, DEFAULT_SETTINGS } from './settings';
-import { BackendAPI, ShareNoteResponse } from './api';
+import { ApiClient } from './api-client';
+import { ShareManager } from './share-manager';
+import { ShareResult } from './types';
 
 export class ShareNotePlugin extends Plugin {
 	settings!: ShareNoteSettings;
-	api!: BackendAPI;
+	apiClient!: ApiClient;
+	shareManager!: ShareManager;
 	statusBarItem: HTMLElement | null = null;
 
 	async onload() {
 		await this.loadSettings();
-		this.api = new BackendAPI(this.settings.backendUrl);
+		this.apiClient = new ApiClient({
+			serverUrl: this.settings.backendUrl,
+			apiKey: '', // Anonymous usage for now
+			timeout: 10000
+		});
+		this.shareManager = new ShareManager(this.apiClient);
 
 		// Add ribbon icon
 		this.addRibbonIcon('share', 'Share note', () => {
@@ -58,7 +66,12 @@ export class ShareNotePlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-		this.api = new BackendAPI(this.settings.backendUrl);
+		this.apiClient = new ApiClient({
+			serverUrl: this.settings.backendUrl,
+			apiKey: '', // Anonymous usage for now
+			timeout: 10000
+		});
+		this.shareManager = new ShareManager(this.apiClient);
 	}
 
 	async shareCurrentNote() {
@@ -77,32 +90,26 @@ export class ShareNotePlugin extends Plugin {
 
 			const content = await this.app.vault.read(file);
 			const cleanedContent = this.cleanMarkdownContent(content);
-			const htmlContent = await this.renderToHTML();
-			const cleanTitle = this.extractCleanTitle(file, cleanedContent);
 
-			const shareData = {
-				title: cleanTitle,
-				content: cleanedContent,
-				htmlContent
-			};
+			// Use ShareManager to handle the sharing logic
+			const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
 
-			const result = await this.api.shareNote(shareData);
-
-			// Update frontmatter with share information
-			await this.updateFrontmatter(file, result);
+			// Update the file with the new content that includes frontmatter
+			await this.app.vault.modify(file, result.updatedContent);
 
 			// Copy to clipboard if enabled
 			if (this.settings.copyToClipboard && navigator.clipboard) {
-				await navigator.clipboard.writeText(result.viewUrl);
+				await navigator.clipboard.writeText(result.shareUrl);
 			}
 
 			// Open in browser if enabled
 			if (this.settings.openInBrowser) {
-				window.open(result.viewUrl, '_blank');
+				window.open(result.shareUrl, '_blank');
 			}
 
 			if (this.settings.showNotifications) {
-				new Notice('Note shared successfully!');
+				const action = result.wasUpdate ? 'updated' : 'shared';
+				new Notice(`Note ${action} successfully!`);
 			}
 			
 			// Update status bar
@@ -205,7 +212,17 @@ export class ShareNotePlugin extends Plugin {
 		// CRITICAL FIX: Remove title H1 from content to prevent duplication
 		// Since we extract the title separately, we don't need it in the content
 		// Remove ONLY the first H1 (single #) if it appears at the very beginning (after optional frontmatter and whitespace)
-		cleanedContent = cleanedContent.replace(/^(---[\s\S]*?---\s*)?(\s*)#\s+.+?(\r?\n|$)/, '$1$2');
+		const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
+		if (frontmatterMatch) {
+			const frontmatter = frontmatterMatch[0];
+			const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
+			// Remove first H1 only if it's the very first line after frontmatter
+			const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+.+?(\r?\n|$)/, '');
+			cleanedContent = frontmatter + contentWithoutTitle;
+		} else {
+			// No frontmatter, just remove first H1 if it's the very first line
+			cleanedContent = cleanedContent.replace(/^\s*#\s+.+?(\r?\n|$)/, '');
+		}
 
 		// Only remove potentially harmful content, preserve markdown formatting
 		// Keep images but convert to standard markdown format if needed
@@ -267,10 +284,9 @@ export class ShareNotePlugin extends Plugin {
 			}
 
 			const content = await this.app.vault.read(file);
-			const cache = this.app.metadataCache.getFileCache(file);
 			
-			// Check if file is shared
-			if (!cache?.frontmatter?.share_id) {
+			// Check if file is shared using ShareManager
+			if (!this.shareManager.isNoteShared(content)) {
 				new Notice('Note is not currently shared');
 				return;
 			}
@@ -281,14 +297,12 @@ export class ShareNotePlugin extends Plugin {
 				'This will remove the shared link. Anyone with the link will no longer be able to access it.');
 			
 			confirmModal.onConfirm = async () => {
-				const shareId = cache.frontmatter!.share_id;
-
 				try {
-					// Delete from backend
-					await this.api.deleteShare(shareId);
+					// Use ShareManager to handle unsharing (includes API call and frontmatter removal)
+					const updatedContent = await this.shareManager.unshareNote(content);
 					
-					// Remove frontmatter
-					await this.removeFrontmatter(file);
+					// Update the file with cleaned content
+					await this.app.vault.modify(file, updatedContent);
 					
 					if (this.settings.showNotifications) {
 						new Notice('Note unshared successfully');
@@ -297,11 +311,9 @@ export class ShareNotePlugin extends Plugin {
 					// Update status bar
 					this.updateStatusBar();
 				} catch (error) {
-					console.error('Failed to delete share:', error);
-					// Even if backend deletion fails, remove local metadata
-					await this.removeFrontmatter(file);
+					console.error('Failed to unshare note:', error);
 					if (this.settings.showNotifications) {
-						new Notice('Note unshared locally (backend may still have the share)');
+						new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
 					}
 					
 					// Update status bar
@@ -313,18 +325,13 @@ export class ShareNotePlugin extends Plugin {
 
 		} catch (error) {
 			console.error('Failed to unshare note:', error);
-			console.error('Error details:', {
-				type: error instanceof Error ? error.constructor.name : typeof error,
-				message: error instanceof Error ? error.message : String(error),
-				stack: error instanceof Error ? error.stack : undefined
-			});
 			if (this.settings.showNotifications) {
 				new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
 			}
 		}
 	}
 
-	updateStatusBar() {
+	async updateStatusBar() {
 		if (!this.statusBarItem) return;
 		
 		const activeFile = this.app.workspace.getActiveFile();
@@ -333,165 +340,77 @@ export class ShareNotePlugin extends Plugin {
 			return;
 		}
 		
-		const cache = this.app.metadataCache.getFileCache(activeFile);
-		if (cache?.frontmatter?.share_id) {
-			// File is shared - show indicator with click action
-			this.statusBarItem.setText('🔗 Shared');
-			this.statusBarItem.addClass('mod-clickable');
-			this.statusBarItem.setAttribute('aria-label', 'Left-click: copy link | Right-click: unshare');
+		try {
+			const content = await this.app.vault.read(activeFile);
 			
-			// Left click: Copy to clipboard
-			this.statusBarItem.onclick = async (e) => {
-				e.preventDefault();
-				const shareUrl = cache.frontmatter!.share_url || cache.frontmatter!.edit_url;
-				if (shareUrl && navigator.clipboard) {
-					await navigator.clipboard.writeText(shareUrl);
-					new Notice('Share link copied to clipboard');
-				}
-			};
-			
-			// Right click: Show unshare option
-			this.statusBarItem.oncontextmenu = async (e) => {
-				e.preventDefault();
+			if (this.shareManager.isNoteShared(content)) {
+				const shareUrl = this.shareManager.getShareUrl(content);
 				
-				// Create context menu
-				const menu = new Menu();
+				// File is shared - show indicator with click action
+				this.statusBarItem.setText('🔗 Shared');
+				this.statusBarItem.addClass('mod-clickable');
+				this.statusBarItem.setAttribute('aria-label', 'Left-click: copy link | Right-click: unshare');
 				
-				menu.addItem((item) => {
-					item.setTitle('Copy share link')
-						.setIcon('copy')
-						.onClick(async () => {
-							const shareUrl = cache.frontmatter!.share_url || cache.frontmatter!.edit_url;
-							if (shareUrl && navigator.clipboard) {
-								await navigator.clipboard.writeText(shareUrl);
-								new Notice('Share link copied to clipboard');
-							}
-						});
-				});
+				// Left click: Copy to clipboard
+				this.statusBarItem.onclick = async (e) => {
+					e.preventDefault();
+					if (shareUrl && navigator.clipboard) {
+						await navigator.clipboard.writeText(shareUrl);
+						new Notice('Share link copied to clipboard');
+					}
+				};
 				
-				menu.addItem((item) => {
-					item.setTitle('Re-share (update)')
-						.setIcon('upload')
-						.onClick(async () => {
-							await this.shareCurrentNote();
-						});
-				});
-				
-				menu.addSeparator();
-				
-				menu.addItem((item) => {
-					item.setTitle('Stop sharing')
-						.setIcon('trash')
-						.onClick(async () => {
-							await this.unshareCurrentNote();
-						});
-				});
-				
-				menu.showAtMouseEvent(e);
-			};
-		} else {
-			// File is not shared
-			this.statusBarItem.setText('');
-			this.statusBarItem.removeClass('mod-clickable');
-			this.statusBarItem.onclick = null;
-			this.statusBarItem.oncontextmenu = null;
-		}
-	}
-
-	async removeFrontmatter(file: TFile) {
-		const content = await this.app.vault.read(file);
-		const cache = this.app.metadataCache.getFileCache(file);
-		
-		if (!cache?.frontmatter) {
-			return; // No frontmatter to remove
-		}
-
-		const lines = content.split('\n');
-		const endLine = cache.frontmatterPosition?.end.line || 0;
-		
-		// Get existing frontmatter and remove share-related keys
-		const existingFrontmatter = { ...cache.frontmatter };
-		delete existingFrontmatter.share_id;
-		delete existingFrontmatter.share_url;
-		delete existingFrontmatter.edit_url;
-		delete existingFrontmatter.shared_at;
-		
-		// Check if any frontmatter remains
-		if (Object.keys(existingFrontmatter).length === 0) {
-			// Remove entire frontmatter block
-			const bodyLines = lines.slice(endLine + 1);
-			while (bodyLines.length > 0 && bodyLines[0].trim() === '') {
-				bodyLines.shift(); // Remove leading empty lines
+				// Right click: Show unshare option
+				this.statusBarItem.oncontextmenu = async (e) => {
+					e.preventDefault();
+					
+					// Create context menu
+					const menu = new Menu();
+					
+					menu.addItem((item) => {
+						item.setTitle('Copy share link')
+							.setIcon('copy')
+							.onClick(async () => {
+								if (shareUrl && navigator.clipboard) {
+									await navigator.clipboard.writeText(shareUrl);
+									new Notice('Share link copied to clipboard');
+								}
+							});
+					});
+					
+					menu.addItem((item) => {
+						item.setTitle('Re-share (update)')
+							.setIcon('upload')
+							.onClick(async () => {
+								await this.shareCurrentNote();
+							});
+					});
+					
+					menu.addSeparator();
+					
+					menu.addItem((item) => {
+						item.setTitle('Stop sharing')
+							.setIcon('trash')
+							.onClick(async () => {
+								await this.unshareCurrentNote();
+							});
+					});
+					
+					menu.showAtMouseEvent(e);
+				};
+			} else {
+				// File is not shared
+				this.statusBarItem.setText('');
+				this.statusBarItem.removeClass('mod-clickable');
+				this.statusBarItem.onclick = null;
+				this.statusBarItem.oncontextmenu = null;
 			}
-			await this.app.vault.modify(file, bodyLines.join('\n'));
-		} else {
-			// Keep remaining frontmatter
-			const frontmatterLines = [
-				'---',
-				...Object.entries(existingFrontmatter).map(([key, value]) => {
-					if (Array.isArray(value)) {
-						return `${key}: [${value.join(', ')}]`;
-					}
-					return `${key}: ${value}`;
-				}),
-				'---'
-			];
-			
-			const bodyLines = lines.slice(endLine + 1);
-			const updatedContent = [...frontmatterLines, ...bodyLines].join('\n');
-			await this.app.vault.modify(file, updatedContent);
+		} catch (error) {
+			console.error('Error updating status bar:', error);
+			this.statusBarItem.setText('');
 		}
 	}
 
-	async updateFrontmatter(file: TFile, shareResult: ShareNoteResponse) {
-		const content = await this.app.vault.read(file);
-		const cache = this.app.metadataCache.getFileCache(file);
-		
-		const shareData = {
-			share_id: shareResult.shareId,
-			share_url: shareResult.viewUrl,
-			edit_url: shareResult.editUrl,
-			shared_at: new Date().toISOString()
-		};
-
-		let updatedContent: string;
-
-		if (cache?.frontmatter) {
-			// Update existing frontmatter
-			const lines = content.split('\n');
-			const endLine = cache.frontmatterPosition?.end.line || 0;
-			
-			// Build new frontmatter
-			const existingFrontmatter = cache.frontmatter;
-			const newFrontmatter = { ...existingFrontmatter, ...shareData };
-			
-			const frontmatterLines = [
-				'---',
-				...Object.entries(newFrontmatter).map(([key, value]) => {
-					if (Array.isArray(value)) {
-						return `${key}: [${value.join(', ')}]`;
-					}
-					return `${key}: ${value}`;
-				}),
-				'---'
-			];
-
-			// Replace frontmatter, skip the original frontmatter lines
-			const bodyLines = lines.slice(endLine + 1);
-			updatedContent = [...frontmatterLines, ...bodyLines].join('\n');
-		} else {
-			// Add new frontmatter
-			const frontmatterLines = [
-				'---',
-				...Object.entries(shareData).map(([key, value]) => `${key}: ${value}`),
-				'---'
-			];
-			
-			updatedContent = [...frontmatterLines, content].join('\n');
-		}
-
-		await this.app.vault.modify(file, updatedContent);
-	}
 }
 
 class ShareNoteSettingTab extends PluginSettingTab {
