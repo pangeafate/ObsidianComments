@@ -67,7 +67,7 @@ test_post() {
         -w "\n%{http_code}" || echo "ERROR\n000")
     
     STATUS=$(echo "$RESPONSE" | tail -n1)
-    BODY=$(echo "$RESPONSE" | head -n-1)
+    BODY=$(echo "$RESPONSE" | sed '$d')
     
     if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ]; then
         if echo "$BODY" | grep -q "shareId\|id\|success"; then
@@ -86,18 +86,18 @@ test_websocket() {
     
     log "Testing WebSocket at $ws_url..."
     
-    # Use curl to test WebSocket upgrade
-    RESPONSE=$(curl -s -i -N \
+    # Use curl to test WebSocket upgrade with HTTP/1.1 and max time limit
+    RESPONSE=$(curl -s -i --http1.1 --max-time 3 \
         -H "Connection: Upgrade" \
         -H "Upgrade: websocket" \
         -H "Sec-WebSocket-Version: 13" \
         -H "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==" \
-        "$ws_url" | head -n1 || echo "ERROR")
+        "$ws_url" | head -1 || echo "ERROR")
     
-    if echo "$RESPONSE" | grep -q "101\|426"; then
+    if echo "$RESPONSE" | grep -q "101"; then
         pass "$description"
     else
-        fail "$description"
+        fail "$description (got: $RESPONSE)"
     fi
 }
 

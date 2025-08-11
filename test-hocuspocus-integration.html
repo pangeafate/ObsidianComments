@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HocusPocus Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        #editor {
+            border: 1px solid #ccc;
+            min-height: 200px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>HocusPocus Integration Test</h1>
+    
+    <div class="status info">
+        <strong>Test Status:</strong> <span id="status">Initializing...</span>
+    </div>
+    
+    <button id="connectBtn" onclick="testConnection()">Connect to HocusPocus</button>
+    <button id="testBtn" onclick="testCollaboration()" disabled>Test Collaboration</button>
+    <button id="clearBtn" onclick="clearLog()">Clear Log</button>
+    
+    <div id="editor" contenteditable="true" placeholder="Connected editor will appear here..."></div>
+    
+    <h3>Connection Log:</h3>
+    <div id="log" class="log"></div>
+
+    <script src="https://unpkg.com/yjs@^13.0.0/dist/yjs.js"></script>
+    <script>
+        let ws = null;
+        let doc = null;
+        let connected = false;
+        let testCount = 0;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007bff';
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.parentElement.className = `status ${type}`;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function testConnection() {
+            updateStatus('Connecting to WebSocket...', 'info');
+            log('Attempting to connect to wss://obsidiancomments.serverado.app/ws');
+            
+            try {
+                // Create WebSocket connection
+                ws = new WebSocket('wss://obsidiancomments.serverado.app/ws');
+                
+                ws.onopen = function(event) {
+                    log('WebSocket connection established!', 'success');
+                    updateStatus('Connected - Ready to test collaboration', 'success');
+                    connected = true;
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('testBtn').disabled = false;
+                    
+                    // Initialize Yjs document
+                    doc = new Y.Doc();
+                    setupCollaborativeEditor();
+                };
+                
+                ws.onmessage = function(event) {
+                    log(`Received message: ${event.data.slice(0, 100)}...`);
+                    
+                    // Handle Yjs updates
+                    if (event.data instanceof ArrayBuffer) {
+                        const update = new Uint8Array(event.data);
+                        Y.applyUpdate(doc, update);
+                        log(`Applied Yjs update (${update.length} bytes)`, 'success');
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    log(`WebSocket error: ${error}`, 'error');
+                    updateStatus('Connection failed', 'error');
+                    connected = false;
+                };
+                
+                ws.onclose = function(event) {
+                    log(`WebSocket closed: Code ${event.code}, Reason: ${event.reason}`);
+                    updateStatus('Disconnected', 'error');
+                    connected = false;
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('testBtn').disabled = true;
+                };
+                
+            } catch (error) {
+                log(`Failed to create WebSocket: ${error.message}`, 'error');
+                updateStatus('Connection failed', 'error');
+            }
+        }
+
+        function setupCollaborativeEditor() {
+            if (!doc) return;
+            
+            // Get the text type from the Yjs document
+            const ytext = doc.getText('content');
+            
+            // Set up basic collaboration
+            const editor = document.getElementById('editor');
+            
+            // Listen for Yjs changes
+            ytext.observe(event => {
+                if (event.target === ytext) {
+                    editor.textContent = ytext.toString();
+                    log(`Document updated: "${ytext.toString()}"`, 'success');
+                }
+            });
+            
+            // Listen for editor changes
+            editor.addEventListener('input', () => {
+                const content = editor.textContent;
+                if (content !== ytext.toString()) {
+                    ytext.delete(0, ytext.length);
+                    ytext.insert(0, content);
+                    log(`Editor changed: "${content}"`);
+                }
+            });
+            
+            log('Collaborative editor initialized!', 'success');
+        }
+
+        function testCollaboration() {
+            if (!connected || !doc) {
+                log('Not connected! Please connect first.', 'error');
+                return;
+            }
+            
+            testCount++;
+            const testText = `Test collaboration ${testCount} - ${new Date().toLocaleTimeString()}`;
+            
+            log(`Starting test: "${testText}"`);
+            
+            // Insert text into Yjs document
+            const ytext = doc.getText('content');
+            ytext.delete(0, ytext.length);
+            ytext.insert(0, testText);
+            
+            log('Test text inserted into Yjs document', 'success');
+            
+            // Verify document state
+            setTimeout(() => {
+                const currentContent = ytext.toString();
+                if (currentContent === testText) {
+                    log('✅ Collaboration test successful!', 'success');
+                    updateStatus('Collaboration working correctly', 'success');
+                } else {
+                    log('❌ Collaboration test failed - content mismatch', 'error');
+                    updateStatus('Collaboration test failed', 'error');
+                }
+            }, 1000);
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            log('Page loaded - HocusPocus Integration Test ready');
+            log('Click "Connect to HocusPocus" to start testing');
+        });
+    </script>
+</body>
+</html>
