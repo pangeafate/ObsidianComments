@@ -60,10 +60,10 @@ describe('NotesService - Comprehensive Feature Tests', () => {
       // Assert
       expect(result).toHaveProperty('editUrl');
       expect(result).toHaveProperty('viewUrl'); 
-      expect(result).toHaveProperty('collaborativeUrl');
+      expect(result).toHaveProperty('shareUrl'); // Changed from collaborativeUrl to shareUrl
       expect(result.editUrl).toBe('http://localhost:3001/editor/test-doc-123');
       expect(result.viewUrl).toBe('http://localhost:3001/view/test-doc-123');
-      expect(result.collaborativeUrl).toBe('http://localhost:3001/editor/test-doc-123');
+      expect(result.shareUrl).toBe('http://localhost:3001/editor/test-doc-123'); // Changed to shareUrl
     });
 
     it('should handle notes without HTML content', async () => {

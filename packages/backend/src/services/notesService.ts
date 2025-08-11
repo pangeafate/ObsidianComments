@@ -103,10 +103,13 @@ export async function createSharedNote(data: NoteData, customId?: string) {
 
   return {
     shareId: document.id,
-    collaborativeUrl: generateCollaborativeUrl(document.id),
+    shareUrl: generateCollaborativeUrl(document.id), // Standardized as shareUrl for plugin compatibility
     viewUrl: generateViewUrl(document.id),
     editUrl: generateEditUrl(document.id),
-    title: document.title
+    title: document.title,
+    createdAt: document.publishedAt.toISOString(),
+    permissions: 'edit',
+    version: 1 // TODO: Implement proper version tracking from database
   };
 }
 
@@ -128,8 +131,9 @@ export async function getSharedNote(shareId: string) {
     createdAt: document.publishedAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
     permissions: 'edit',
-    collaborativeUrl: generateCollaborativeUrl(document.id),
-    viewUrl: generateViewUrl(document.id)
+    shareUrl: generateCollaborativeUrl(document.id), // Standardized as shareUrl for plugin compatibility
+    viewUrl: generateViewUrl(document.id),
+    version: 1 // TODO: Implement proper version tracking from database
   };
 }
 
@@ -177,7 +181,7 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
     createdAt: updated.publishedAt.toISOString(),
     updatedAt: updated.updatedAt.toISOString(),
     permissions: 'edit',
-    collaborativeUrl: generateCollaborativeUrl(updated.id),
+    shareUrl: generateCollaborativeUrl(updated.id), // Standardized as shareUrl for plugin compatibility
     viewUrl: generateViewUrl(updated.id)
   };
 }
@@ -222,12 +226,23 @@ export async function listSharedNotes(limit?: number, offset?: number) {
     skip: offset || 0
   });
 
+  // Get total count for pagination
+  const totalCount = await prisma.document.count();
+
   const shares = documents.map((doc: any) => ({
-    id: doc.id,
+    shareId: doc.id, // Plugin expects shareId not id
     title: doc.title,
+    shareUrl: generateCollaborativeUrl(doc.id), // Add shareUrl for plugin compatibility
     createdAt: doc.publishedAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString()
+    updatedAt: doc.updatedAt.toISOString(),
+    permissions: 'edit', // Default permission
+    views: doc.views || 0, // Use actual database field
+    editors: doc.activeEditors || 0 // Use actual database field
   }));
 
-  return shares;
+  // Return wrapped format as expected by plugin
+  return {
+    shares,
+    total: totalCount
+  };
 }

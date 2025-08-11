@@ -134,10 +134,20 @@ export async function listSharedNotes(limit?: number, offset?: number): Promise<
   const end = limit ? start + limit : documents.length;
   const paginatedDocs = documents.slice(start, end);
   
-  return paginatedDocs.map(doc => ({
-    id: doc.id,
+  const shares = paginatedDocs.map(doc => ({
+    shareId: doc.id, // Plugin expects shareId not id
     title: doc.title,
+    shareUrl: `http://localhost:5173/editor/${doc.id}`, // Add shareUrl for plugin compatibility
     createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt
+    updatedAt: doc.updatedAt,
+    permissions: 'edit', // Default permission
+    views: 0, // TODO: Implement view tracking
+    editors: 0 // TODO: Implement editor tracking
   }));
+
+  // Return wrapped format as expected by plugin
+  return {
+    shares,
+    total: mockDocuments.size
+  };
 }

@@ -66,7 +66,7 @@ export class ApiClient {
 
       const data = await response.json();
       return {
-        shareUrl: data.collaborativeUrl || data.shareUrl, // Handle backend's collaborativeUrl field
+        shareUrl: data.shareUrl, // Backend now consistently returns shareUrl
         shareId: data.shareId,
         createdAt: data.createdAt || new Date().toISOString(),
         permissions: data.permissions || 'edit'

@@ -64,7 +64,12 @@ router.put('/:shareId', async (req, res, next) => {
     const validated = validateNoteUpdate(req.body);
     
     const result = await updateSharedNote(shareId, validated);
-    res.json({ success: true });
+    // Return structured response for plugin compatibility
+    res.json({
+      shareId: result.shareId,
+      updatedAt: result.updatedAt,
+      version: 1 // TODO: Implement proper version tracking
+    });
   } catch (error) {
     next(error);
   }
@@ -77,7 +82,12 @@ router.patch('/:shareId', async (req, res, next) => {
     const { title } = validateNoteTitleUpdate(req.body);
     
     const result = await updateSharedNote(shareId, { title });
-    res.json({ success: true });
+    // Return structured response for plugin compatibility
+    res.json({
+      shareId: result.shareId,
+      updatedAt: result.updatedAt,
+      version: 1 // TODO: Implement proper version tracking
+    });
   } catch (error) {
     next(error);
   }
