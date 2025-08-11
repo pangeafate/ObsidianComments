@@ -34,10 +34,13 @@ jobs:
             obsidian-plugin/node_modules
           key: ${{ runner.os }}-modules-${{ env.CACHE_KEY }}-${{ hashFiles('**/package-lock.json') }}
       
-      - name: Install minimal deps
+      - name: Install dependencies
         run: |
-          npm ci --ignore-scripts --no-audit
-          npx lerna bootstrap --ignore-scripts -- --no-audit
+          npm ci --no-audit
+          cd packages/backend && npm ci --no-audit
+          cd ../frontend && npm ci --no-audit
+          cd ../hocuspocus && npm ci --no-audit
+          cd ../../obsidian-plugin && npm ci --no-audit
       
       - name: Run linters in parallel
         run: |
