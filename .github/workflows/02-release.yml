@@ -45,25 +45,28 @@ jobs:
       
       - name: Build and push production images
         run: |
+          # Convert repository name to lowercase for Docker tags
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          
           # Build and push all services with production tag
           docker buildx build --platform linux/amd64 \
             --push \
-            --tag ghcr.io/${{ github.repository }}-backend:${{ github.sha }} \
-            --tag ghcr.io/${{ github.repository }}-backend:latest \
+            --tag ghcr.io/${REPO_LOWER}-backend:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-backend:latest \
             -f packages/backend/Dockerfile.production \
             packages/backend
           
           docker buildx build --platform linux/amd64 \
             --push \
-            --tag ghcr.io/${{ github.repository }}-frontend:${{ github.sha }} \
-            --tag ghcr.io/${{ github.repository }}-frontend:latest \
+            --tag ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-frontend:latest \
             -f packages/frontend/Dockerfile.production \
             packages/frontend
           
           docker buildx build --platform linux/amd64 \
             --push \
-            --tag ghcr.io/${{ github.repository }}-hocuspocus:${{ github.sha }} \
-            --tag ghcr.io/${{ github.repository }}-hocuspocus:latest \
+            --tag ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-hocuspocus:latest \
             -f packages/hocuspocus/Dockerfile.production \
             packages/hocuspocus
 
