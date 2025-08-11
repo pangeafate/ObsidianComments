@@ -76,6 +76,10 @@ var BackendAPI = class {
 
 // src/main.ts
 var ShareNotePlugin = class extends import_obsidian.Plugin {
+  constructor() {
+    super(...arguments);
+    this.statusBarItem = null;
+  }
   async onload() {
     await this.loadSettings();
     this.api = new BackendAPI(this.settings.backendUrl);
@@ -87,6 +91,25 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       name: "Share current note",
       callback: () => this.shareCurrentNote()
     });
+    this.addCommand({
+      id: "unshare-note",
+      name: "Stop sharing current note",
+      callback: () => this.unshareCurrentNote()
+    });
+    this.statusBarItem = this.addStatusBarItem();
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.updateStatusBar();
+      })
+    );
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        if (file === this.app.workspace.getActiveFile()) {
+          this.updateStatusBar();
+        }
+      })
+    );
+    this.updateStatusBar();
     this.addSettingTab(new ShareNoteSettingTab(this.app, this));
   }
   async loadSettings() {
@@ -127,6 +150,7 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       if (this.settings.showNotifications) {
         new import_obsidian.Notice("Note shared successfully!");
       }
+      this.updateStatusBar();
     } catch (error) {
       console.error("Failed to share note:", error);
       if (this.settings.showNotifications) {
@@ -266,6 +290,114 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     }
     return title;
   }
+  async unshareCurrentNote() {
+    var _a;
+    try {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) {
+        new import_obsidian.Notice("No active file");
+        return;
+      }
+      const content = await this.app.vault.read(file);
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.share_id)) {
+        new import_obsidian.Notice("Note is not currently shared");
+        return;
+      }
+      const confirmModal = new ConfirmModal(
+        this.app,
+        "Stop sharing this note?",
+        "This will remove the shared link. Anyone with the link will no longer be able to access it."
+      );
+      confirmModal.onConfirm = async () => {
+        const shareId = cache.frontmatter.share_id;
+        try {
+          await this.api.deleteShare(shareId);
+          await this.removeFrontmatter(file);
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Note unshared successfully");
+          }
+          this.updateStatusBar();
+        } catch (error) {
+          console.error("Failed to delete share:", error);
+          await this.removeFrontmatter(file);
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Note unshared locally (backend may still have the share)");
+          }
+          this.updateStatusBar();
+        }
+      };
+      confirmModal.open();
+    } catch (error) {
+      console.error("Failed to unshare note:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }
+  updateStatusBar() {
+    var _a;
+    if (!this.statusBarItem)
+      return;
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      this.statusBarItem.setText("");
+      return;
+    }
+    const cache = this.app.metadataCache.getFileCache(activeFile);
+    if ((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.share_id) {
+      this.statusBarItem.setText("\u{1F517} Shared");
+      this.statusBarItem.addClass("mod-clickable");
+      this.statusBarItem.setAttribute("aria-label", "Click to copy share link");
+      this.statusBarItem.onclick = async () => {
+        const shareUrl = cache.frontmatter.share_url || cache.frontmatter.edit_url;
+        if (shareUrl && navigator.clipboard) {
+          await navigator.clipboard.writeText(shareUrl);
+          new import_obsidian.Notice("Share link copied to clipboard");
+        }
+      };
+    } else {
+      this.statusBarItem.setText("");
+      this.statusBarItem.removeClass("mod-clickable");
+      this.statusBarItem.onclick = null;
+    }
+  }
+  async removeFrontmatter(file) {
+    var _a;
+    const content = await this.app.vault.read(file);
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!(cache == null ? void 0 : cache.frontmatter)) {
+      return;
+    }
+    const lines = content.split("\n");
+    const endLine = ((_a = cache.frontmatterPosition) == null ? void 0 : _a.end.line) || 0;
+    const existingFrontmatter = { ...cache.frontmatter };
+    delete existingFrontmatter.share_id;
+    delete existingFrontmatter.share_url;
+    delete existingFrontmatter.edit_url;
+    delete existingFrontmatter.shared_at;
+    if (Object.keys(existingFrontmatter).length === 0) {
+      const bodyLines = lines.slice(endLine + 1);
+      while (bodyLines.length > 0 && bodyLines[0].trim() === "") {
+        bodyLines.shift();
+      }
+      await this.app.vault.modify(file, bodyLines.join("\n"));
+    } else {
+      const frontmatterLines = [
+        "---",
+        ...Object.entries(existingFrontmatter).map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return `${key}: [${value.join(", ")}]`;
+          }
+          return `${key}: ${value}`;
+        }),
+        "---"
+      ];
+      const bodyLines = lines.slice(endLine + 1);
+      const updatedContent = [...frontmatterLines, ...bodyLines].join("\n");
+      await this.app.vault.modify(file, updatedContent);
+    }
+  }
   async updateFrontmatter(file, shareResult) {
     var _a;
     const content = await this.app.vault.read(file);
@@ -330,6 +462,32 @@ var ShareNoteSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.settings.openInBrowser = value;
       await this.plugin.saveSettings();
     }));
+  }
+};
+var ConfirmModal = class extends import_obsidian.Modal {
+  constructor(app, title, message) {
+    super(app);
+    this.onConfirm = () => {
+    };
+    this.title = title;
+    this.message = message;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: this.title });
+    contentEl.createEl("p", { text: this.message });
+    const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
+    const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+    cancelButton.addEventListener("click", () => this.close());
+    const confirmButton = buttonContainer.createEl("button", { text: "Delete", cls: "mod-warning" });
+    confirmButton.addEventListener("click", () => {
+      this.onConfirm();
+      this.close();
+    });
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 };
 var main_default = ShareNotePlugin;

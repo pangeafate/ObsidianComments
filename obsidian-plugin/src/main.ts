@@ -1,10 +1,11 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView, Modal } from 'obsidian';
 import { ShareNoteSettings, DEFAULT_SETTINGS } from './settings';
 import { BackendAPI, ShareNoteResponse } from './api';
 
 export class ShareNotePlugin extends Plugin {
 	settings!: ShareNoteSettings;
 	api!: BackendAPI;
+	statusBarItem: HTMLElement | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -15,12 +16,37 @@ export class ShareNotePlugin extends Plugin {
 			this.shareCurrentNote();
 		});
 
-		// Add command
+		// Add share command
 		this.addCommand({
 			id: 'share-note',
 			name: 'Share current note',
 			callback: () => this.shareCurrentNote()
 		});
+
+		// Add unshare command
+		this.addCommand({
+			id: 'unshare-note',
+			name: 'Stop sharing current note',
+			callback: () => this.unshareCurrentNote()
+		});
+
+		// Add status bar item
+		this.statusBarItem = this.addStatusBarItem();
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', () => {
+				this.updateStatusBar();
+			})
+		);
+		this.registerEvent(
+			this.app.metadataCache.on('changed', (file) => {
+				if (file === this.app.workspace.getActiveFile()) {
+					this.updateStatusBar();
+				}
+			})
+		);
+		
+		// Initial status bar update
+		this.updateStatusBar();
 
 		// Add settings tab
 		this.addSettingTab(new ShareNoteSettingTab(this.app, this));
@@ -78,6 +104,9 @@ export class ShareNotePlugin extends Plugin {
 			if (this.settings.showNotifications) {
 				new Notice('Note shared successfully!');
 			}
+			
+			// Update status bar
+			this.updateStatusBar();
 
 		} catch (error) {
 			console.error('Failed to share note:', error);
@@ -224,6 +253,144 @@ export class ShareNotePlugin extends Plugin {
 		return title;
 	}
 
+	async unshareCurrentNote() {
+		try {
+			const file = this.app.workspace.getActiveFile();
+			if (!file) {
+				new Notice('No active file');
+				return;
+			}
+
+			const content = await this.app.vault.read(file);
+			const cache = this.app.metadataCache.getFileCache(file);
+			
+			// Check if file is shared
+			if (!cache?.frontmatter?.share_id) {
+				new Notice('Note is not currently shared');
+				return;
+			}
+
+			// Confirm deletion
+			const confirmModal = new ConfirmModal(this.app, 
+				'Stop sharing this note?', 
+				'This will remove the shared link. Anyone with the link will no longer be able to access it.');
+			
+			confirmModal.onConfirm = async () => {
+				const shareId = cache.frontmatter!.share_id;
+
+				try {
+					// Delete from backend
+					await this.api.deleteShare(shareId);
+					
+					// Remove frontmatter
+					await this.removeFrontmatter(file);
+					
+					if (this.settings.showNotifications) {
+						new Notice('Note unshared successfully');
+					}
+					
+					// Update status bar
+					this.updateStatusBar();
+				} catch (error) {
+					console.error('Failed to delete share:', error);
+					// Even if backend deletion fails, remove local metadata
+					await this.removeFrontmatter(file);
+					if (this.settings.showNotifications) {
+						new Notice('Note unshared locally (backend may still have the share)');
+					}
+					
+					// Update status bar
+					this.updateStatusBar();
+				}
+			};
+			
+			confirmModal.open();
+
+		} catch (error) {
+			console.error('Failed to unshare note:', error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		}
+	}
+
+	updateStatusBar() {
+		if (!this.statusBarItem) return;
+		
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			this.statusBarItem.setText('');
+			return;
+		}
+		
+		const cache = this.app.metadataCache.getFileCache(activeFile);
+		if (cache?.frontmatter?.share_id) {
+			// File is shared - show indicator with click action
+			this.statusBarItem.setText('🔗 Shared');
+			this.statusBarItem.addClass('mod-clickable');
+			this.statusBarItem.setAttribute('aria-label', 'Click to copy share link');
+			
+			// Remove old click handler and add new one
+			this.statusBarItem.onclick = async () => {
+				const shareUrl = cache.frontmatter!.share_url || cache.frontmatter!.edit_url;
+				if (shareUrl && navigator.clipboard) {
+					await navigator.clipboard.writeText(shareUrl);
+					new Notice('Share link copied to clipboard');
+				}
+			};
+		} else {
+			// File is not shared
+			this.statusBarItem.setText('');
+			this.statusBarItem.removeClass('mod-clickable');
+			this.statusBarItem.onclick = null;
+		}
+	}
+
+	async removeFrontmatter(file: TFile) {
+		const content = await this.app.vault.read(file);
+		const cache = this.app.metadataCache.getFileCache(file);
+		
+		if (!cache?.frontmatter) {
+			return; // No frontmatter to remove
+		}
+
+		const lines = content.split('\n');
+		const endLine = cache.frontmatterPosition?.end.line || 0;
+		
+		// Get existing frontmatter and remove share-related keys
+		const existingFrontmatter = { ...cache.frontmatter };
+		delete existingFrontmatter.share_id;
+		delete existingFrontmatter.share_url;
+		delete existingFrontmatter.edit_url;
+		delete existingFrontmatter.shared_at;
+		
+		// Check if any frontmatter remains
+		if (Object.keys(existingFrontmatter).length === 0) {
+			// Remove entire frontmatter block
+			const bodyLines = lines.slice(endLine + 1);
+			while (bodyLines.length > 0 && bodyLines[0].trim() === '') {
+				bodyLines.shift(); // Remove leading empty lines
+			}
+			await this.app.vault.modify(file, bodyLines.join('\n'));
+		} else {
+			// Keep remaining frontmatter
+			const frontmatterLines = [
+				'---',
+				...Object.entries(existingFrontmatter).map(([key, value]) => {
+					if (Array.isArray(value)) {
+						return `${key}: [${value.join(', ')}]`;
+					}
+					return `${key}: ${value}`;
+				}),
+				'---'
+			];
+			
+			const bodyLines = lines.slice(endLine + 1);
+			const updatedContent = [...frontmatterLines, ...bodyLines].join('\n');
+			await this.app.vault.modify(file, updatedContent);
+		}
+	}
+
 	async updateFrontmatter(file: TFile, shareResult: ShareNoteResponse) {
 		const content = await this.app.vault.read(file);
 		const cache = this.app.metadataCache.getFileCache(file);
@@ -329,6 +496,41 @@ class ShareNoteSettingTab extends PluginSettingTab {
 					this.plugin.settings.openInBrowser = value;
 					await this.plugin.saveSettings();
 				}));
+	}
+}
+
+class ConfirmModal extends Modal {
+	private title: string;
+	private message: string;
+	onConfirm: () => void = () => {};
+
+	constructor(app: App, title: string, message: string) {
+		super(app);
+		this.title = title;
+		this.message = message;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		
+		contentEl.createEl('h2', { text: this.title });
+		contentEl.createEl('p', { text: this.message });
+		
+		const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+		
+		const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
+		cancelButton.addEventListener('click', () => this.close());
+		
+		const confirmButton = buttonContainer.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+		confirmButton.addEventListener('click', () => {
+			this.onConfirm();
+			this.close();
+		});
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
 	}
 }
 
