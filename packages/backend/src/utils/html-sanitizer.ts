@@ -132,3 +132,49 @@ export function containsMediaContent(content: string): boolean {
   
   return false;
 }
+
+/**
+ * SECURITY FIX: Sanitize title text to prevent XSS attacks on server-side
+ * This provides defense-in-depth by sanitizing titles at the API layer
+ */
+export function sanitizeTitle(title: string): string {
+  if (!title || typeof title !== 'string') {
+    return '';
+  }
+
+  try {
+    // Use DOMPurify in CI-safe mode or basic sanitization as fallback
+    if (process.env.CI === 'true' || process.env.NODE_ENV === 'test') {
+      return basicTitleSanitize(title);
+    }
+
+    // Use DOMPurify to strip all HTML tags from titles
+    return DOMPurify.sanitize(title, {
+      ALLOWED_TAGS: [], // No HTML tags allowed in titles
+      ALLOWED_ATTR: [], // No attributes allowed
+      KEEP_CONTENT: true // Keep the text content after removing tags
+    }).trim();
+  } catch (error) {
+    console.warn('⚠️ [FALLBACK] Title sanitization failed, using basic sanitization:', error);
+    return basicTitleSanitize(title);
+  }
+}
+
+/**
+ * Basic title sanitization fallback for CI environments and error cases
+ */
+function basicTitleSanitize(title: string): string {
+  if (!title || typeof title !== 'string') {
+    return '';
+  }
+  
+  // Remove all HTML tags and dangerous characters
+  let sanitized = title
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/[<>]/g, '') // Remove any remaining angle brackets
+    .replace(/javascript:/gi, '') // Remove javascript: URIs
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
+    .replace(/on\w+\s*=\s*[^>\s]+/gi, ''); // Remove unquoted event handlers
+  
+  return sanitized.trim();
+}

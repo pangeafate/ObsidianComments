@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { renderSafeTitle } from '../utils/contentSanitizer';
 
 interface EditableTitleProps {
   title: string;
@@ -187,9 +188,9 @@ export function EditableTitle({
           ${!isReadOnly ? 'group-hover:outline group-hover:outline-1 group-hover:outline-gray-300' : ''}
         `}
         onClick={startEditing}
-        title={!isReadOnly ? `Click to edit: ${localTitle}` : localTitle}
+        title={!isReadOnly ? `Click to edit: ${renderSafeTitle(localTitle, placeholder)}` : renderSafeTitle(localTitle, placeholder)}
       >
-        {localTitle || placeholder}
+        {renderSafeTitle(localTitle, placeholder)}
       </h1>
       
       {/* Edit icon hint */}

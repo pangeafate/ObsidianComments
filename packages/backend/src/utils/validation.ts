@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { ValidationError } from './errors';
+import { sanitizeHtml, sanitizeTitle } from './html-sanitizer';
 
 const publishSchema = Joi.object({
   title: Joi.string().required().min(1).max(255),
@@ -83,6 +84,11 @@ export function validatePublishRequest(data: any): PublishRequest {
     throw new ValidationError(details);
   }
   
+  // SECURITY FIX: Sanitize title to prevent XSS
+  if (value.title) {
+    value.title = sanitizeTitle(value.title);
+  }
+  
   return value;
 }
 
@@ -108,6 +114,11 @@ export function validateNoteShare(data: any): NoteShareRequest {
     throw new ValidationError(`Validation failed: ${details.map(d => d.message).join(', ')}`);
   }
   
+  // SECURITY FIX: Sanitize title to prevent XSS
+  if (value.title) {
+    value.title = sanitizeTitle(value.title);
+  }
+  
   return value;
 }
 
@@ -128,6 +139,11 @@ export function validateNoteUpdate(data: any): NoteUpdateRequest {
     throw new ValidationError('At least one field (content, title, or htmlContent) must be provided for update');
   }
   
+  // SECURITY FIX: Sanitize title to prevent XSS
+  if (value.title) {
+    value.title = sanitizeTitle(value.title);
+  }
+  
   return value;
 }
 
@@ -136,6 +152,11 @@ export function validateNoteTitleUpdate(data: any): NoteTitleUpdateRequest {
   
   if (error) {
     throw new ValidationError('Title is required and must be non-empty');
+  }
+  
+  // SECURITY FIX: Sanitize title to prevent XSS
+  if (value.title) {
+    value.title = sanitizeTitle(value.title);
   }
   
   return value;
@@ -169,6 +190,11 @@ export function validateDocumentData(data: any): { title: string; content: strin
     throw new ValidationError(details);
   }
   
+  // SECURITY FIX: Sanitize title to prevent XSS
+  if (value.title) {
+    value.title = sanitizeTitle(value.title);
+  }
+  
   return value;
 }
 
@@ -181,11 +207,8 @@ export function sanitizeInput(input: any): string {
     return '';
   }
   
-  // Basic sanitization - remove potentially harmful characters
-  return input
-    .trim()
-    .replace(/[<>]/g, '') // Remove basic HTML tags
-    .slice(0, 10000); // Limit length
+  // SECURITY FIX: Use comprehensive sanitization instead of basic character replacement
+  return sanitizeTitle(input).slice(0, 10000); // Limit length
 }
 
 export function isValidUUID(uuid: string): boolean {

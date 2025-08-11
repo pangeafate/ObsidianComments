@@ -7,6 +7,7 @@ import { notesRouter } from './routes/notes';
 import { authRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { errorHandler } from './middleware/errorHandler';
+import { sanitizeInputs, validateContentType } from './middleware/inputSanitizer';
 
 const app = express();
 
@@ -83,6 +84,13 @@ app.use(limiter);
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// SECURITY FIX: Input sanitization middleware - must be after body parsing
+app.use(sanitizeInputs);
+
+// Content type validation for API endpoints
+app.use('/api/notes', validateContentType(['application/json']));
+app.use('/api/publish', validateContentType(['application/json']));
 
 // Routes
 app.use('/api', publishRouter);

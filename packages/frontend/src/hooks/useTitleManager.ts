@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { deduplicateTitle } from '../utils/contentDeduplication';
+import { renderSafeTitle } from '../utils/contentSanitizer';
 
 interface TitleManagerConfig {
   documentId: string;
@@ -175,7 +176,7 @@ export function useTitleManager(config: TitleManagerConfig) {
 
   // Update browser tab title
   useEffect(() => {
-    const displayTitle = state.title || 'Untitled Document';
+    const displayTitle = renderSafeTitle(state.title, 'Untitled Document');
     document.title = `${displayTitle} - Obsidian Comments`;
   }, [state.title]);
 

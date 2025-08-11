@@ -1,4 +1,5 @@
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { renderSafeTitle } from '../utils/contentSanitizer';
 
 interface Link {
   id: string;
@@ -177,9 +178,9 @@ export const MyLinksPane = forwardRef<MyLinksPaneRef>((props, ref) => {
                     <a
                       href={link.url}
                       className="block font-medium text-gray-900 hover:text-blue-600 truncate"
-                      title={link.title}
+                      title={renderSafeTitle(link.title)}
                     >
-                      {link.title}
+                      {renderSafeTitle(link.title)}
                     </a>
                     <p className="text-sm text-gray-500 mt-1">
                       {formatRelativeTime(link.accessedAt)}

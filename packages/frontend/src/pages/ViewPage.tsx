@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { documentService, type DocumentData } from '../services/documentService';
 import { markdownToHtml } from '../utils/markdownConverter';
+import { renderSafeTitle } from '../utils/contentSanitizer';
 
 interface LoadingState {
   isLoading: boolean;
@@ -156,7 +157,7 @@ export function ViewPage() {
             {/* Title and Metadata */}
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                {document.title}
+                {renderSafeTitle(document.title)}
               </h1>
               <p className="text-sm text-gray-500">
                 Created {formatDate(document.createdAt)}

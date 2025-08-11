@@ -74,7 +74,7 @@ jobs:
           DATABASE_URL="postgresql://postgres:test@localhost:5432/obsidian_comments" \
           REDIS_URL="redis://localhost:6379" \
           JWT_SECRET="test-secret" \
-          npm test -- --testPathPattern="\.integration\." --maxWorkers=2
+          npm test -- --testPathPattern="integration" --maxWorkers=2
       
       - name: Upload test results
         if: always()
@@ -266,10 +266,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
       
-      - name: Run production E2E tests
+      - name: Run production validation tests
         run: |
           PLAYWRIGHT_BASE_URL=https://obsidiancomments.serverado.app \
-          npx playwright test tests/e2e/critical-path.spec.js --reporter=list
+          npx playwright test tests/e2e/production-validation.spec.js --reporter=list --timeout=30000
       
       - name: Performance test
         run: |
