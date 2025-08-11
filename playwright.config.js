@@ -7,7 +7,7 @@ module.exports = {
   reporter: 'html',
   
   use: {
-    baseURL: process.env.TEST_URL || 'http://localhost',
+    baseURL: process.env.TEST_URL || 'https://obsidiancomments.serverado.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -24,9 +24,9 @@ module.exports = {
     },
   ],
 
-  webServer: process.env.CI ? undefined : {
-    command: 'npm run dev',
-    port: 3001,
-    reuseExistingServer: !process.env.CI,
-  },
+  // webServer: process.env.CI ? undefined : {
+  //   command: 'npm run dev',
+  //   port: 3001,
+  //   reuseExistingServer: !process.env.CI,
+  // },
 };

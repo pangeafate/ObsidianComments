@@ -48,10 +48,17 @@ router.get('/health', async (req, res) => {
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || 'unknown',
+      environment: process.env.NODE_ENV || 'development',
+      uptime: Math.floor(process.uptime()),
       services: {
         database: 'connected',
         redis: 'connected',
         hocuspocus: hocuspocusHealth ? 'connected' : 'error'
+      },
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
       }
     });
   } catch (error) {

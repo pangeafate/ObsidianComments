@@ -32,9 +32,7 @@ services:
       - obsidian_network
 
   backend:
-    build:
-      context: ./packages/backend
-      dockerfile: Dockerfile.production
+    image: obsidiancomments-backend:latest
     expose:
       - "8081"
     environment:
@@ -63,9 +61,7 @@ services:
       start_period: 40s
 
   hocuspocus:
-    build:
-      context: ./packages/hocuspocus
-      dockerfile: Dockerfile.production
+    image: 250804obsidiancommentsv2-hocuspocus:latest
     expose:
       - "8082"
     environment:
@@ -126,8 +122,6 @@ services:
       frontend:
         condition: service_healthy
       backend:
-        condition: service_healthy
-      hocuspocus:
         condition: service_healthy
     restart: unless-stopped
     networks:

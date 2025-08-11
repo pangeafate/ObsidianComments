@@ -1,0 +1,323 @@
+name: "02 - Release & Deploy"
+
+# This workflow handles staging → production promotion
+# Runs on merge to main or manual trigger
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '18'
+  DEPLOY_TIMEOUT: 600
+
+jobs:
+  # Job 1: Integration tests with real dependencies
+  integration:
+    name: "🔄 Integration Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: obsidian_comments
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd packages/backend && npm ci
+      
+      - name: Setup database
+        run: |
+          cd packages/backend
+          DATABASE_URL="postgresql://postgres:test@localhost:5432/obsidian_comments" \
+          npx prisma migrate deploy
+      
+      - name: Run integration tests
+        run: |
+          cd packages/backend
+          DATABASE_URL="postgresql://postgres:test@localhost:5432/obsidian_comments" \
+          REDIS_URL="redis://localhost:6379" \
+          JWT_SECRET="test-secret" \
+          npm test -- --testPathPattern="\.integration\." --maxWorkers=2
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: packages/backend/coverage/
+          retention-days: 7
+
+  # Job 2: E2E tests on staging-like environment
+  e2e:
+    name: "🌐 E2E Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [integration]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Start full stack
+        run: |
+          # Create test environment
+          cat > .env.test <<EOF
+          POSTGRES_PASSWORD=test123
+          JWT_SECRET=test-secret-key
+          FRONTEND_URL=http://localhost
+          DATABASE_URL=postgresql://postgres:test123@postgres:5432/obsidian_comments
+          REDIS_URL=redis://redis:6379
+          NODE_ENV=production
+          EOF
+          
+          # Use pre-built images from CI
+          docker-compose -f docker-compose.test.yml --env-file .env.test up -d
+          
+          # Wait for healthy services
+          timeout 60 bash -c 'until curl -f http://localhost/api/health; do sleep 2; done'
+      
+      - name: Run E2E test suite
+        run: |
+          npx playwright test tests/e2e/ --reporter=list --workers=2
+      
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+      
+      - name: Cleanup
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v
+
+  # Job 3: Deploy to staging
+  deploy-staging:
+    name: "🚀 Deploy Staging"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [e2e]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.obsidiancomments.serverado.app
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to staging
+        run: |
+          ./scripts/deploy.sh staging ${{ github.sha }}
+      
+      - name: Run staging smoke tests
+        run: |
+          ./scripts/smoke.sh https://staging.obsidiancomments.serverado.app
+      
+      - name: Staging health check
+        run: |
+          for i in {1..10}; do
+            if curl -f https://staging.obsidiancomments.serverado.app/api/health; then
+              echo "✅ Staging is healthy"
+              break
+            fi
+            sleep 5
+          done
+
+  # Job 4: Production canary deployment
+  deploy-canary:
+    name: "🐤 Deploy Canary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production-canary
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy canary (10% traffic)
+        run: |
+          ./scripts/deploy.sh canary ${{ github.sha }} --percentage 10
+      
+      - name: Monitor canary metrics
+        run: |
+          ./scripts/monitor-canary.sh --duration 300 --error-threshold 1
+      
+      - name: Canary validation
+        id: canary
+        run: |
+          CANARY_HEALTHY=$(./scripts/validate-canary.sh)
+          echo "healthy=$CANARY_HEALTHY" >> $GITHUB_OUTPUT
+
+  # Job 5: Full production deployment
+  deploy-production:
+    name: "🚀 Deploy Production"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deploy-canary]
+    if: needs.deploy-canary.outputs.healthy == 'true'
+    environment:
+      name: production
+      url: https://obsidiancomments.serverado.app
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Backup current production
+        run: |
+          ./scripts/backup-production.sh
+      
+      - name: Deploy to production
+        run: |
+          ./scripts/deploy.sh production ${{ github.sha }}
+      
+      - name: Production smoke tests
+        run: |
+          ./scripts/smoke.sh https://obsidiancomments.serverado.app
+      
+      - name: Full health validation
+        run: |
+          # Test all critical endpoints
+          curl -f https://obsidiancomments.serverado.app/api/health
+          curl -f https://obsidiancomments.serverado.app/
+          
+          # Test WebSocket connectivity
+          ./scripts/test-websocket.sh wss://obsidiancomments.serverado.app/ws
+          
+          # Test database connectivity
+          ./scripts/test-database.sh production
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed, rolling back..."
+          ./scripts/rollback.sh production
+          exit 1
+      
+      - name: Notify deployment
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment.id,
+              state: 'success',
+              environment_url: 'https://obsidiancomments.serverado.app',
+              description: 'Deployment successful'
+            })
+
+  # Job 6: Post-deployment validation
+  validate:
+    name: "✅ Validate Deployment"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-production]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      
+      - name: Run production E2E tests
+        run: |
+          PLAYWRIGHT_BASE_URL=https://obsidiancomments.serverado.app \
+          npx playwright test tests/e2e/critical-path.spec.js --reporter=list
+      
+      - name: Performance test
+        run: |
+          npm install -g lighthouse
+          lighthouse https://obsidiancomments.serverado.app \
+            --output=json \
+            --output-path=./lighthouse-report.json \
+            --only-categories=performance
+          
+          # Check performance score
+          SCORE=$(jq '.categories.performance.score' lighthouse-report.json)
+          if (( $(echo "$SCORE < 0.8" | bc -l) )); then
+            echo "⚠️ Performance score is below 80%: $SCORE"
+          fi
+      
+      - name: Security scan
+        run: |
+          # Run security headers check
+          ./scripts/check-security-headers.sh https://obsidiancomments.serverado.app
+          
+          # Run OWASP ZAP baseline scan
+          docker run -t owasp/zap2docker-stable zap-baseline.py \
+            -t https://obsidiancomments.serverado.app \
+            -r zap-report.html || true
+      
+      - name: Create release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data: commits } = await github.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: 'v' + (parseFloat(tag.substring(1)) - 0.1).toFixed(1),
+              head: tag
+            });
+            
+            const releaseNotes = commits.commits
+              .map(c => `- ${c.commit.message.split('\n')[0]}`)
+              .join('\n');
+            
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Release ${tag}`,
+              body: releaseNotes,
+              draft: false,
+              prerelease: false
+            });

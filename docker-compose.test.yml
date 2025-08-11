@@ -1,0 +1,145 @@
+version: '3.8'
+
+# Test environment for CI/CD
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test123}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test_network
+
+  backend:
+    image: ${BACKEND_IMAGE:-obsidiancomments-backend:latest}
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile.production
+      cache_from:
+        - type=gha
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - PORT=8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - test_network
+
+  hocuspocus:
+    image: ${HOCUSPOCUS_IMAGE:-obsidiancomments-hocuspocus:latest}
+    build:
+      context: ./packages/hocuspocus
+      dockerfile: Dockerfile.production
+      cache_from:
+        - type=gha
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - PORT=8082
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - test_network
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-obsidiancomments-frontend:latest}
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.production
+      args:
+        - VITE_API_URL=http://localhost:8081/api
+        - VITE_WS_URL=ws://localhost:8082/ws
+      cache_from:
+        - type=gha
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test_network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-test.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      hocuspocus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test_network
+
+networks:
+  test_network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:
+  redis_test_data:

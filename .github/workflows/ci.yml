@@ -1,11 +1,14 @@
-name: CI/CD Pipeline
+name: CI - Fast Tests
+
+# This workflow runs on every PR and push to main
+# It runs fast tests (lint + unit) and builds images
+# Goal: <5 minutes total runtime
 
 on:
-  # Disabled GitHub Actions CI/CD pipeline
-  # push:
-  #   branches: [ main, develop ]
-  # pull_request:
-  #   branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main, develop]
 
 env:
   NODE_VERSION: '18'

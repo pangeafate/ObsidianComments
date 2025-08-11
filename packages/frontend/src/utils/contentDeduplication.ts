@@ -129,10 +129,15 @@ export const initializeContentSafely = (
 ): void => {
   console.log('🛡️ Safe content initialization started');
   
-  if (!yjsContent || yjsContent.trim().length === 0) {
+  // Check if Yjs content is effectively empty (just has empty paragraph tags)
+  const yjsIsEmpty = !yjsContent || 
+    yjsContent.trim().length === 0 || 
+    yjsContent.replace(/<[^>]*>/g, '').trim().length === 0; // Remove HTML tags and check
+  
+  if (yjsIsEmpty) {
     // Yjs is empty, use API content
     const safeApiContent = deduplicateContent(apiContent);
-    console.log('📝 Using deduplicated API content');
+    console.log('📝 Using deduplicated API content (Yjs is empty)');
     setContentCallback(safeApiContent);
     return;
   }

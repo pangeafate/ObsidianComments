@@ -1,0 +1,60 @@
+version: '3.8'
+
+# Green deployment stack
+services:
+  backend-green:
+    image: ${BACKEND_IMAGE}
+    container_name: obsidiancomments-green-backend-1
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - PORT=8081
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  hocuspocus-green:
+    image: ${HOCUSPOCUS_IMAGE}
+    container_name: obsidiancomments-green-hocuspocus-1
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - PORT=8082
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend-green:
+    image: ${FRONTEND_IMAGE}
+    container_name: obsidiancomments-green-frontend-1
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  obsidian_network:
+    external: true

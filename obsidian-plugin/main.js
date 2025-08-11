@@ -249,6 +249,7 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if (!content || typeof content !== "string")
       return "";
     let cleanedContent = content;
+    cleanedContent = cleanedContent.replace(/^(---[\s\S]*?---\s*)?(\s*)#\s+.+?(\r?\n|$)/, "$1$2");
     const binaryExtensions = [
       "pdf",
       "doc",

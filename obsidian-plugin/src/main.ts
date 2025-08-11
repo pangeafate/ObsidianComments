@@ -202,6 +202,11 @@ export class ShareNotePlugin extends Plugin {
 
 		let cleanedContent = content;
 
+		// CRITICAL FIX: Remove title H1 from content to prevent duplication
+		// Since we extract the title separately, we don't need it in the content
+		// Remove ONLY the first H1 (single #) if it appears at the very beginning (after optional frontmatter and whitespace)
+		cleanedContent = cleanedContent.replace(/^(---[\s\S]*?---\s*)?(\s*)#\s+.+?(\r?\n|$)/, '$1$2');
+
 		// Only remove potentially harmful content, preserve markdown formatting
 		// Keep images but convert to standard markdown format if needed
 		
