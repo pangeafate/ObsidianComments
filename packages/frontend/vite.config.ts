@@ -24,16 +24,19 @@ export default defineConfig({
     },
   },
   build: {
-    // Temporarily disable minification for debugging
-    minify: false,
-    // Enable source maps for debugging
-    sourcemap: true,
-    // Ensure no eval() calls in production bundle
+    // Enable minification for production
+    minify: true,
+    // Disable source maps for production security
+    sourcemap: false,
+    // Optimize bundle splitting for better caching
     rollupOptions: {
       output: {
-        // Prevent dynamic imports that might use eval
         format: 'es',
-        manualChunks: undefined,
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          editor: ['@tiptap/react', '@tiptap/starter-kit'],
+          utils: ['axios', 'dompurify']
+        },
       },
     },
   },
