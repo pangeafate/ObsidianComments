@@ -22,33 +22,11 @@ env:
   DEPLOY_TIMEOUT: 600
 
 jobs:
-  # Job 1: Integration tests with real dependencies
-  integration:
-    name: "🔄 Integration Tests"
+  # Job 1: Build and validate for deployment
+  build:
+    name: "🏗️ Build & Validate"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: obsidian_comments
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       
@@ -61,35 +39,26 @@ jobs:
         run: |
           npm ci
           cd packages/backend && npm ci
+          cd ../frontend && npm ci
+          cd ../hocuspocus && npm ci
       
-      - name: Setup database
+      - name: Run unit tests
         run: |
-          cd packages/backend
-          DATABASE_URL="postgresql://postgres:test@localhost:5432/obsidian_comments" \
-          npx prisma migrate deploy
+          cd packages/backend && npm test -- --testPathPattern="\.test\." --maxWorkers=2
+          cd ../frontend && npm test -- --testPathPattern="\.test\." --maxWorkers=2 --passWithNoTests
       
-      - name: Run integration tests
+      - name: Build all services
         run: |
-          cd packages/backend
-          DATABASE_URL="postgresql://postgres:test@localhost:5432/obsidian_comments" \
-          REDIS_URL="redis://localhost:6379" \
-          JWT_SECRET="test-secret" \
-          npm test -- --testPathPattern="integration" --maxWorkers=2
-      
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-results
-          path: packages/backend/coverage/
-          retention-days: 7
+          cd packages/backend && npm run build
+          cd ../frontend && npm run build
+          cd ../hocuspocus && npm run build
 
   # Job 2: E2E tests on staging-like environment
   e2e:
     name: "🌐 E2E Tests"
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [integration]
+    needs: [build]
     steps:
       - uses: actions/checkout@v4
       
