@@ -11,10 +11,9 @@ export const extendedDocumentService = {
     try {
       const baseUrl = (documentService as any).baseUrl || '/api';
       const docTitle = title || 'New Document';
-      // Only add default H1 if no content is provided and it's not from plugin
-      const docContent = content || (documentId.startsWith('obsidian-') ? 
-        `Start typing here...` :  // Plugin-created docs get minimal content
-        `# ${docTitle}\n\nStart typing here...`); // User-created docs get title header
+      // Never add H1 to content - title is handled separately in UI
+      // If content is provided (especially from plugin), use it as-is to avoid duplication
+      const docContent = content || `Start typing here...`; // Minimal placeholder for empty content only
       
       // Use POST to create document with custom ID
       const createResponse = await fetch(`${baseUrl}/notes/share`, {

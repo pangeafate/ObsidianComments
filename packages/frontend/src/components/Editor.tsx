@@ -100,7 +100,7 @@ export function Editor({ documentId }: EditorProps) {
           console.log('📝 Document not found, creating new document in database:', documentId);
           
           const defaultTitle = 'Untitled Document';
-          const defaultContent = `# ${defaultTitle}\n\nStart typing here...`;
+          const defaultContent = `Start typing here...`; // No H1 - title displayed separately
           
           const newDocument = await extendedDocumentService.createDocument(
             documentId,
@@ -235,10 +235,13 @@ export function Editor({ documentId }: EditorProps) {
       console.log('Current editor content length:', yjsContent.length);
       console.log('API content length:', obsidianDocument.content.length);
       
-      // RACE CONDITION FIX: Only initialize if Yjs is truly empty AND we didn't just create this document
-      // This prevents overwriting content that was just typed but not yet persisted
-      if (yXmlFragment.length === 0 && (!yjsContent || yjsContent.trim().length <= 50) && !justCreatedDocument) {
-        console.log('📝 Yjs is empty, initializing with API content');
+      // IMPROVED CONTENT LOADING: Load content if editor is empty or has minimal content
+      // Only skip loading if we just created the document (to prevent immediate overwrite)
+      const editorIsEmpty = (!yjsContent || yjsContent.trim().length <= 50);
+      const shouldLoadContent = editorIsEmpty && !justCreatedDocument;
+      
+      if (shouldLoadContent) {
+        console.log('📝 Loading API content into editor (editor is empty)');
         initializeContentSafely(
           yjsContent,
           obsidianDocument.content,
@@ -255,15 +258,29 @@ export function Editor({ documentId }: EditorProps) {
           }
         );
       } else {
-        console.log('⚠️ Skipping API initialization - preventing overwrite');
-        console.log('   Reasons:');
-        console.log('   - Yjs fragment length:', yXmlFragment.length);
-        console.log('   - Yjs content length:', yjsContent?.length || 0);
-        console.log('   - Just created document:', justCreatedDocument);
-        console.log('   This prevents race condition on first refresh after new note creation');
+        console.log('⚠️ Skipping API content loading');
+        console.log('   - Editor has content or document was just created');
+        console.log('   - Editor empty?', editorIsEmpty);
+        console.log('   - Just created?', justCreatedDocument);
       }
     }
   }, [editor, obsidianDocument, isLoadingDocument, ydoc, justCreatedDocument]);
+
+  // Fallback content loading when Yjs fails or is delayed
+  useEffect(() => {
+    if (editor && obsidianDocument && !isLoadingDocument && !ydoc) {
+      console.log('🆘 Yjs not available, loading content directly from API');
+      
+      try {
+        const proseMirrorDoc = markdownToProseMirror(obsidianDocument.content);
+        editor.commands.setContent(proseMirrorDoc);
+        console.log('✅ Direct content loading complete (no Yjs)');
+      } catch (error) {
+        console.error('Failed to convert markdown to ProseMirror:', error);
+        editor.commands.setContent(obsidianDocument.content);
+      }
+    }
+  }, [editor, obsidianDocument, isLoadingDocument, ydoc]);
 
   // Auto-save function with sanitization and deduplication
   const saveContent = useCallback(async (content: string) => {

@@ -330,6 +330,11 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       confirmModal.open();
     } catch (error) {
       console.error("Failed to unshare note:", error);
+      console.error("Error details:", {
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : void 0
+      });
       if (this.settings.showNotifications) {
         new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
@@ -348,18 +353,45 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if ((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.share_id) {
       this.statusBarItem.setText("\u{1F517} Shared");
       this.statusBarItem.addClass("mod-clickable");
-      this.statusBarItem.setAttribute("aria-label", "Click to copy share link");
-      this.statusBarItem.onclick = async () => {
+      this.statusBarItem.setAttribute("aria-label", "Left-click: copy link | Right-click: unshare");
+      this.statusBarItem.onclick = async (e) => {
+        e.preventDefault();
         const shareUrl = cache.frontmatter.share_url || cache.frontmatter.edit_url;
         if (shareUrl && navigator.clipboard) {
           await navigator.clipboard.writeText(shareUrl);
           new import_obsidian.Notice("Share link copied to clipboard");
         }
       };
+      this.statusBarItem.oncontextmenu = async (e) => {
+        e.preventDefault();
+        const menu = new import_obsidian.Menu();
+        menu.addItem((item) => {
+          item.setTitle("Copy share link").setIcon("copy").onClick(async () => {
+            const shareUrl = cache.frontmatter.share_url || cache.frontmatter.edit_url;
+            if (shareUrl && navigator.clipboard) {
+              await navigator.clipboard.writeText(shareUrl);
+              new import_obsidian.Notice("Share link copied to clipboard");
+            }
+          });
+        });
+        menu.addItem((item) => {
+          item.setTitle("Re-share (update)").setIcon("upload").onClick(async () => {
+            await this.shareCurrentNote();
+          });
+        });
+        menu.addSeparator();
+        menu.addItem((item) => {
+          item.setTitle("Stop sharing").setIcon("trash").onClick(async () => {
+            await this.unshareCurrentNote();
+          });
+        });
+        menu.showAtMouseEvent(e);
+      };
     } else {
       this.statusBarItem.setText("");
       this.statusBarItem.removeClass("mod-clickable");
       this.statusBarItem.onclick = null;
+      this.statusBarItem.oncontextmenu = null;
     }
   }
   async removeFrontmatter(file) {

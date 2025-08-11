@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView, Modal } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, MarkdownView, Modal, Menu } from 'obsidian';
 import { ShareNoteSettings, DEFAULT_SETTINGS } from './settings';
 import { BackendAPI, ShareNoteResponse } from './api';
 
@@ -308,6 +308,11 @@ export class ShareNotePlugin extends Plugin {
 
 		} catch (error) {
 			console.error('Failed to unshare note:', error);
+			console.error('Error details:', {
+				type: error instanceof Error ? error.constructor.name : typeof error,
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined
+			});
 			if (this.settings.showNotifications) {
 				new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
 			}
@@ -328,21 +333,63 @@ export class ShareNotePlugin extends Plugin {
 			// File is shared - show indicator with click action
 			this.statusBarItem.setText('🔗 Shared');
 			this.statusBarItem.addClass('mod-clickable');
-			this.statusBarItem.setAttribute('aria-label', 'Click to copy share link');
+			this.statusBarItem.setAttribute('aria-label', 'Left-click: copy link | Right-click: unshare');
 			
-			// Remove old click handler and add new one
-			this.statusBarItem.onclick = async () => {
+			// Left click: Copy to clipboard
+			this.statusBarItem.onclick = async (e) => {
+				e.preventDefault();
 				const shareUrl = cache.frontmatter!.share_url || cache.frontmatter!.edit_url;
 				if (shareUrl && navigator.clipboard) {
 					await navigator.clipboard.writeText(shareUrl);
 					new Notice('Share link copied to clipboard');
 				}
 			};
+			
+			// Right click: Show unshare option
+			this.statusBarItem.oncontextmenu = async (e) => {
+				e.preventDefault();
+				
+				// Create context menu
+				const menu = new Menu();
+				
+				menu.addItem((item) => {
+					item.setTitle('Copy share link')
+						.setIcon('copy')
+						.onClick(async () => {
+							const shareUrl = cache.frontmatter!.share_url || cache.frontmatter!.edit_url;
+							if (shareUrl && navigator.clipboard) {
+								await navigator.clipboard.writeText(shareUrl);
+								new Notice('Share link copied to clipboard');
+							}
+						});
+				});
+				
+				menu.addItem((item) => {
+					item.setTitle('Re-share (update)')
+						.setIcon('upload')
+						.onClick(async () => {
+							await this.shareCurrentNote();
+						});
+				});
+				
+				menu.addSeparator();
+				
+				menu.addItem((item) => {
+					item.setTitle('Stop sharing')
+						.setIcon('trash')
+						.onClick(async () => {
+							await this.unshareCurrentNote();
+						});
+				});
+				
+				menu.showAtMouseEvent(e);
+			};
 		} else {
 			// File is not shared
 			this.statusBarItem.setText('');
 			this.statusBarItem.removeClass('mod-clickable');
 			this.statusBarItem.onclick = null;
+			this.statusBarItem.oncontextmenu = null;
 		}
 	}
 

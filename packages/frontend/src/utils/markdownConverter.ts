@@ -235,7 +235,8 @@ function isSpecialLine(line: string): boolean {
     line.match(/^#{1,6}\s/) ||           // Headings
     line.startsWith('```') ||            // Code blocks
     line.startsWith('> ') ||             // Blockquotes
-    line.startsWith('- ') ||             // Lists
+    line.startsWith('- ') ||             // Bullet lists
+    line.match(/^\s*\d+[\.)]\s/) ||      // Numbered lists
     line.match(/^-\s+\[[x\s]\]/)        // Task lists
   ) !== null;
 }
@@ -330,6 +331,32 @@ export function markdownToHtml(markdown: string): string {
       }
       
       html.push('</ul>');
+      continue;
+    }
+
+    // Numbered lists (1. 2. 3. etc.)
+    const numberedListMatch = line.match(/^\s*(\d+)[\.)]\s+(.+)$/);
+    if (numberedListMatch) {
+      html.push('<ol>');
+      
+      while (i < lines.length) {
+        const currentLine = lines[i];
+        const currentMatch = currentLine.match(/^\s*\d+[\.)]\s+(.+)$/);
+        
+        if (currentMatch) {
+          const itemText = currentMatch[1].trim();
+          html.push(`<li>${processInlineMarkdown(escapeHtml(itemText))}</li>`);
+          i++;
+        } else if (currentLine.trim() === '') {
+          // Skip blank lines within lists
+          i++;
+        } else {
+          // End of numbered list
+          break;
+        }
+      }
+      
+      html.push('</ol>');
       continue;
     }
 
