@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * E2E Test: Obsidian Plugin Editor Visibility Fix
  * 
@@ -9,14 +10,19 @@
  * visible in view mode.
  */
 
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'https://obsidiancomments.serverado.app';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || process.env.BASE_URL || 'https://obsidiancomments.serverado.app';
 const API_URL = `${BASE_URL}/api`;
 
 test.describe('Obsidian Plugin Editor Visibility Fix', () => {
   let sharedNoteId;
   let shareUrl;
+
+  test.beforeEach(async ({ page }) => {
+    // Set longer timeout for production environment
+    test.setTimeout(30000);
+  });
 
   test('should create note via API that displays in both editor and view modes', async ({ page }) => {
     // Step 1: Create a note via API (simulating Obsidian plugin behavior)
@@ -159,7 +165,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     console.log('✅ API content updates working');
   });
 
-  // Cleanup after tests
+  // Cleanup after each test
   test.afterEach(async ({ page }) => {
     if (sharedNoteId) {
       try {
@@ -168,6 +174,8 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
       } catch (error) {
         console.log(`⚠️ Failed to cleanup note ${sharedNoteId}:`, error.message);
       }
+      // Reset for next test
+      sharedNoteId = null;
     }
   });
 });
