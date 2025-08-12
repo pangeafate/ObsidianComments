@@ -30,7 +30,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     const noteTitle = "Test Note from Obsidian";
     
     console.log('🔧 Creating note via API...');
-    const apiResponse = await page.request.post(`${API_URL}/notes`, {
+    const apiResponse = await page.request.post(`${API_URL}/notes/share`, {
       data: {
         content: noteContent,
         title: noteTitle
@@ -106,7 +106,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     // Create note with empty content
     console.log('🔧 Testing empty content handling...');
     
-    const apiResponse = await page.request.post(`${API_URL}/notes`, {
+    const apiResponse = await page.request.post(`${API_URL}/notes/share`, {
       data: {
         content: "",
         title: "Empty Content Test"
