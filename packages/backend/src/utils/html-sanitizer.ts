@@ -78,11 +78,27 @@ function basicHtmlSanitize(input: string): string {
 
 /**
  * Clean markdown content to remove images, attachments, and media
+ * Also removes H1 titles to prevent duplication with document title
  */
 export function cleanMarkdownContent(content: string): string {
   if (!content || typeof content !== 'string') return '';
 
   let cleanedContent = content;
+
+  // CRITICAL FIX: Remove title H1 from content to prevent duplication
+  // This matches the plugin's behavior to ensure consistency
+  const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
+  if (frontmatterMatch) {
+    const frontmatter = frontmatterMatch[0];
+    const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
+    // Remove first H1 only if it's the very first line after frontmatter
+    const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
+    cleanedContent = frontmatter + contentWithoutTitle.trimStart();
+  } else {
+    // No frontmatter, just remove first H1 if it's the very first line
+    const contentWithoutTitle = cleanedContent.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
+    cleanedContent = contentWithoutTitle.trimStart();
+  }
 
   // Remove image syntax ![alt](url) and ![alt](url "title")
   cleanedContent = cleanedContent.replace(/!\[.*?\]\([^)]+\)/g, '');
