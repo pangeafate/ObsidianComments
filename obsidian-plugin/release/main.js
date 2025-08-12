@@ -37,40 +37,434 @@ var DEFAULT_SETTINGS = {
   openInBrowser: false
 };
 
-// src/api.ts
-var BackendAPI = class {
-  constructor(baseUrl) {
-    this.baseUrl = baseUrl;
-  }
-  async shareNote(data) {
+// src/api-client.ts
+var ApiClient = class {
+  constructor(config) {
+    if (config.apiKey && config.apiKey.trim() === "") {
+      config = { ...config, apiKey: "" };
+    }
     try {
-      const response = await fetch(`${this.baseUrl}/api/notes/share`, {
+      new URL(config.serverUrl);
+    } catch (e) {
+      throw new Error("Invalid server URL");
+    }
+    this.config = config;
+    this.timeout = config.timeout || 5e3;
+  }
+  get settings() {
+    return this.config;
+  }
+  async shareNote(content, title, shareId) {
+    const url = `${this.config.serverUrl}/api/notes/share`;
+    const extractedTitle = title || "Untitled Document";
+    try {
+      const requestBody = {
+        content,
+        title: extractedTitle
+      };
+      if (shareId) {
+        requestBody.shareId = shareId;
+      }
+      const response = await this.makeRequest(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(data)
+        headers: this.getHeaders(),
+        body: JSON.stringify(requestBody)
       });
-      if (!response || !response.ok) {
-        const errorData = response ? await response.json().catch(() => ({})) : {};
-        throw new Error(errorData.message || `HTTP ${(response == null ? void 0 : response.status) || "unknown"}: ${(response == null ? void 0 : response.statusText) || "Network error"}`);
+      if (!response.ok) {
+        await this.handleErrorResponse(response);
       }
-      const result = await response.json();
-      if (!result.shareId || !result.viewUrl) {
-        throw new Error("Invalid response from backend");
-      }
-      return result;
+      const data = await response.json();
+      return {
+        shareUrl: data.shareUrl,
+        // Backend now consistently returns shareUrl
+        shareId: data.shareId,
+        createdAt: data.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+        permissions: data.permissions || "edit"
+      };
     } catch (error) {
+      if (error instanceof Error && error.message === "Request timeout") {
+        throw error;
+      }
+      if (error instanceof Error && error.message.includes("Network")) {
+        throw new Error("Failed to connect to sharing service. Please check your internet connection.");
+      }
       throw error;
     }
   }
-  async deleteShare(shareId) {
-    const response = await fetch(`${this.baseUrl}/api/notes/${shareId}`, {
-      method: "DELETE"
+  async updateNote(shareId, content) {
+    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
+    const response = await this.makeRequest(url, {
+      method: "PUT",
+      headers: this.getHeaders(),
+      body: JSON.stringify({ content })
     });
-    if (!response || !response.ok) {
-      throw new Error(`Failed to delete: ${(response == null ? void 0 : response.statusText) || "Network error"}`);
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
     }
+    const data = await response.json();
+    return {
+      shareId: data.shareId,
+      updatedAt: data.updatedAt,
+      version: data.version
+    };
+  }
+  async getSharedNote(shareId) {
+    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
+    const response = await this.makeRequest(url, {
+      method: "GET",
+      headers: this.getHeaders()
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    return await response.json();
+  }
+  async deleteShare(shareId) {
+    const url = `${this.config.serverUrl}/api/notes/${shareId}`;
+    const response = await this.makeRequest(url, {
+      method: "DELETE",
+      headers: this.getHeaders()
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+  }
+  async listShares() {
+    const url = `${this.config.serverUrl}/api/notes`;
+    const response = await this.makeRequest(url, {
+      method: "GET",
+      headers: this.getHeaders()
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    const data = await response.json();
+    return {
+      shares: data.shares || [],
+      total: data.total || 0
+    };
+  }
+  async testConnection() {
+    const url = `${this.config.serverUrl}/api/auth/test`;
+    const response = await this.makeRequest(url, {
+      method: "GET",
+      headers: this.getHeaders()
+    });
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    const data = await response.json();
+    return {
+      valid: data.valid,
+      user: data.user,
+      limits: data.limits
+    };
+  }
+  async makeRequest(url, options) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        credentials: "omit",
+        // Don't send credentials to avoid CORS complications
+        mode: "cors"
+        // Explicitly set CORS mode
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timeout");
+      }
+      throw new Error("Network error");
+    }
+  }
+  getHeaders() {
+    const headers = {
+      "Content-Type": "application/json",
+      "User-Agent": "ObsidianComments/1.0.0"
+    };
+    if (this.config.apiKey) {
+      headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+    }
+    return headers;
+  }
+  async handleErrorResponse(response) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { message: "Unknown error" };
+    }
+    switch (response.status) {
+      case 401:
+        throw new Error("API key is invalid or expired");
+      case 404:
+        throw new Error("Shared note not found. It may have been deleted.");
+      case 429:
+        throw new Error("Too many requests. Please wait before trying again.");
+      case 500:
+        throw new Error("Server error. Please try again later.");
+      default:
+        throw new Error(errorData.message || `HTTP ${response.status} error`);
+    }
+  }
+};
+
+// src/share-manager.ts
+var ShareManager = class {
+  constructor(apiClient) {
+    this.apiClient = apiClient;
+  }
+  async addShareMetadata(content, shareUrl, sharedAt) {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+    if (match) {
+      const existingFrontmatter = match[1];
+      const contentWithoutFrontmatter = content.substring(match[0].length);
+      const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      ).join("\n");
+      const newFrontmatter = `${cleanedFrontmatter}
+shareUrl: ${shareUrl}
+sharedAt: ${sharedAt}`;
+      return `---
+${newFrontmatter}
+---
+${contentWithoutFrontmatter}`;
+    } else {
+      const newFrontmatter = `shareUrl: ${shareUrl}
+sharedAt: ${sharedAt}`;
+      return `---
+${newFrontmatter}
+---
+${content}`;
+    }
+  }
+  async updateShareMetadata(content, shareUrl, sharedAt) {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+    if (match) {
+      const existingFrontmatter = match[1];
+      const contentWithoutFrontmatter = content.substring(match[0].length);
+      const cleanedLines = existingFrontmatter.split("\n").filter(
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      );
+      cleanedLines.push(`shareUrl: ${shareUrl}`);
+      cleanedLines.push(`sharedAt: ${sharedAt}`);
+      return `---
+${cleanedLines.join("\n")}
+---
+${contentWithoutFrontmatter}`;
+    } else {
+      return await this.addShareMetadata(content, shareUrl, sharedAt);
+    }
+  }
+  async removeShareMetadata(content) {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+    if (!match) {
+      return content;
+    }
+    const frontmatter = match[1];
+    const contentWithoutFrontmatter = content.substring(match[0].length);
+    const lines = frontmatter.split("\n").filter(
+      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+    );
+    if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
+      return contentWithoutFrontmatter;
+    } else {
+      return `---
+${lines.join("\n")}
+---
+${contentWithoutFrontmatter}`;
+    }
+  }
+  isNoteShared(content) {
+    try {
+      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+      const match = content.match(frontmatterRegex);
+      if (!match) {
+        return false;
+      }
+      const frontmatter = match[1];
+      if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
+        return false;
+      }
+      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:")) && frontmatter.split("\n").some((line) => {
+        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
+        const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
+        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "";
+      });
+    } catch (error) {
+      return false;
+    }
+  }
+  getShareUrl(content) {
+    try {
+      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+      const match = content.match(frontmatterRegex);
+      if (!match) {
+        return null;
+      }
+      const frontmatter = match[1];
+      if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
+        return null;
+      }
+      const lines = frontmatter.split("\n");
+      for (const line of lines) {
+        const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
+        if (shareUrlMatch) {
+          const shareUrl = shareUrlMatch[1].trim();
+          return shareUrl === "" ? null : shareUrl;
+        }
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+  getShareId(content) {
+    try {
+      const shareUrl = this.getShareUrl(content);
+      if (shareUrl) {
+        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+        return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : null;
+      }
+      const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+      const fmMatch = content.match(frontmatterRegex);
+      if (!fmMatch) {
+        return null;
+      }
+      const frontmatter = fmMatch[1];
+      const lines = frontmatter.split("\n");
+      for (const line of lines) {
+        const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
+        if (shareIdMatch) {
+          const shareId = shareIdMatch[1].trim();
+          return shareId === "" ? null : shareId;
+        }
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+  async shareNote(content) {
+    const existingShareId = this.getShareId(content);
+    if (existingShareId) {
+      const updateResult = await this.apiClient.updateNote(existingShareId, content);
+      const existingShareUrl = this.getShareUrl(content);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      const updatedContent = await this.updateShareMetadata(content, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
+      return {
+        shareUrl,
+        shareId: existingShareId,
+        updatedContent,
+        wasUpdate: true
+      };
+    } else {
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const extractedTitle = "Untitled Document";
+      const shareResponse = await this.apiClient.shareNote(content, extractedTitle, uniqueShareId);
+      const updatedContent = await this.addShareMetadata(
+        content,
+        shareResponse.shareUrl,
+        // This is now collaborativeUrl from backend
+        shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+      );
+      return {
+        shareUrl: shareResponse.shareUrl,
+        shareId: shareResponse.shareId,
+        updatedContent,
+        wasUpdate: false
+      };
+    }
+  }
+  async reshareNote(content) {
+    return await this.shareNote(content);
+  }
+  async shareNoteWithFilename(content, filename) {
+    const preparedContent = this.prepareContentWithTitle(content, filename);
+    const cleanFilename = this.cleanFilename(filename);
+    const existingShareId = this.getShareId(preparedContent);
+    if (existingShareId) {
+      const updateResult = await this.apiClient.updateNote(existingShareId, preparedContent);
+      const existingShareUrl = this.getShareUrl(preparedContent);
+      const shareUrl = existingShareUrl || `${this.apiClient.settings.serverUrl}/editor/${existingShareId}`;
+      const updatedContent = await this.updateShareMetadata(preparedContent, shareUrl, (/* @__PURE__ */ new Date()).toISOString());
+      return {
+        shareUrl,
+        shareId: existingShareId,
+        updatedContent,
+        wasUpdate: true
+      };
+    } else {
+      const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
+      const updatedContent = await this.addShareMetadata(
+        preparedContent,
+        shareResponse.shareUrl,
+        // This is now collaborativeUrl from backend
+        shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+      );
+      return {
+        shareUrl: shareResponse.shareUrl,
+        shareId: shareResponse.shareId,
+        updatedContent,
+        wasUpdate: false
+      };
+    }
+  }
+  prepareContentWithTitle(content, filename) {
+    return content;
+  }
+  cleanFilename(filename) {
+    const withoutExtension = filename.replace(/\.[^/.]+$/, "");
+    return withoutExtension;
+  }
+  async unshareNote(content) {
+    const shareId = this.getShareId(content);
+    if (!shareId) {
+      return content;
+    }
+    await this.deleteFromDatabaseSafely(shareId);
+    return await this.removeShareMetadata(content);
+  }
+  async deleteFromDatabaseSafely(shareId, maxRetries = 2) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`\u{1F5D1}\uFE0F Attempting to delete note ${shareId} from database (attempt ${attempt})`);
+        await this.apiClient.deleteShare(shareId);
+        console.log(`\u2705 Successfully deleted note ${shareId} from database`);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Unknown error");
+        console.warn(`\u26A0\uFE0F Delete attempt ${attempt} failed for ${shareId}:`, lastError.message);
+        if (error instanceof Error) {
+          if (error.message.includes("not found") || error.message.includes("404")) {
+            console.log(`\u2139\uFE0F Note ${shareId} already deleted or not found in database`);
+            return;
+          }
+          if (error.message.includes("invalid") || error.message.includes("401")) {
+            console.error(`\u274C Authentication error for ${shareId}, not retrying`);
+            return;
+          }
+        }
+        if (attempt < maxRetries) {
+          const delay = attempt * 1e3;
+          console.log(`\u23F3 Waiting ${delay}ms before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+    console.error(`\u274C Failed to delete note ${shareId} from database after ${maxRetries} attempts:`, lastError == null ? void 0 : lastError.message);
+    console.log(`\u{1F9F9} Continuing with local frontmatter removal for ${shareId}`);
   }
 };
 
@@ -82,7 +476,13 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
   }
   async onload() {
     await this.loadSettings();
-    this.api = new BackendAPI(this.settings.backendUrl);
+    this.apiClient = new ApiClient({
+      serverUrl: this.settings.backendUrl,
+      apiKey: "",
+      // Anonymous usage for now
+      timeout: 1e4
+    });
+    this.shareManager = new ShareManager(this.apiClient);
     this.addRibbonIcon("share", "Share note", () => {
       this.shareCurrentNote();
     });
@@ -117,7 +517,13 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    this.api = new BackendAPI(this.settings.backendUrl);
+    this.apiClient = new ApiClient({
+      serverUrl: this.settings.backendUrl,
+      apiKey: "",
+      // Anonymous usage for now
+      timeout: 1e4
+    });
+    this.shareManager = new ShareManager(this.apiClient);
   }
   async shareCurrentNote() {
     try {
@@ -132,23 +538,17 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       }
       const content = await this.app.vault.read(file);
       const cleanedContent = this.cleanMarkdownContent(content);
-      const htmlContent = await this.renderToHTML();
-      const cleanTitle = this.extractCleanTitle(file, cleanedContent);
-      const shareData = {
-        title: cleanTitle,
-        content: cleanedContent,
-        htmlContent
-      };
-      const result = await this.api.shareNote(shareData);
-      await this.updateFrontmatter(file, result);
+      const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
+      await this.app.vault.modify(file, result.updatedContent);
       if (this.settings.copyToClipboard && navigator.clipboard) {
-        await navigator.clipboard.writeText(result.viewUrl);
+        await navigator.clipboard.writeText(result.shareUrl);
       }
       if (this.settings.openInBrowser) {
-        window.open(result.viewUrl, "_blank");
+        window.open(result.shareUrl, "_blank");
       }
       if (this.settings.showNotifications) {
-        new import_obsidian.Notice("Note shared successfully!");
+        const action = result.wasUpdate ? "updated" : "shared";
+        new import_obsidian.Notice(`Note ${action} successfully!`);
       }
       this.updateStatusBar();
     } catch (error) {
@@ -249,7 +649,15 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if (!content || typeof content !== "string")
       return "";
     let cleanedContent = content;
-    cleanedContent = cleanedContent.replace(/^(---[\s\S]*?---\s*)?(\s*)#\s+.+?(\r?\n|$)/, "$1$2");
+    const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
+    if (frontmatterMatch) {
+      const frontmatter = frontmatterMatch[0];
+      const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
+      const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
+      cleanedContent = frontmatter + contentWithoutTitle;
+    } else {
+      cleanedContent = cleanedContent.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
+    }
     const binaryExtensions = [
       "pdf",
       "doc",
@@ -292,7 +700,6 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     return title;
   }
   async unshareCurrentNote() {
-    var _a;
     try {
       const file = this.app.workspace.getActiveFile();
       if (!file) {
@@ -300,8 +707,7 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         return;
       }
       const content = await this.app.vault.read(file);
-      const cache = this.app.metadataCache.getFileCache(file);
-      if (!((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.share_id)) {
+      if (!this.shareManager.isNoteShared(content)) {
         new import_obsidian.Notice("Note is not currently shared");
         return;
       }
@@ -311,19 +717,17 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         "This will remove the shared link. Anyone with the link will no longer be able to access it."
       );
       confirmModal.onConfirm = async () => {
-        const shareId = cache.frontmatter.share_id;
         try {
-          await this.api.deleteShare(shareId);
-          await this.removeFrontmatter(file);
+          const updatedContent = await this.shareManager.unshareNote(content);
+          await this.app.vault.modify(file, updatedContent);
           if (this.settings.showNotifications) {
             new import_obsidian.Notice("Note unshared successfully");
           }
           this.updateStatusBar();
         } catch (error) {
-          console.error("Failed to delete share:", error);
-          await this.removeFrontmatter(file);
+          console.error("Failed to unshare note:", error);
           if (this.settings.showNotifications) {
-            new import_obsidian.Notice("Note unshared locally (backend may still have the share)");
+            new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
           }
           this.updateStatusBar();
         }
@@ -331,18 +735,12 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       confirmModal.open();
     } catch (error) {
       console.error("Failed to unshare note:", error);
-      console.error("Error details:", {
-        type: error instanceof Error ? error.constructor.name : typeof error,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : void 0
-      });
       if (this.settings.showNotifications) {
         new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
   }
-  updateStatusBar() {
-    var _a;
+  async updateStatusBar() {
     if (!this.statusBarItem)
       return;
     const activeFile = this.app.workspace.getActiveFile();
@@ -350,124 +748,54 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       this.statusBarItem.setText("");
       return;
     }
-    const cache = this.app.metadataCache.getFileCache(activeFile);
-    if ((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.share_id) {
-      this.statusBarItem.setText("\u{1F517} Shared");
-      this.statusBarItem.addClass("mod-clickable");
-      this.statusBarItem.setAttribute("aria-label", "Left-click: copy link | Right-click: unshare");
-      this.statusBarItem.onclick = async (e) => {
-        e.preventDefault();
-        const shareUrl = cache.frontmatter.share_url || cache.frontmatter.edit_url;
-        if (shareUrl && navigator.clipboard) {
-          await navigator.clipboard.writeText(shareUrl);
-          new import_obsidian.Notice("Share link copied to clipboard");
-        }
-      };
-      this.statusBarItem.oncontextmenu = async (e) => {
-        e.preventDefault();
-        const menu = new import_obsidian.Menu();
-        menu.addItem((item) => {
-          item.setTitle("Copy share link").setIcon("copy").onClick(async () => {
-            const shareUrl = cache.frontmatter.share_url || cache.frontmatter.edit_url;
-            if (shareUrl && navigator.clipboard) {
-              await navigator.clipboard.writeText(shareUrl);
-              new import_obsidian.Notice("Share link copied to clipboard");
-            }
+    try {
+      const content = await this.app.vault.read(activeFile);
+      if (this.shareManager.isNoteShared(content)) {
+        const shareUrl = this.shareManager.getShareUrl(content);
+        this.statusBarItem.setText("\u{1F517} Shared");
+        this.statusBarItem.addClass("mod-clickable");
+        this.statusBarItem.setAttribute("aria-label", "Left-click: copy link | Right-click: unshare");
+        this.statusBarItem.onclick = async (e) => {
+          e.preventDefault();
+          if (shareUrl && navigator.clipboard) {
+            await navigator.clipboard.writeText(shareUrl);
+            new import_obsidian.Notice("Share link copied to clipboard");
+          }
+        };
+        this.statusBarItem.oncontextmenu = async (e) => {
+          e.preventDefault();
+          const menu = new import_obsidian.Menu();
+          menu.addItem((item) => {
+            item.setTitle("Copy share link").setIcon("copy").onClick(async () => {
+              if (shareUrl && navigator.clipboard) {
+                await navigator.clipboard.writeText(shareUrl);
+                new import_obsidian.Notice("Share link copied to clipboard");
+              }
+            });
           });
-        });
-        menu.addItem((item) => {
-          item.setTitle("Re-share (update)").setIcon("upload").onClick(async () => {
-            await this.shareCurrentNote();
+          menu.addItem((item) => {
+            item.setTitle("Re-share (update)").setIcon("upload").onClick(async () => {
+              await this.shareCurrentNote();
+            });
           });
-        });
-        menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle("Stop sharing").setIcon("trash").onClick(async () => {
-            await this.unshareCurrentNote();
+          menu.addSeparator();
+          menu.addItem((item) => {
+            item.setTitle("Stop sharing").setIcon("trash").onClick(async () => {
+              await this.unshareCurrentNote();
+            });
           });
-        });
-        menu.showAtMouseEvent(e);
-      };
-    } else {
-      this.statusBarItem.setText("");
-      this.statusBarItem.removeClass("mod-clickable");
-      this.statusBarItem.onclick = null;
-      this.statusBarItem.oncontextmenu = null;
-    }
-  }
-  async removeFrontmatter(file) {
-    var _a;
-    const content = await this.app.vault.read(file);
-    const cache = this.app.metadataCache.getFileCache(file);
-    if (!(cache == null ? void 0 : cache.frontmatter)) {
-      return;
-    }
-    const lines = content.split("\n");
-    const endLine = ((_a = cache.frontmatterPosition) == null ? void 0 : _a.end.line) || 0;
-    const existingFrontmatter = { ...cache.frontmatter };
-    delete existingFrontmatter.share_id;
-    delete existingFrontmatter.share_url;
-    delete existingFrontmatter.edit_url;
-    delete existingFrontmatter.shared_at;
-    if (Object.keys(existingFrontmatter).length === 0) {
-      const bodyLines = lines.slice(endLine + 1);
-      while (bodyLines.length > 0 && bodyLines[0].trim() === "") {
-        bodyLines.shift();
+          menu.showAtMouseEvent(e);
+        };
+      } else {
+        this.statusBarItem.setText("");
+        this.statusBarItem.removeClass("mod-clickable");
+        this.statusBarItem.onclick = null;
+        this.statusBarItem.oncontextmenu = null;
       }
-      await this.app.vault.modify(file, bodyLines.join("\n"));
-    } else {
-      const frontmatterLines = [
-        "---",
-        ...Object.entries(existingFrontmatter).map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key}: [${value.join(", ")}]`;
-          }
-          return `${key}: ${value}`;
-        }),
-        "---"
-      ];
-      const bodyLines = lines.slice(endLine + 1);
-      const updatedContent = [...frontmatterLines, ...bodyLines].join("\n");
-      await this.app.vault.modify(file, updatedContent);
+    } catch (error) {
+      console.error("Error updating status bar:", error);
+      this.statusBarItem.setText("");
     }
-  }
-  async updateFrontmatter(file, shareResult) {
-    var _a;
-    const content = await this.app.vault.read(file);
-    const cache = this.app.metadataCache.getFileCache(file);
-    const shareData = {
-      share_id: shareResult.shareId,
-      share_url: shareResult.viewUrl,
-      edit_url: shareResult.editUrl,
-      shared_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    let updatedContent;
-    if (cache == null ? void 0 : cache.frontmatter) {
-      const lines = content.split("\n");
-      const endLine = ((_a = cache.frontmatterPosition) == null ? void 0 : _a.end.line) || 0;
-      const existingFrontmatter = cache.frontmatter;
-      const newFrontmatter = { ...existingFrontmatter, ...shareData };
-      const frontmatterLines = [
-        "---",
-        ...Object.entries(newFrontmatter).map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key}: [${value.join(", ")}]`;
-          }
-          return `${key}: ${value}`;
-        }),
-        "---"
-      ];
-      const bodyLines = lines.slice(endLine + 1);
-      updatedContent = [...frontmatterLines, ...bodyLines].join("\n");
-    } else {
-      const frontmatterLines = [
-        "---",
-        ...Object.entries(shareData).map(([key, value]) => `${key}: ${value}`),
-        "---"
-      ];
-      updatedContent = [...frontmatterLines, content].join("\n");
-    }
-    await this.app.vault.modify(file, updatedContent);
   }
 };
 var ShareNoteSettingTab = class extends import_obsidian.PluginSettingTab {
