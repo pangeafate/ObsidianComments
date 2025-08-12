@@ -24,13 +24,16 @@ export class ShareManager {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       
-      // Remove any existing share metadata and add new (without shareId)
+      // Remove any existing share metadata (both camelCase and snake_case for migration)
       const cleanedFrontmatter = existingFrontmatter
         .split('\n')
         .filter(line => 
           !line.trim().startsWith('shareUrl:') && 
           !line.trim().startsWith('shareId:') && 
-          !line.trim().startsWith('sharedAt:')
+          !line.trim().startsWith('sharedAt:') &&
+          !line.trim().startsWith('share_url:') && 
+          !line.trim().startsWith('share_id:') && 
+          !line.trim().startsWith('shared_at:')
         )
         .join('\n');
 
@@ -52,13 +55,16 @@ export class ShareManager {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       
-      // Remove existing share metadata
+      // Remove existing share metadata (both camelCase and snake_case for migration)
       const cleanedLines = existingFrontmatter
         .split('\n')
         .filter(line => 
           !line.trim().startsWith('shareUrl:') && 
           !line.trim().startsWith('shareId:') && 
-          !line.trim().startsWith('sharedAt:')
+          !line.trim().startsWith('sharedAt:') &&
+          !line.trim().startsWith('share_url:') && 
+          !line.trim().startsWith('share_id:') && 
+          !line.trim().startsWith('shared_at:')
         );
 
       // Add updated share metadata (without shareId)
@@ -87,7 +93,10 @@ export class ShareManager {
     const lines = frontmatter.split('\n').filter(line => 
       !line.trim().startsWith('shareUrl:') && 
       !line.trim().startsWith('shareId:') && 
-      !line.trim().startsWith('sharedAt:')
+      !line.trim().startsWith('sharedAt:') &&
+      !line.trim().startsWith('share_url:') && 
+      !line.trim().startsWith('share_id:') && 
+      !line.trim().startsWith('shared_at:')
     );
 
     if (lines.length === 0 || lines.every(line => line.trim() === '')) {
@@ -294,15 +303,17 @@ export class ShareManager {
       
       const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
       
-      // Use the shareUrl from response (which is collaborativeUrl from backend)
+      // Use viewUrl for the property link (not the collaborative editor URL)
+      const viewUrl = shareResponse.viewUrl || shareResponse.shareUrl; // Fallback to shareUrl if viewUrl not available
+      
       const updatedContent = await this.addShareMetadata(
         preparedContent, 
-        shareResponse.shareUrl, // This is now collaborativeUrl from backend
+        viewUrl, // Use viewUrl for the property link
         shareResponse.createdAt || new Date().toISOString()
       );
 
       return {
-        shareUrl: shareResponse.shareUrl,
+        shareUrl: viewUrl, // Return viewUrl as the main shareUrl
         shareId: shareResponse.shareId,
         updatedContent,
         wasUpdate: false

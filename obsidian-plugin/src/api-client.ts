@@ -66,7 +66,9 @@ export class ApiClient {
 
       const data = await response.json();
       return {
-        shareUrl: data.shareUrl, // Backend now consistently returns shareUrl
+        shareUrl: data.shareUrl, // Collaborative editor URL
+        viewUrl: data.viewUrl,   // View-only URL for sharing
+        editUrl: data.editUrl,   // Edit URL (same as shareUrl)
         shareId: data.shareId,
         createdAt: data.createdAt || new Date().toISOString(),
         permissions: data.permissions || 'edit'

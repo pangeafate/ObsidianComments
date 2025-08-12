@@ -101,7 +101,13 @@ export class ShareNotePlugin extends Plugin {
 			}
 
 			const content = await this.app.vault.read(file);
-			const cleanedContent = this.cleanMarkdownContent(content);
+			
+			// Extract the title that will be used
+			const title = this.extractCleanTitle(file, content);
+			
+			// Clean content and intelligently remove H1 if it matches the title
+			let cleanedContent = this.cleanMarkdownContent(content);
+			cleanedContent = this.removeMatchingH1Title(cleanedContent, title);
 
 			// Use ShareManager to handle the sharing logic
 			const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
@@ -221,21 +227,8 @@ export class ShareNotePlugin extends Plugin {
 
 		let cleanedContent = content;
 
-		// CRITICAL FIX: Remove title H1 from content to prevent duplication
-		// Since we extract the title separately, we don't need it in the content
-		// Remove ONLY the first H1 (single #) if it appears at the very beginning (after optional frontmatter and whitespace)
-		const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
-		if (frontmatterMatch) {
-			const frontmatter = frontmatterMatch[0];
-			const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
-			// Remove first H1 only if it's the very first line after frontmatter, including any leading whitespace
-			const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
-			cleanedContent = frontmatter + contentWithoutTitle.trimStart();
-		} else {
-			// No frontmatter, just remove first H1 if it's the very first line
-			const contentWithoutTitle = cleanedContent.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
-			cleanedContent = contentWithoutTitle.trimStart();
-		}
+		// NOTE: H1 title removal is now handled by removeMatchingH1Title() method
+		// This method focuses on removing unsafe/problematic content
 
 		// Only remove potentially harmful content, preserve markdown formatting
 		// Keep images but convert to standard markdown format if needed
@@ -286,6 +279,23 @@ export class ShareNotePlugin extends Plugin {
 		}
 
 		return title;
+	}
+
+	removeMatchingH1Title(content: string, title: string): string {
+		if (!content || !title) return content;
+
+		// Escape special regex characters in the title
+		const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		
+		// Create regex to match H1 with this specific title at the start of content (after optional frontmatter)
+		const h1Regex = new RegExp(`^(---[\\s\\S]*?---\\s*)?#\\s+${escapedTitle}\\s*\\n?`, 'i');
+		
+		// Only remove if the H1 matches the title we're going to use
+		if (h1Regex.test(content)) {
+			return content.replace(h1Regex, '$1'); // Keep frontmatter ($1), remove H1
+		}
+		
+		return content;
 	}
 
 	async unshareCurrentNote() {

@@ -7,6 +7,8 @@
 
 export interface ShareResponse {
   shareUrl: string;
+  viewUrl?: string;
+  editUrl?: string;
   shareId: string;
   createdAt?: string;
   permissions?: string;

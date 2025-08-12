@@ -76,7 +76,11 @@ var ApiClient = class {
       const data = await response.json();
       return {
         shareUrl: data.shareUrl,
-        // Backend now consistently returns shareUrl
+        // Collaborative editor URL
+        viewUrl: data.viewUrl,
+        // View-only URL for sharing
+        editUrl: data.editUrl,
+        // Edit URL (same as shareUrl)
         shareId: data.shareId,
         createdAt: data.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
         permissions: data.permissions || "edit"
@@ -226,7 +230,7 @@ var ShareManager = class {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       ).join("\n");
       const newFrontmatter = `${cleanedFrontmatter}
 shareUrl: ${shareUrl}
@@ -251,7 +255,7 @@ ${content}`;
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedLines = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       );
       cleanedLines.push(`shareUrl: ${shareUrl}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
@@ -272,7 +276,7 @@ ${contentWithoutFrontmatter}`;
     const frontmatter = match[1];
     const contentWithoutFrontmatter = content.substring(match[0].length);
     const lines = frontmatter.split("\n").filter(
-      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
     );
     if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
       return contentWithoutFrontmatter;
@@ -418,14 +422,16 @@ ${contentWithoutFrontmatter}`;
     } else {
       const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
+      const viewUrl = shareResponse.viewUrl || shareResponse.shareUrl;
       const updatedContent = await this.addShareMetadata(
         preparedContent,
-        shareResponse.shareUrl,
-        // This is now collaborativeUrl from backend
+        viewUrl,
+        // Use viewUrl for the property link
         shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
       );
       return {
-        shareUrl: shareResponse.shareUrl,
+        shareUrl: viewUrl,
+        // Return viewUrl as the main shareUrl
         shareId: shareResponse.shareId,
         updatedContent,
         wasUpdate: false
@@ -557,7 +563,9 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         return;
       }
       const content = await this.app.vault.read(file);
-      const cleanedContent = this.cleanMarkdownContent(content);
+      const title = this.extractCleanTitle(file, content);
+      let cleanedContent = this.cleanMarkdownContent(content);
+      cleanedContent = this.removeMatchingH1Title(cleanedContent, title);
       const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
       await this.app.vault.modify(file, result.updatedContent);
       if (this.settings.copyToClipboard && navigator.clipboard) {
@@ -669,16 +677,6 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if (!content || typeof content !== "string")
       return "";
     let cleanedContent = content;
-    const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
-    if (frontmatterMatch) {
-      const frontmatter = frontmatterMatch[0];
-      const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
-      const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, "");
-      cleanedContent = frontmatter + contentWithoutTitle.trimStart();
-    } else {
-      const contentWithoutTitle = cleanedContent.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, "");
-      cleanedContent = contentWithoutTitle.trimStart();
-    }
     const binaryExtensions = [
       "pdf",
       "doc",
@@ -719,6 +717,16 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       title = "Untitled Note";
     }
     return title;
+  }
+  removeMatchingH1Title(content, title) {
+    if (!content || !title)
+      return content;
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const h1Regex = new RegExp(`^(---[\\s\\S]*?---\\s*)?#\\s+${escapedTitle}\\s*\\n?`, "i");
+    if (h1Regex.test(content)) {
+      return content.replace(h1Regex, "$1");
+    }
+    return content;
   }
   async unshareCurrentNote() {
     try {

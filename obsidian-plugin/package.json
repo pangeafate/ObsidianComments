@@ -1,6 +1,6 @@
 {
   "name": "obsidian-comments",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Share notes online for collaborative editing with comments",
   "main": "main.js",
   "scripts": {
