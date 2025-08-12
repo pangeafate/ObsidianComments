@@ -1,7 +1,7 @@
 {
   "id": "obsidian-comments",
   "name": "Obsidian Comments",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "minAppVersion": "1.0.0",
   "description": "Share notes online for collaborative editing with comments. Live backend at obsidiancomments.serverado.app!",
   "author": "Your Name",

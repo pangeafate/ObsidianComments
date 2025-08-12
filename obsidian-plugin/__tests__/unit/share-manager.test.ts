@@ -278,7 +278,7 @@ shareId:
       // Assert
       expect(mockApiClient.shareNote).toHaveBeenCalledWith(content, "Untitled Document", expect.stringMatching(/^obsidian-\d+-[a-z0-9]+$/));
       expect(result.shareUrl).toBe(MOCK_SHARE_RESPONSES.success.shareUrl);
-      expect(result.updatedContent).toContain(`shareUrl: ${MOCK_SHARE_RESPONSES.success.shareUrl}`);
+      expect(result.updatedContent).toContain(`shareId: ${MOCK_SHARE_RESPONSES.success.shareId}`);
       expect(result.updatedContent).toContain('# Simple Note');
     });
 

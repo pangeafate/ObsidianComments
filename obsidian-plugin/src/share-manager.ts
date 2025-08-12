@@ -15,7 +15,17 @@ export class ShareManager {
     this.apiClient = apiClient;
   }
 
+  private extractShareIdFromUrl(shareUrl: string): string {
+    // Extract ID from URL - support both /editor/ and /share/ patterns
+    const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+    const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+    return editorMatch ? editorMatch[1] : (shareMatch ? shareMatch[1] : shareUrl);
+  }
+
   async addShareMetadata(content: string, shareUrl: string, sharedAt: string): Promise<string> {
+    // Extract shareId from URL for frontmatter
+    const shareId = this.extractShareIdFromUrl(shareUrl);
+    
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
 
@@ -37,16 +47,19 @@ export class ShareManager {
         )
         .join('\n');
 
-      const newFrontmatter = `${cleanedFrontmatter}\nshareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      const newFrontmatter = `${cleanedFrontmatter}\nshareId: ${shareId}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${contentWithoutFrontmatter}`;
     } else {
-      // No existing frontmatter - create clean frontmatter without shareId
-      const newFrontmatter = `shareUrl: ${shareUrl}\nsharedAt: ${sharedAt}`;
+      // No existing frontmatter - create frontmatter with shareId
+      const newFrontmatter = `shareId: ${shareId}\nsharedAt: ${sharedAt}`;
       return `---\n${newFrontmatter}\n---\n${content}`;
     }
   }
 
   async updateShareMetadata(content: string, shareUrl: string, sharedAt: string): Promise<string> {
+    // Extract shareId from URL for frontmatter
+    const shareId = this.extractShareIdFromUrl(shareUrl);
+    
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
 
@@ -67,8 +80,8 @@ export class ShareManager {
           !line.trim().startsWith('shared_at:')
         );
 
-      // Add updated share metadata (without shareId)
-      cleanedLines.push(`shareUrl: ${shareUrl}`);
+      // Add updated share metadata with shareId
+      cleanedLines.push(`shareId: ${shareId}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
 
       return `---\n${cleanedLines.join('\n')}\n---\n${contentWithoutFrontmatter}`;
@@ -143,6 +156,12 @@ export class ShareManager {
   }
 
   getShareUrl(content: string): string | null {
+    // For backward compatibility, reconstruct shareUrl from shareId
+    const shareId = this.getDirectShareId(content);
+    if (shareId) {
+      return `${this.apiClient.settings.serverUrl}/editor/${shareId}`;
+    }
+    
     try {
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const match = content.match(frontmatterRegex);
@@ -182,17 +201,8 @@ export class ShareManager {
     }
   }
 
-  getShareId(content: string): string | null {
+  private getDirectShareId(content: string): string | null {
     try {
-      const shareUrl = this.getShareUrl(content);
-      if (shareUrl) {
-        // Extract ID from URL - support both /editor/ and /share/ patterns for backward compatibility
-        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
-        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
-        return editorMatch ? editorMatch[1] : (shareMatch ? shareMatch[1] : null);
-      }
-
-      // Fallback to old shareId field for backward compatibility
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const fmMatch = content.match(frontmatterRegex);
 
@@ -201,6 +211,12 @@ export class ShareManager {
       }
 
       const frontmatter = fmMatch[1];
+      
+      // Handle malformed YAML gracefully
+      if (frontmatter.includes('[unclosed') || frontmatter.includes('invalid yaml:')) {
+        return null;
+      }
+      
       const lines = frontmatter.split('\n');
       
       for (const line of lines) {
@@ -223,6 +239,10 @@ export class ShareManager {
     } catch (error) {
       return null;
     }
+  }
+
+  getShareId(content: string): string | null {
+    return this.getDirectShareId(content);
   }
 
   async shareNote(content: string): Promise<ShareResult> {

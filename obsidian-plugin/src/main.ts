@@ -19,10 +19,7 @@ export class ShareNotePlugin extends Plugin {
 		});
 		this.shareManager = new ShareManager(this.apiClient);
 
-		// Add ribbon icon
-		this.addRibbonIcon('share', 'Share note', () => {
-			this.shareCurrentNote();
-		});
+		// Ribbon icon removed per user request
 
 		// Add share command
 		this.addCommand({
@@ -57,6 +54,8 @@ export class ShareNotePlugin extends Plugin {
 				if (file === this.app.workspace.getActiveFile()) {
 					this.updateStatusBar();
 				}
+				// Handle frontmatter checkbox changes
+				this.onMetadataChange(file);
 			})
 		);
 		
@@ -529,6 +528,122 @@ export class ShareNotePlugin extends Plugin {
 			console.error('Error updating status bar:', error);
 			this.statusBarItem.setText('');
 		}
+	}
+
+	async onMetadataChange(file: TFile) {
+		try {
+			// Get the file's metadata
+			const metadata = this.app.metadataCache.getFileCache(file);
+			if (!metadata?.frontmatter) {
+				return;
+			}
+
+			const content = await this.app.vault.read(file);
+			
+			// Handle share_note checkbox
+			if (metadata.frontmatter.share_note === true) {
+				await this.handleShareCheckbox(file, content);
+			}
+			
+			// Handle unshare_note checkbox  
+			if (metadata.frontmatter.unshare_note === true) {
+				await this.handleUnshareCheckbox(file, content);
+			}
+			
+			// Handle copy_link checkbox
+			if (metadata.frontmatter.copy_link === true) {
+				await this.handleCopyLinkCheckbox(file, content);
+			}
+			
+		} catch (error) {
+			console.error('Error handling metadata change:', error);
+		}
+	}
+
+	private async handleShareCheckbox(file: TFile, content: string) {
+		try {
+			const title = this.extractCleanTitle(file, content);
+			let cleanedContent = this.cleanMarkdownContent(content);
+			cleanedContent = this.removeMatchingH1Title(cleanedContent, title);
+			
+			const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
+			
+			// Reset the checkbox and update content
+			const updatedContent = this.resetFrontmatterCheckbox(result.updatedContent, 'share_note');
+			await this.app.vault.modify(file, updatedContent);
+			
+			if (this.settings.showNotifications) {
+				new Notice('Note shared successfully!');
+			}
+		} catch (error) {
+			console.error('Error sharing note from checkbox:', error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to share note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		}
+	}
+
+	private async handleUnshareCheckbox(file: TFile, content: string) {
+		try {
+			if (!this.shareManager.isNoteShared(content)) {
+				// Reset checkbox if note isn't actually shared
+				const updatedContent = this.resetFrontmatterCheckbox(content, 'unshare_note');
+				await this.app.vault.modify(file, updatedContent);
+				return;
+			}
+			
+			const cleanedContent = await this.shareManager.unshareNote(content);
+			
+			// Reset the checkbox
+			const updatedContent = this.resetFrontmatterCheckbox(cleanedContent, 'unshare_note');
+			await this.app.vault.modify(file, updatedContent);
+			
+			if (this.settings.showNotifications) {
+				new Notice('Note unshared successfully!');
+			}
+		} catch (error) {
+			console.error('Error unsharing note from checkbox:', error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		}
+	}
+
+	private async handleCopyLinkCheckbox(file: TFile, content: string) {
+		try {
+			const shareUrl = this.shareManager.getShareUrl(content);
+			if (shareUrl && navigator.clipboard) {
+				await navigator.clipboard.writeText(shareUrl);
+				if (this.settings.showNotifications) {
+					new Notice('Share link copied to clipboard!');
+				}
+			}
+			
+			// Reset the checkbox
+			const updatedContent = this.resetFrontmatterCheckbox(content, 'copy_link');
+			await this.app.vault.modify(file, updatedContent);
+		} catch (error) {
+			console.error('Error copying link from checkbox:', error);
+		}
+	}
+
+	private resetFrontmatterCheckbox(content: string, checkboxName: string): string {
+		// Remove the checkbox from frontmatter
+		const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+		const match = content.match(frontmatterRegex);
+		
+		if (!match) return content;
+		
+		const frontmatter = match[1];
+		const contentAfterFrontmatter = content.substring(match[0].length);
+		
+		// Remove the checkbox line
+		const updatedFrontmatter = frontmatter
+			.split('\n')
+			.filter(line => !line.trim().startsWith(`${checkboxName}:`))
+			.join('\n');
+		
+		return `---\n${updatedFrontmatter}\n---\n${contentAfterFrontmatter}`;
 	}
 
 }

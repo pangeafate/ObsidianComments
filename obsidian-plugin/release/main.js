@@ -223,7 +223,13 @@ var ShareManager = class {
   constructor(apiClient) {
     this.apiClient = apiClient;
   }
+  extractShareIdFromUrl(shareUrl) {
+    const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
+    const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
+    return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : shareUrl;
+  }
   async addShareMetadata(content, shareUrl, sharedAt) {
+    const shareId = this.extractShareIdFromUrl(shareUrl);
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
     if (match) {
@@ -233,14 +239,14 @@ var ShareManager = class {
         (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       ).join("\n");
       const newFrontmatter = `${cleanedFrontmatter}
-shareUrl: ${shareUrl}
+shareId: ${shareId}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
-      const newFrontmatter = `shareUrl: ${shareUrl}
+      const newFrontmatter = `shareId: ${shareId}
 sharedAt: ${sharedAt}`;
       return `---
 ${newFrontmatter}
@@ -249,6 +255,7 @@ ${content}`;
     }
   }
   async updateShareMetadata(content, shareUrl, sharedAt) {
+    const shareId = this.extractShareIdFromUrl(shareUrl);
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
     const match = content.match(frontmatterRegex);
     if (match) {
@@ -257,7 +264,7 @@ ${content}`;
       const cleanedLines = existingFrontmatter.split("\n").filter(
         (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       );
-      cleanedLines.push(`shareUrl: ${shareUrl}`);
+      cleanedLines.push(`shareId: ${shareId}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
       return `---
 ${cleanedLines.join("\n")}
@@ -310,6 +317,10 @@ ${contentWithoutFrontmatter}`;
     }
   }
   getShareUrl(content) {
+    const shareId = this.getDirectShareId(content);
+    if (shareId) {
+      return `${this.apiClient.settings.serverUrl}/editor/${shareId}`;
+    }
     try {
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const match = content.match(frontmatterRegex);
@@ -338,20 +349,17 @@ ${contentWithoutFrontmatter}`;
       return null;
     }
   }
-  getShareId(content) {
+  getDirectShareId(content) {
     try {
-      const shareUrl = this.getShareUrl(content);
-      if (shareUrl) {
-        const editorMatch = shareUrl.match(/\/editor\/([^\/]+)$/);
-        const shareMatch = shareUrl.match(/\/share\/([^\/]+)$/);
-        return editorMatch ? editorMatch[1] : shareMatch ? shareMatch[1] : null;
-      }
       const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
       const fmMatch = content.match(frontmatterRegex);
       if (!fmMatch) {
         return null;
       }
       const frontmatter = fmMatch[1];
+      if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
+        return null;
+      }
       const lines = frontmatter.split("\n");
       for (const line of lines) {
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
@@ -369,6 +377,9 @@ ${contentWithoutFrontmatter}`;
     } catch (error) {
       return null;
     }
+  }
+  getShareId(content) {
+    return this.getDirectShareId(content);
   }
   async shareNote(content) {
     const existingShareId = this.getShareId(content);
@@ -501,9 +512,6 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       timeout: 1e4
     });
     this.shareManager = new ShareManager(this.apiClient);
-    this.addRibbonIcon("share", "Share note", () => {
-      this.shareCurrentNote();
-    });
     this.addCommand({
       id: "share-note",
       name: "Share current note",
@@ -530,6 +538,7 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         if (file === this.app.workspace.getActiveFile()) {
           this.updateStatusBar();
         }
+        this.onMetadataChange(file);
       })
     );
     this.updateStatusBar();
@@ -898,6 +907,92 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       console.error("Error updating status bar:", error);
       this.statusBarItem.setText("");
     }
+  }
+  async onMetadataChange(file) {
+    try {
+      const metadata = this.app.metadataCache.getFileCache(file);
+      if (!(metadata == null ? void 0 : metadata.frontmatter)) {
+        return;
+      }
+      const content = await this.app.vault.read(file);
+      if (metadata.frontmatter.share_note === true) {
+        await this.handleShareCheckbox(file, content);
+      }
+      if (metadata.frontmatter.unshare_note === true) {
+        await this.handleUnshareCheckbox(file, content);
+      }
+      if (metadata.frontmatter.copy_link === true) {
+        await this.handleCopyLinkCheckbox(file, content);
+      }
+    } catch (error) {
+      console.error("Error handling metadata change:", error);
+    }
+  }
+  async handleShareCheckbox(file, content) {
+    try {
+      const title = this.extractCleanTitle(file, content);
+      let cleanedContent = this.cleanMarkdownContent(content);
+      cleanedContent = this.removeMatchingH1Title(cleanedContent, title);
+      const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
+      const updatedContent = this.resetFrontmatterCheckbox(result.updatedContent, "share_note");
+      await this.app.vault.modify(file, updatedContent);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice("Note shared successfully!");
+      }
+    } catch (error) {
+      console.error("Error sharing note from checkbox:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to share note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }
+  async handleUnshareCheckbox(file, content) {
+    try {
+      if (!this.shareManager.isNoteShared(content)) {
+        const updatedContent2 = this.resetFrontmatterCheckbox(content, "unshare_note");
+        await this.app.vault.modify(file, updatedContent2);
+        return;
+      }
+      const cleanedContent = await this.shareManager.unshareNote(content);
+      const updatedContent = this.resetFrontmatterCheckbox(cleanedContent, "unshare_note");
+      await this.app.vault.modify(file, updatedContent);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice("Note unshared successfully!");
+      }
+    } catch (error) {
+      console.error("Error unsharing note from checkbox:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }
+  async handleCopyLinkCheckbox(file, content) {
+    try {
+      const shareUrl = this.shareManager.getShareUrl(content);
+      if (shareUrl && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        if (this.settings.showNotifications) {
+          new import_obsidian.Notice("Share link copied to clipboard!");
+        }
+      }
+      const updatedContent = this.resetFrontmatterCheckbox(content, "copy_link");
+      await this.app.vault.modify(file, updatedContent);
+    } catch (error) {
+      console.error("Error copying link from checkbox:", error);
+    }
+  }
+  resetFrontmatterCheckbox(content, checkboxName) {
+    const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+    const match = content.match(frontmatterRegex);
+    if (!match)
+      return content;
+    const frontmatter = match[1];
+    const contentAfterFrontmatter = content.substring(match[0].length);
+    const updatedFrontmatter = frontmatter.split("\n").filter((line) => !line.trim().startsWith(`${checkboxName}:`)).join("\n");
+    return `---
+${updatedFrontmatter}
+---
+${contentAfterFrontmatter}`;
   }
 };
 var ShareNoteSettingTab = class extends import_obsidian.PluginSettingTab {
