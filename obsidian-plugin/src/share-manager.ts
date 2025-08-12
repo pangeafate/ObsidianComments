@@ -43,15 +43,17 @@ export class ShareManager {
           !line.trim().startsWith('sharedAt:') &&
           !line.trim().startsWith('share_url:') && 
           !line.trim().startsWith('share_id:') && 
-          !line.trim().startsWith('shared_at:')
+          !line.trim().startsWith('shared_at:') &&
+          !line.trim().startsWith('unshare_note:') &&
+          !line.trim().startsWith('copy_link:')
         )
         .join('\n');
 
-      const newFrontmatter = `${cleanedFrontmatter}\nshareId: ${shareId}\nsharedAt: ${sharedAt}`;
+      const newFrontmatter = `${cleanedFrontmatter}\nshareId: ${shareId}\nsharedAt: ${sharedAt}\nunshare_note: false\ncopy_link: false`;
       return `---\n${newFrontmatter}\n---\n${contentWithoutFrontmatter}`;
     } else {
-      // No existing frontmatter - create frontmatter with shareId
-      const newFrontmatter = `shareId: ${shareId}\nsharedAt: ${sharedAt}`;
+      // No existing frontmatter - create frontmatter with shareId and action buttons
+      const newFrontmatter = `shareId: ${shareId}\nsharedAt: ${sharedAt}\nunshare_note: false\ncopy_link: false`;
       return `---\n${newFrontmatter}\n---\n${content}`;
     }
   }
@@ -77,12 +79,16 @@ export class ShareManager {
           !line.trim().startsWith('sharedAt:') &&
           !line.trim().startsWith('share_url:') && 
           !line.trim().startsWith('share_id:') && 
-          !line.trim().startsWith('shared_at:')
+          !line.trim().startsWith('shared_at:') &&
+          !line.trim().startsWith('unshare_note:') &&
+          !line.trim().startsWith('copy_link:')
         );
 
-      // Add updated share metadata with shareId
+      // Add updated share metadata with shareId and action buttons
       cleanedLines.push(`shareId: ${shareId}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
+      cleanedLines.push(`unshare_note: false`);
+      cleanedLines.push(`copy_link: false`);
 
       return `---\n${cleanedLines.join('\n')}\n---\n${contentWithoutFrontmatter}`;
     } else {
@@ -102,14 +108,16 @@ export class ShareManager {
     const frontmatter = match[1];
     const contentWithoutFrontmatter = content.substring(match[0].length);
 
-    // Remove share-related lines
+    // Remove share-related lines including action buttons
     const lines = frontmatter.split('\n').filter(line => 
       !line.trim().startsWith('shareUrl:') && 
       !line.trim().startsWith('shareId:') && 
       !line.trim().startsWith('sharedAt:') &&
       !line.trim().startsWith('share_url:') && 
       !line.trim().startsWith('share_id:') && 
-      !line.trim().startsWith('shared_at:')
+      !line.trim().startsWith('shared_at:') &&
+      !line.trim().startsWith('unshare_note:') &&
+      !line.trim().startsWith('copy_link:')
     );
 
     if (lines.length === 0 || lines.every(line => line.trim() === '')) {

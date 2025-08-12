@@ -236,18 +236,22 @@ var ShareManager = class {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:") && !line.trim().startsWith("unshare_note:") && !line.trim().startsWith("copy_link:")
       ).join("\n");
       const newFrontmatter = `${cleanedFrontmatter}
 shareId: ${shareId}
-sharedAt: ${sharedAt}`;
+sharedAt: ${sharedAt}
+unshare_note: false
+copy_link: false`;
       return `---
 ${newFrontmatter}
 ---
 ${contentWithoutFrontmatter}`;
     } else {
       const newFrontmatter = `shareId: ${shareId}
-sharedAt: ${sharedAt}`;
+sharedAt: ${sharedAt}
+unshare_note: false
+copy_link: false`;
       return `---
 ${newFrontmatter}
 ---
@@ -262,10 +266,12 @@ ${content}`;
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedLines = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:") && !line.trim().startsWith("unshare_note:") && !line.trim().startsWith("copy_link:")
       );
       cleanedLines.push(`shareId: ${shareId}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
+      cleanedLines.push(`unshare_note: false`);
+      cleanedLines.push(`copy_link: false`);
       return `---
 ${cleanedLines.join("\n")}
 ---
@@ -283,7 +289,7 @@ ${contentWithoutFrontmatter}`;
     const frontmatter = match[1];
     const contentWithoutFrontmatter = content.substring(match[0].length);
     const lines = frontmatter.split("\n").filter(
-      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
+      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:") && !line.trim().startsWith("unshare_note:") && !line.trim().startsWith("copy_link:")
     );
     if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
       return contentWithoutFrontmatter;
