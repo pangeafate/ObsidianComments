@@ -76,7 +76,11 @@ var ApiClient = class {
       const data = await response.json();
       return {
         shareUrl: data.shareUrl,
-        // Backend now consistently returns shareUrl
+        // Collaborative editor URL
+        viewUrl: data.viewUrl,
+        // View-only URL for sharing
+        editUrl: data.editUrl,
+        // Edit URL (same as shareUrl)
         shareId: data.shareId,
         createdAt: data.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
         permissions: data.permissions || "edit"
@@ -226,7 +230,7 @@ var ShareManager = class {
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedFrontmatter = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       ).join("\n");
       const newFrontmatter = `${cleanedFrontmatter}
 shareUrl: ${shareUrl}
@@ -251,7 +255,7 @@ ${content}`;
       const existingFrontmatter = match[1];
       const contentWithoutFrontmatter = content.substring(match[0].length);
       const cleanedLines = existingFrontmatter.split("\n").filter(
-        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+        (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
       );
       cleanedLines.push(`shareUrl: ${shareUrl}`);
       cleanedLines.push(`sharedAt: ${sharedAt}`);
@@ -272,7 +276,7 @@ ${contentWithoutFrontmatter}`;
     const frontmatter = match[1];
     const contentWithoutFrontmatter = content.substring(match[0].length);
     const lines = frontmatter.split("\n").filter(
-      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:")
+      (line) => !line.trim().startsWith("shareUrl:") && !line.trim().startsWith("shareId:") && !line.trim().startsWith("sharedAt:") && !line.trim().startsWith("share_url:") && !line.trim().startsWith("share_id:") && !line.trim().startsWith("shared_at:")
     );
     if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
       return contentWithoutFrontmatter;
@@ -294,10 +298,12 @@ ${contentWithoutFrontmatter}`;
       if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
         return false;
       }
-      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:")) && frontmatter.split("\n").some((line) => {
+      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:") || frontmatter.includes("share_url:") || frontmatter.includes("share_id:")) && frontmatter.split("\n").some((line) => {
         const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
-        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "";
+        const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+        const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
+        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "" || shareUrlSnakeMatch && shareUrlSnakeMatch[1].trim() !== "" || shareIdSnakeMatch && shareIdSnakeMatch[1].trim() !== "";
       });
     } catch (error) {
       return false;
@@ -319,6 +325,11 @@ ${contentWithoutFrontmatter}`;
         const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         if (shareUrlMatch) {
           const shareUrl = shareUrlMatch[1].trim();
+          return shareUrl === "" ? null : shareUrl;
+        }
+        const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+        if (shareUrlSnakeMatch) {
+          const shareUrl = shareUrlSnakeMatch[1].trim();
           return shareUrl === "" ? null : shareUrl;
         }
       }
@@ -346,6 +357,11 @@ ${contentWithoutFrontmatter}`;
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
         if (shareIdMatch) {
           const shareId = shareIdMatch[1].trim();
+          return shareId === "" ? null : shareId;
+        }
+        const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
+        if (shareIdSnakeMatch) {
+          const shareId = shareIdSnakeMatch[1].trim();
           return shareId === "" ? null : shareId;
         }
       }
@@ -406,14 +422,16 @@ ${contentWithoutFrontmatter}`;
     } else {
       const uniqueShareId = `obsidian-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       const shareResponse = await this.apiClient.shareNote(preparedContent, cleanFilename, uniqueShareId);
+      const viewUrl = shareResponse.viewUrl || shareResponse.shareUrl;
       const updatedContent = await this.addShareMetadata(
         preparedContent,
-        shareResponse.shareUrl,
-        // This is now collaborativeUrl from backend
+        viewUrl,
+        // Use viewUrl for the property link
         shareResponse.createdAt || (/* @__PURE__ */ new Date()).toISOString()
       );
       return {
-        shareUrl: shareResponse.shareUrl,
+        shareUrl: viewUrl,
+        // Return viewUrl as the main shareUrl
         shareId: shareResponse.shareId,
         updatedContent,
         wasUpdate: false
@@ -496,6 +514,11 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       name: "Stop sharing current note",
       callback: () => this.unshareCurrentNote()
     });
+    this.addCommand({
+      id: "update-shared-note",
+      name: "Update shared note",
+      callback: () => this.updateSharedNote()
+    });
     this.statusBarItem = this.addStatusBarItem();
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
@@ -527,6 +550,9 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
   }
   async shareCurrentNote() {
     try {
+      if (!this.validateBackendUrl()) {
+        return;
+      }
       const file = this.app.workspace.getActiveFile();
       if (!file) {
         new import_obsidian.Notice("No active file");
@@ -537,7 +563,9 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
         return;
       }
       const content = await this.app.vault.read(file);
-      const cleanedContent = this.cleanMarkdownContent(content);
+      const title = this.extractCleanTitle(file, content);
+      let cleanedContent = this.cleanMarkdownContent(content);
+      cleanedContent = this.removeMatchingH1Title(cleanedContent, title);
       const result = await this.shareManager.shareNoteWithFilename(cleanedContent, file.basename);
       await this.app.vault.modify(file, result.updatedContent);
       if (this.settings.copyToClipboard && navigator.clipboard) {
@@ -649,15 +677,6 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if (!content || typeof content !== "string")
       return "";
     let cleanedContent = content;
-    const frontmatterMatch = cleanedContent.match(/^---[\s\S]*?---\s*/);
-    if (frontmatterMatch) {
-      const frontmatter = frontmatterMatch[0];
-      const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
-      const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
-      cleanedContent = frontmatter + contentWithoutTitle;
-    } else {
-      cleanedContent = cleanedContent.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
-    }
     const binaryExtensions = [
       "pdf",
       "doc",
@@ -699,6 +718,16 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     }
     return title;
   }
+  removeMatchingH1Title(content, title) {
+    if (!content || !title)
+      return content;
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const h1Regex = new RegExp(`^(---[\\s\\S]*?---\\s*)?#\\s+${escapedTitle}\\s*\\n?`, "i");
+    if (h1Regex.test(content)) {
+      return content.replace(h1Regex, "$1");
+    }
+    return content;
+  }
   async unshareCurrentNote() {
     try {
       const file = this.app.workspace.getActiveFile();
@@ -738,6 +767,79 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       if (this.settings.showNotifications) {
         new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
+    }
+  }
+  async updateSharedNote() {
+    try {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) {
+        new import_obsidian.Notice("No active file");
+        return;
+      }
+      const content = await this.app.vault.read(file);
+      if (!this.shareManager.isNoteShared(content)) {
+        new import_obsidian.Notice('Note is not currently shared. Use "Share current note" to share it first.');
+        return;
+      }
+      const shareUrl = this.shareManager.getShareUrl(content);
+      if (!shareUrl) {
+        new import_obsidian.Notice("Could not find share URL. The note may not be properly shared.");
+        return;
+      }
+      const confirmModal = new ConfirmModal(
+        this.app,
+        "Update shared note?",
+        "This will update the shared version with your current changes. Anyone with the link will see the updated content."
+      );
+      confirmModal.onConfirm = async () => {
+        try {
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Updating shared note...");
+          }
+          await this.shareCurrentNote();
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Shared note updated successfully");
+          }
+        } catch (error) {
+          console.error("Failed to update shared note:", error);
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice(`Failed to update shared note: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
+        }
+      };
+      confirmModal.open();
+    } catch (error) {
+      console.error("Failed to update shared note:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to update shared note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }
+  validateBackendUrl() {
+    var _a;
+    const url = (_a = this.settings.backendUrl) == null ? void 0 : _a.trim();
+    if (!url) {
+      new import_obsidian.Notice("Backend URL not configured. Please check plugin settings.");
+      return false;
+    }
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") {
+        new import_obsidian.Notice("Backend URL must use HTTP or HTTPS protocol.");
+        return false;
+      }
+      if (url.endsWith("/") && url !== urlObj.origin + "/") {
+        new import_obsidian.Notice("Backend URL should not end with a trailing slash.");
+        return false;
+      }
+      const hostname = urlObj.hostname.toLowerCase();
+      if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local")) {
+        console.warn("Using localhost URL - this may not work for sharing with others.");
+      }
+      return true;
+    } catch (error) {
+      new import_obsidian.Notice(`Invalid backend URL format: ${url}. Please check plugin settings.`);
+      return false;
     }
   }
   async updateStatusBar() {
