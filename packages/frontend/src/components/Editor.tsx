@@ -25,6 +25,7 @@ import { extendedDocumentService } from '../services/documentServiceExtensions';
 import { markdownToProseMirror } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
 import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
+import { pickInitialContent } from '../utils/contentSource';
 import { generateUserColor } from '../utils/userColors';
 
 interface EditorProps {
@@ -241,22 +242,28 @@ export function Editor({ documentId }: EditorProps) {
       const shouldLoadContent = editorIsEmpty && !justCreatedDocument;
       
       if (shouldLoadContent) {
-        console.log('📝 Loading API content into editor (editor is empty)');
-        initializeContentSafely(
-          yjsContent,
-          obsidianDocument.content,
-          (safeContent) => {
-            try {
-              const proseMirrorDoc = markdownToProseMirror(safeContent);
-              editor.commands.setContent(proseMirrorDoc);
-              console.log('✅ Safe content initialization complete');
-            } catch (error) {
-              console.error('Failed to convert markdown to ProseMirror:', error);
-              // Fallback to plain text
-              editor.commands.setContent(safeContent);
+        const chosen = pickInitialContent(obsidianDocument);
+        console.log('📝 Loading API content into editor (editor is empty) via', chosen.type);
+        if (chosen.type === 'html') {
+          // Directly set HTML for TipTap, allowing its parser to ingest DOM
+          editor.commands.setContent(chosen.content, false, { parseOptions: { preserveWhitespace: 'full' } });
+          console.log('✅ HTML content initialization complete');
+        } else {
+          initializeContentSafely(
+            yjsContent,
+            obsidianDocument.content,
+            (safeContent) => {
+              try {
+                const proseMirrorDoc = markdownToProseMirror(safeContent);
+                editor.commands.setContent(proseMirrorDoc);
+                console.log('✅ Markdown content initialization complete');
+              } catch (error) {
+                console.error('Failed to convert markdown to ProseMirror:', error);
+                editor.commands.setContent(safeContent);
+              }
             }
-          }
-        );
+          );
+        }
       } else {
         console.log('⚠️ Skipping API content loading');
         console.log('   - Editor has content or document was just created');
