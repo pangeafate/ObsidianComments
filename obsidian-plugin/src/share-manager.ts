@@ -115,12 +115,18 @@ export class ShareManager {
         return false;
       }
 
-      return (frontmatter.includes('shareUrl:') || frontmatter.includes('shareId:')) && 
+      // Check for both camelCase and snake_case keys (Obsidian UI converts camelCase to snake_case)
+      return (frontmatter.includes('shareUrl:') || frontmatter.includes('shareId:') ||
+              frontmatter.includes('share_url:') || frontmatter.includes('share_id:')) && 
              frontmatter.split('\n').some(line => {
                const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
                const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
+               const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+               const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
                return (shareUrlMatch && shareUrlMatch[1].trim() !== '') || 
-                      (shareIdMatch && shareIdMatch[1].trim() !== '');
+                      (shareIdMatch && shareIdMatch[1].trim() !== '') ||
+                      (shareUrlSnakeMatch && shareUrlSnakeMatch[1].trim() !== '') ||
+                      (shareIdSnakeMatch && shareIdSnakeMatch[1].trim() !== '');
              });
     } catch (error) {
       return false;
@@ -146,9 +152,17 @@ export class ShareManager {
       const lines = frontmatter.split('\n');
       
       for (const line of lines) {
+        // Try camelCase first (how plugin writes)
         const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         if (shareUrlMatch) {
           const shareUrl = shareUrlMatch[1].trim();
+          return shareUrl === '' ? null : shareUrl;
+        }
+        
+        // Try snake_case (how Obsidian Properties UI displays)
+        const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+        if (shareUrlSnakeMatch) {
+          const shareUrl = shareUrlSnakeMatch[1].trim();
           return shareUrl === '' ? null : shareUrl;
         }
       }
@@ -181,9 +195,17 @@ export class ShareManager {
       const lines = frontmatter.split('\n');
       
       for (const line of lines) {
+        // Try camelCase first (how plugin writes)
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
         if (shareIdMatch) {
           const shareId = shareIdMatch[1].trim();
+          return shareId === '' ? null : shareId;
+        }
+        
+        // Try snake_case (how Obsidian Properties UI displays)
+        const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
+        if (shareIdSnakeMatch) {
+          const shareId = shareIdSnakeMatch[1].trim();
           return shareId === '' ? null : shareId;
         }
       }

@@ -38,6 +38,13 @@ export class ShareNotePlugin extends Plugin {
 			callback: () => this.unshareCurrentNote()
 		});
 
+		// Add update/reshare command
+		this.addCommand({
+			id: 'update-shared-note',
+			name: 'Update shared note',
+			callback: () => this.updateSharedNote()
+		});
+
 		// Add status bar item
 		this.statusBarItem = this.addStatusBarItem();
 		this.registerEvent(
@@ -76,6 +83,11 @@ export class ShareNotePlugin extends Plugin {
 
 	async shareCurrentNote() {
 		try {
+			// Validate backend URL first
+			if (!this.validateBackendUrl()) {
+				return; // Error notice already shown in validation
+			}
+
 			const file = this.app.workspace.getActiveFile();
 			if (!file) {
 				new Notice('No active file');
@@ -329,6 +341,103 @@ export class ShareNotePlugin extends Plugin {
 			if (this.settings.showNotifications) {
 				new Notice(`Failed to unshare note: ${error instanceof Error ? error.message : 'Unknown error'}`);
 			}
+		}
+	}
+
+	async updateSharedNote() {
+		try {
+			const file = this.app.workspace.getActiveFile();
+			if (!file) {
+				new Notice('No active file');
+				return;
+			}
+
+			const content = await this.app.vault.read(file);
+			
+			// Check if file is shared
+			if (!this.shareManager.isNoteShared(content)) {
+				new Notice('Note is not currently shared. Use "Share current note" to share it first.');
+				return;
+			}
+
+			// Get the share URL to confirm it exists
+			const shareUrl = this.shareManager.getShareUrl(content);
+			if (!shareUrl) {
+				new Notice('Could not find share URL. The note may not be properly shared.');
+				return;
+			}
+
+			// Confirm update
+			const confirmModal = new ConfirmModal(this.app, 
+				'Update shared note?', 
+				'This will update the shared version with your current changes. Anyone with the link will see the updated content.');
+			
+			confirmModal.onConfirm = async () => {
+				try {
+					if (this.settings.showNotifications) {
+						new Notice('Updating shared note...');
+					}
+
+					// Re-share the note (this will update the existing share)
+					await this.shareCurrentNote();
+					
+					if (this.settings.showNotifications) {
+						new Notice('Shared note updated successfully');
+					}
+					
+				} catch (error) {
+					console.error('Failed to update shared note:', error);
+					if (this.settings.showNotifications) {
+						new Notice(`Failed to update shared note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+					}
+				}
+			};
+			
+			confirmModal.open();
+
+		} catch (error) {
+			console.error('Failed to update shared note:', error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to update shared note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		}
+	}
+
+	validateBackendUrl(): boolean {
+		const url = this.settings.backendUrl?.trim();
+		
+		if (!url) {
+			new Notice('Backend URL not configured. Please check plugin settings.');
+			return false;
+		}
+
+		// Validate URL format
+		try {
+			const urlObj = new URL(url);
+			
+			// Must be HTTP or HTTPS
+			if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+				new Notice('Backend URL must use HTTP or HTTPS protocol.');
+				return false;
+			}
+
+			// Should not end with trailing slash for consistency
+			if (url.endsWith('/') && url !== urlObj.origin + '/') {
+				new Notice('Backend URL should not end with a trailing slash.');
+				return false;
+			}
+
+			// Check for common localhost variants in production
+			const hostname = urlObj.hostname.toLowerCase();
+			if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local')) {
+				console.warn('Using localhost URL - this may not work for sharing with others.');
+			}
+
+			return true;
+
+		} catch (error) {
+			new Notice(`Invalid backend URL format: ${url}. Please check plugin settings.`);
+			return false;
 		}
 	}
 
