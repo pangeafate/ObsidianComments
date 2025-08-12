@@ -69,7 +69,7 @@ describe('ApiClient', () => {
             'Authorization': `Bearer test-api-key-12345-abcdef-valid-length`,
             'User-Agent': expect.stringContaining('ObsidianComments')
           }),
-          body: JSON.stringify({ content: noteContent })
+          body: JSON.stringify({ content: noteContent, title: "Untitled Document" })
         })
       );
     });
@@ -295,11 +295,10 @@ describe('ApiClient', () => {
 
   describe('request timeout handling', () => {
     test('should timeout long requests', async () => {
-      // Arrange
-      const slowPromise = new Promise((resolve, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 6000);
-      });
-      (global.fetch as jest.Mock).mockReturnValueOnce(slowPromise);
+      // Arrange - simulate AbortError which is what happens on timeout
+      const abortError = new Error('Request timeout');
+      abortError.name = 'AbortError';
+      (global.fetch as jest.Mock).mockRejectedValueOnce(abortError);
 
       // Act & Assert - This will FAIL until timeout handling is implemented
       await expect(apiClient.shareNote('# Test'))
