@@ -294,10 +294,12 @@ ${contentWithoutFrontmatter}`;
       if (frontmatter.includes("[unclosed") || frontmatter.includes("invalid yaml:")) {
         return false;
       }
-      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:")) && frontmatter.split("\n").some((line) => {
+      return (frontmatter.includes("shareUrl:") || frontmatter.includes("shareId:") || frontmatter.includes("share_url:") || frontmatter.includes("share_id:")) && frontmatter.split("\n").some((line) => {
         const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
-        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "";
+        const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+        const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
+        return shareUrlMatch && shareUrlMatch[1].trim() !== "" || shareIdMatch && shareIdMatch[1].trim() !== "" || shareUrlSnakeMatch && shareUrlSnakeMatch[1].trim() !== "" || shareIdSnakeMatch && shareIdSnakeMatch[1].trim() !== "";
       });
     } catch (error) {
       return false;
@@ -319,6 +321,11 @@ ${contentWithoutFrontmatter}`;
         const shareUrlMatch = line.trim().match(/^shareUrl:\s*(.+)$/);
         if (shareUrlMatch) {
           const shareUrl = shareUrlMatch[1].trim();
+          return shareUrl === "" ? null : shareUrl;
+        }
+        const shareUrlSnakeMatch = line.trim().match(/^share_url:\s*(.+)$/);
+        if (shareUrlSnakeMatch) {
+          const shareUrl = shareUrlSnakeMatch[1].trim();
           return shareUrl === "" ? null : shareUrl;
         }
       }
@@ -346,6 +353,11 @@ ${contentWithoutFrontmatter}`;
         const shareIdMatch = line.trim().match(/^shareId:\s*(.+)$/);
         if (shareIdMatch) {
           const shareId = shareIdMatch[1].trim();
+          return shareId === "" ? null : shareId;
+        }
+        const shareIdSnakeMatch = line.trim().match(/^share_id:\s*(.+)$/);
+        if (shareIdSnakeMatch) {
+          const shareId = shareIdSnakeMatch[1].trim();
           return shareId === "" ? null : shareId;
         }
       }
@@ -496,6 +508,11 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       name: "Stop sharing current note",
       callback: () => this.unshareCurrentNote()
     });
+    this.addCommand({
+      id: "update-shared-note",
+      name: "Update shared note",
+      callback: () => this.updateSharedNote()
+    });
     this.statusBarItem = this.addStatusBarItem();
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
@@ -527,6 +544,9 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
   }
   async shareCurrentNote() {
     try {
+      if (!this.validateBackendUrl()) {
+        return;
+      }
       const file = this.app.workspace.getActiveFile();
       if (!file) {
         new import_obsidian.Notice("No active file");
@@ -739,6 +759,79 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
       if (this.settings.showNotifications) {
         new import_obsidian.Notice(`Failed to unshare note: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
+    }
+  }
+  async updateSharedNote() {
+    try {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) {
+        new import_obsidian.Notice("No active file");
+        return;
+      }
+      const content = await this.app.vault.read(file);
+      if (!this.shareManager.isNoteShared(content)) {
+        new import_obsidian.Notice('Note is not currently shared. Use "Share current note" to share it first.');
+        return;
+      }
+      const shareUrl = this.shareManager.getShareUrl(content);
+      if (!shareUrl) {
+        new import_obsidian.Notice("Could not find share URL. The note may not be properly shared.");
+        return;
+      }
+      const confirmModal = new ConfirmModal(
+        this.app,
+        "Update shared note?",
+        "This will update the shared version with your current changes. Anyone with the link will see the updated content."
+      );
+      confirmModal.onConfirm = async () => {
+        try {
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Updating shared note...");
+          }
+          await this.shareCurrentNote();
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice("Shared note updated successfully");
+          }
+        } catch (error) {
+          console.error("Failed to update shared note:", error);
+          if (this.settings.showNotifications) {
+            new import_obsidian.Notice(`Failed to update shared note: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
+        }
+      };
+      confirmModal.open();
+    } catch (error) {
+      console.error("Failed to update shared note:", error);
+      if (this.settings.showNotifications) {
+        new import_obsidian.Notice(`Failed to update shared note: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }
+  validateBackendUrl() {
+    var _a;
+    const url = (_a = this.settings.backendUrl) == null ? void 0 : _a.trim();
+    if (!url) {
+      new import_obsidian.Notice("Backend URL not configured. Please check plugin settings.");
+      return false;
+    }
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") {
+        new import_obsidian.Notice("Backend URL must use HTTP or HTTPS protocol.");
+        return false;
+      }
+      if (url.endsWith("/") && url !== urlObj.origin + "/") {
+        new import_obsidian.Notice("Backend URL should not end with a trailing slash.");
+        return false;
+      }
+      const hostname = urlObj.hostname.toLowerCase();
+      if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local")) {
+        console.warn("Using localhost URL - this may not work for sharing with others.");
+      }
+      return true;
+    } catch (error) {
+      new import_obsidian.Notice(`Invalid backend URL format: ${url}. Please check plugin settings.`);
+      return false;
     }
   }
   async updateStatusBar() {
