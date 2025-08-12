@@ -12,14 +12,14 @@ import { App, Notice, TFile } from 'obsidian';
 // Mock Obsidian APIs
 const mockApp = {
   workspace: {
-    getActiveFile: jest.fn()
+    getActiveFile: jest.fn(() => null)
   },
   vault: {
-    read: jest.fn(),
-    modify: jest.fn()
+    read: jest.fn(() => Promise.resolve('')),
+    modify: jest.fn(() => Promise.resolve())
   },
   metadataCache: {
-    getFileCache: jest.fn()
+    getFileCache: jest.fn(() => null)
   }
 } as unknown as App;
 
