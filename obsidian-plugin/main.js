@@ -653,10 +653,11 @@ var ShareNotePlugin = class extends import_obsidian.Plugin {
     if (frontmatterMatch) {
       const frontmatter = frontmatterMatch[0];
       const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
-      const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
-      cleanedContent = frontmatter + contentWithoutTitle;
+      const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, "");
+      cleanedContent = frontmatter + contentWithoutTitle.trimStart();
     } else {
-      cleanedContent = cleanedContent.replace(/^\s*#\s+.+?(\r?\n|$)/, "");
+      const contentWithoutTitle = cleanedContent.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, "");
+      cleanedContent = contentWithoutTitle.trimStart();
     }
     const binaryExtensions = [
       "pdf",

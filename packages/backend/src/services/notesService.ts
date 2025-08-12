@@ -208,6 +208,11 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
     updateData.renderMode = updates.htmlContent ? 'html' : 'markdown';
   }
 
+  // Update metadata if provided
+  if (updates.metadata !== undefined) {
+    updateData.metadata = updates.metadata;
+  }
+
   const updated = await prisma.document.update({
     where: { id: shareId },
     data: updateData

@@ -216,12 +216,13 @@ export class ShareNotePlugin extends Plugin {
 		if (frontmatterMatch) {
 			const frontmatter = frontmatterMatch[0];
 			const contentAfterFrontmatter = cleanedContent.substring(frontmatter.length);
-			// Remove first H1 only if it's the very first line after frontmatter
-			const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+.+?(\r?\n|$)/, '');
-			cleanedContent = frontmatter + contentWithoutTitle;
+			// Remove first H1 only if it's the very first line after frontmatter, including any leading whitespace
+			const contentWithoutTitle = contentAfterFrontmatter.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
+			cleanedContent = frontmatter + contentWithoutTitle.trimStart();
 		} else {
 			// No frontmatter, just remove first H1 if it's the very first line
-			cleanedContent = cleanedContent.replace(/^\s*#\s+.+?(\r?\n|$)/, '');
+			const contentWithoutTitle = cleanedContent.replace(/^\s*#\s+[^\r\n]*(\r\n?|\n|$)/, '');
+			cleanedContent = contentWithoutTitle.trimStart();
 		}
 
 		// Only remove potentially harmful content, preserve markdown formatting

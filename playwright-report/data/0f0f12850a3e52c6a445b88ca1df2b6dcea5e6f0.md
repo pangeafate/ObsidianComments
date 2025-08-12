@@ -1,0 +1,44 @@
+# Page snapshot
+
+```yaml
+- heading "Welcome! Please enter your name" [level=2]
+- paragraph: Your name will be visible to other users when you comment or edit the document.
+- textbox "Enter your name..."
+- button "Continue"
+- heading "Debug Test Note" [level=1]
+- img
+- text: Edit Mode connected
+- button "View":
+  - img
+  - text: View
+- button "My Links":
+  - img
+  - text: My Links
+- button "New Note":
+  - img
+  - text: New Note
+- button "Comments":
+  - img
+  - text: Comments
+- button "Track Changes":
+  - img
+  - text: Track Changes
+- button "Accept All Changes" [disabled]:
+  - img
+  - text: Accept All Changes
+- text: No pending changes
+- paragraph
+- heading "My Links" [level=2]
+- link "Document debug-te":
+  - /url: https://obsidiancomments.serverado.app/editor/debug-test-1754998312363
+- paragraph: Just now
+- button "Copy link":
+  - img
+- button "Delete link":
+  - img
+- button "Copy All Links"
+- heading "Comments" [level=3]
+- textbox "Select text to add a comment..." [disabled]
+- button "Add Comment" [disabled]
+- text: No comments yet. Select text to add the first comment.
+```

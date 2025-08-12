@@ -27,17 +27,20 @@ module.exports = {
     '\\.(jpg|jpeg|png|gif|svg)$': 'jest-transform-stub'
   },
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      useESM: true,
+      tsconfig: 'tsconfig.json'
+    }],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-  testTimeout: 15000,
+  testTimeout: 10000,
   
   // Test environment setup
   setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
   
   // Coverage configuration
   coverageDirectory: '<rootDir>/coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: ['text', 'lcov'],
   
   // Clear mocks between tests for clean TDD cycles
   clearMocks: true,
@@ -45,10 +48,9 @@ module.exports = {
   
   // Handle ES modules properly
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      tsconfig: 'tsconfig.json'
-    }
-  }
+  
+  // Prevent hanging tests by running serially
+  maxWorkers: 1,
+  forceExit: true,
+  detectOpenHandles: true
 };

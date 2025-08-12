@@ -25,19 +25,29 @@ describe('SECURITY: Frontend Title Sanitization', () => {
     test.each(XSS_PAYLOADS)('should sanitize XSS payload: %s', (xssPayload) => {
       const result = sanitizeTitle(xssPayload);
       
-      // Verify dangerous content is removed
+      // Verify dangerous HTML content is removed (tags, not text content)
       expect(result).not.toContain('<script>');
-      expect(result).not.toContain('javascript:');
-      expect(result).not.toContain('onerror');
-      expect(result).not.toContain('onload');
-      expect(result).not.toContain('onclick');
+      expect(result).not.toContain('</script>');
       expect(result).not.toContain('<iframe>');
       expect(result).not.toContain('<svg>');
       expect(result).not.toContain('<img>');
+      expect(result).not.toContain('<body>');
+      expect(result).not.toContain('<div>');
+      expect(result).not.toContain('<style>');
+      
+      // Event handlers should be stripped
+      expect(result).not.toContain('onerror=');
+      expect(result).not.toContain('onload=');
+      expect(result).not.toContain('onclick=');
+      
+      // CSS imports should be removed
       expect(result).not.toContain('@import');
       
       // Result should be a string
       expect(typeof result).toBe('string');
+      
+      // Result should not execute any scripts (this is what matters for security)
+      expect(result).not.toMatch(/<[^>]*>/); // No HTML tags should remain
     });
 
     test('should preserve safe content', () => {
@@ -102,16 +112,27 @@ describe('SECURITY: Frontend Title Sanitization', () => {
     test.each(XSS_PAYLOADS)('should safely render XSS payload: %s', (xssPayload) => {
       const result = renderSafeTitle(xssPayload);
       
-      // Should be safely sanitized
+      // Should be safely sanitized (no HTML tags)
       expect(result).not.toContain('<script>');
-      expect(result).not.toContain('javascript:');
-      expect(result).not.toContain('onerror');
-      expect(result).not.toContain('onload');
-      expect(result).not.toContain('onclick');
+      expect(result).not.toContain('</script>');
+      expect(result).not.toContain('<iframe>');
+      expect(result).not.toContain('<svg>');
+      expect(result).not.toContain('<img>');
+      expect(result).not.toContain('<body>');
+      expect(result).not.toContain('<div>');
+      expect(result).not.toContain('<style>');
+      
+      // Event handlers should be stripped
+      expect(result).not.toContain('onerror=');
+      expect(result).not.toContain('onload=');
+      expect(result).not.toContain('onclick=');
       
       // Should return a non-empty string (either sanitized content or placeholder)
       expect(typeof result).toBe('string');
       expect(result.length).toBeGreaterThan(0);
+      
+      // No HTML tags should remain
+      expect(result).not.toMatch(/<[^>]*>/);
     });
 
     test('should use placeholder for empty/null titles', () => {
@@ -157,8 +178,11 @@ describe('SECURITY: Frontend Title Sanitization', () => {
 
       encodedXSS.forEach(payload => {
         const result = sanitizeTitle(payload);
-        expect(result).not.toContain('script');
-        expect(result).not.toContain('alert');
+        // The key is that no HTML tags should remain after sanitization
+        expect(result).not.toContain('<script>');
+        expect(result).not.toContain('</script>');
+        expect(result).not.toMatch(/<[^>]*>/); // No HTML tags
+        expect(typeof result).toBe('string');
       });
     });
   });

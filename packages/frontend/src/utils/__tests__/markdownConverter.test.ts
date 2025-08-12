@@ -72,8 +72,8 @@ describe('markdownConverter', () => {
       
       expect(result.content[0].type).toBe('paragraph');
       expect(result.content[0].content).toHaveLength(5);
-      expect(result.content[0].content[1].marks).toEqual([{ type: 'em' }]);
-      expect(result.content[0].content[3].marks).toEqual([{ type: 'strong' }]);
+      expect(result.content[0].content[1].marks).toEqual([{ type: 'italic' }]);
+      expect(result.content[0].content[3].marks).toEqual([{ type: 'bold' }]);
     });
 
     it('should handle empty or whitespace-only markdown', () => {

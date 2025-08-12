@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- heading "Untitled Document" [level=1]
+- img
+- text: "Edit Mode Active users: T connected"
+- button "View":
+  - img
+  - text: View
+- button "My Links":
+  - img
+  - text: My Links
+- button "New Note":
+  - img
+  - text: New Note
+- button "Comments":
+  - img
+  - text: Comments
+- button "Track Changes":
+  - img
+  - text: Track Changes
+- button "Accept All Changes":
+  - img
+  - text: Accept All Changes
+- text: 34 changes pending
+- heading "Active Contributors:" [level=4]
+- text: Test User 1754998322739 (34 changes)
+- paragraph: Document 2 content - 1754998333895
+- heading "My Links" [level=2]
+- link "Document multi-te":
+  - /url: https://obsidiancomments.serverado.app/editor/multi-test-doc-2-1754998333895-6uk6v2kum
+- paragraph: Just now
+- button "Copy link":
+  - img
+- button "Delete link":
+  - img
+- link "Document multi-te":
+  - /url: https://obsidiancomments.serverado.app/editor/multi-test-doc-1-1754998327886-b32ufq9cs
+- paragraph: Just now
+- button "Copy link":
+  - img
+- button "Delete link":
+  - img
+- link "Untitled Document":
+  - /url: https://obsidiancomments.serverado.app/editor/multi-test-doc-0-1754998318837-7ci09b6pc
+- paragraph: Just now
+- button "Copy link":
+  - img
+- button "Delete link":
+  - img
+- button "Copy All Links"
+- heading "Comments" [level=3]
+- textbox "Select text to add a comment..." [disabled]
+- button "Add Comment" [disabled]
+- text: No comments yet. Select text to add the first comment.
+```

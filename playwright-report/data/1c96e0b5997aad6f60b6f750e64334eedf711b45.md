@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- heading "Untitled Document" [level=1]
+- img
+- text: "Edit Mode Active users: T connected"
+- button "View":
+  - img
+  - text: View
+- button "My Links":
+  - img
+  - text: My Links
+- button "New Note":
+  - img
+  - text: New Note
+- button "Comments":
+  - img
+  - text: Comments
+- button "Track Changes":
+  - img
+  - text: Track Changes
+- button "Accept All Changes":
+  - img
+  - text: Accept All Changes
+- text: 44 changes pending
+- heading "Active Contributors:" [level=4]
+- text: Test User 1754998407960 (44 changes)
+- paragraph: Clean content test - no duplication expected
+- heading "My Links" [level=2]
+- link "Document track-ch":
+  - /url: https://obsidiancomments.serverado.app/editor/track-changes-fix-1754998404999-8uwwyz87b
+- paragraph: Just now
+- button "Copy link":
+  - img
+- button "Delete link":
+  - img
+- button "Copy All Links"
+- heading "Comments" [level=3]
+- textbox "Select text to add a comment..." [disabled]
+- button "Add Comment" [disabled]
+- text: No comments yet. Select text to add the first comment.
+```
