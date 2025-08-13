@@ -1,0 +1,28 @@
+name: "Debug Server Status"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    name: "🔍 Debug Production Server"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup SSH key
+        run: |
+          echo "🔑 Setting up SSH key for server access..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Debug server status
+        run: |
+          echo "🔍 Connecting to production server for debugging..."
+          
+          # Copy and execute debug script
+          scp -o StrictHostKeyChecking=no debug-deployment.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/debug-deployment.sh
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'bash ~/debug-deployment.sh && rm ~/debug-deployment.sh'
