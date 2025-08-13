@@ -1,0 +1,79 @@
+name: "🚀 Quick Deploy"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: "🚀 Quick Deploy to Production"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🚀 Deploy via SSH"
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '138.197.187.49' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" | base64 -d > ~/.ssh/id_ed25519 || echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${DEPLOY_HOST} >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Deploy script
+          cat > deploy.sh << 'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -e
+          
+          echo "🚀 Starting quick deployment..."
+          
+          # Navigate to project
+          cd ~/obsidian-comments || cd /root/obsidian-comments || { echo "Project not found"; exit 1; }
+          
+          # Pull latest code
+          git fetch origin main
+          git reset --hard origin/main
+          
+          # Install dependencies
+          npm ci
+          cd packages/backend && npm ci && npm run build && cd ../..
+          cd packages/frontend && npm ci && npm run build && cd ../..
+          cd packages/hocuspocus && npm ci && npm run build && cd ../..
+          
+          # Restart services with PM2
+          pm2 restart all || {
+            # If PM2 not running, start services
+            cd packages/backend && pm2 start dist/index.js --name backend -- --port 3001 &
+            cd ../frontend && pm2 serve dist 3000 --name frontend --spa &
+            cd ../hocuspocus && pm2 start dist/index.js --name hocuspocus -- --port 3002 &
+          }
+          
+          # Verify services
+          sleep 5
+          pm2 list
+          
+          echo "✅ Deployment complete!"
+          DEPLOY_SCRIPT
+          
+          # Execute deployment
+          chmod +x deploy.sh
+          scp -o StrictHostKeyChecking=no deploy.sh ${DEPLOY_USER}@${DEPLOY_HOST}:~/
+          ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'bash ~/deploy.sh'
+          
+      - name: "🏥 Health Check"
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
+          
+          # Check if services are responding
+          curl -f http://138.197.187.49:3000 || echo "Frontend not responding"
+          curl -f http://138.197.187.49:3001/api/health || echo "Backend not responding"
+          
+          echo "Deployment verification complete"
