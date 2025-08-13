@@ -535,7 +535,7 @@ export function Editor({ documentId }: EditorProps) {
         
         {/* My Links Pane */}
         <div 
-          className={`w-80 border-l bg-gray-50 flex flex-col absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out z-20 ${
+          className={`w-80 max-w-full sm:max-w-none border-l bg-gray-50 flex flex-col fixed sm:absolute right-0 top-auto sm:top-0 bottom-0 sm:bottom-auto h-[60vh] sm:h-full transition-transform duration-300 ease-in-out z-20 shadow-lg sm:shadow-none ${
             isMyLinksPaneOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
           data-testid="my-links-pane"
@@ -546,7 +546,7 @@ export function Editor({ documentId }: EditorProps) {
         {/* Comments Pane */}
         {editor && (
           <div 
-            className={`w-80 border-l bg-gray-50 flex flex-col absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out z-10 ${
+            className={`w-80 max-w-full sm:max-w-none border-l bg-gray-50 flex flex-col fixed sm:absolute right-0 top-auto sm:top-0 bottom-0 sm:bottom-auto h-[60vh] sm:h-full transition-transform duration-300 ease-in-out z-10 shadow-lg sm:shadow-none ${
               isCommentsPaneOpen ? 'translate-x-0' : 'translate-x-full'
             }`}
             data-testid="comments-pane"
