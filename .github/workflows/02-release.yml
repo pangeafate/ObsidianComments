@@ -228,8 +228,8 @@ jobs:
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Change to project directory and verify it exists
-          cd ~/obsidian-comments
+          # Change to project directory using absolute path
+          cd /root/obsidian-comments
           pwd
           ls -la docker-compose.prod.yml
           
