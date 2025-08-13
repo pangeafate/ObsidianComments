@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { documentService, type DocumentData } from '../services/documentService';
 import { markdownToHtml } from '../utils/markdownConverter';
 import { renderSafeTitle } from '../utils/contentSanitizer';
-import appManifest from '../../manifest.json';
+import packageInfo from '../../package.json';
 
 interface LoadingState {
   isLoading: boolean;
@@ -236,7 +236,7 @@ export function ViewPage() {
               </span>
             </div>
             <div className="text-xs text-gray-400">
-              Read-only view • Switch to Edit mode to make changes • v{appManifest.version}
+              Read-only view • Switch to Edit mode to make changes • v{packageInfo.version}
             </div>
           </div>
         </div>
