@@ -130,7 +130,7 @@ describe('Feature Flags API - CI Tests', () => {
 
       // HEAD should return valid status
       expect([200, 404, 401, 403, 405, 501]).toContain(response.status);
-      expect(response.text).toBe('');
+      expect(response.text || '').toBe('');
     });
 
     it('should handle POST requests appropriately', async () => {

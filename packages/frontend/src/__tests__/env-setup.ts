@@ -27,9 +27,27 @@ process.env.VITE_ENABLE_DEV_TOOLS = process.env.VITE_ENABLE_DEV_TOOLS || 'true';
 process.env.VITE_ENABLE_ANALYTICS = process.env.VITE_ENABLE_ANALYTICS || 'false';
 process.env.VITE_MOCK_EXTERNAL_SERVICES = process.env.VITE_MOCK_EXTERNAL_SERVICES || 'true';
 
+// Mock import.meta for Jest compatibility
+(global as any).import = {
+  meta: {
+    env: {
+      DEV: process.env.NODE_ENV === 'development',
+      PROD: process.env.NODE_ENV === 'production',
+      VITE_API_URL: process.env.VITE_API_URL,
+      VITE_WS_URL: process.env.VITE_WS_URL,
+      VITE_HOCUSPOCUS_URL: process.env.VITE_HOCUSPOCUS_URL,
+      VITE_APP_NAME: process.env.VITE_APP_NAME,
+      VITE_ENABLE_DEV_TOOLS: process.env.VITE_ENABLE_DEV_TOOLS,
+      VITE_ENABLE_ANALYTICS: process.env.VITE_ENABLE_ANALYTICS,
+      VITE_MOCK_EXTERNAL_SERVICES: process.env.VITE_MOCK_EXTERNAL_SERVICES,
+    }
+  }
+};
+
 console.log('✅ Frontend test environment configured:', {
   NODE_ENV: process.env.NODE_ENV,
   VITE_API_URL: process.env.VITE_API_URL,
   VITE_WS_URL: process.env.VITE_WS_URL,
-  VITE_MOCK_EXTERNAL_SERVICES: process.env.VITE_MOCK_EXTERNAL_SERVICES
+  VITE_MOCK_EXTERNAL_SERVICES: process.env.VITE_MOCK_EXTERNAL_SERVICES,
+  'import.meta.env.DEV': (global as any).import.meta.env.DEV
 });

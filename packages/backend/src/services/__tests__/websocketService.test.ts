@@ -181,7 +181,9 @@ describe('WebSocketService', () => {
     it('should return WebSocket server instance', () => {
       const io = websocketService.getIO();
       expect(io).toBeTruthy();
-      expect(typeof io.emit).toBe('function');
+      if (io) {
+        expect(typeof io.emit).toBe('function');
+      }
     });
 
     it('should handle note updates (future functionality)', (done) => {
