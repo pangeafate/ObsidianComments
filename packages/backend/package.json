@@ -12,7 +12,7 @@
     "test:unit": "jest --config jest.config.js",
     "test:integration": "TEST_MODE=integration jest --config jest.local.config.js",
     "test:integration:watch": "TEST_MODE=integration jest --config jest.local.config.js --watch",
-    "test:ci": "jest --config jest.ci.config.js",
+    "test:ci": "jest --config jest.ci.config.js --coverage --watchAll=false",
     "test:watch": "jest --watch",
     "test:coverage": "jest --config jest.config.js --coverage",
     "lint": "eslint src/**/*.ts",
