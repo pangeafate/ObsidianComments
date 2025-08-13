@@ -174,26 +174,37 @@ jobs:
           
           echo "🚀 Starting production deployment on server..."
           
-          # Navigate to project directory (try different possible locations)
-          if [ -d "/root/obsidian-comments" ]; then
+          # Navigate to project directory
+          echo "🔍 Looking for obsidian-comments directory..."
+          echo "Current user: \$(whoami)"
+          echo "Home directory: \$HOME"
+          
+          # List contents of home directory to debug
+          echo "Contents of home directory:"
+          ls -la ~/
+          
+          if [ -d "\$HOME/obsidian-comments" ]; then
+            cd "\$HOME/obsidian-comments"
+            PROJECT_DIR="\$HOME/obsidian-comments"
+            echo "✅ Found project in user home: \$PROJECT_DIR"
+          elif [ -d "/root/obsidian-comments" ]; then
             cd /root/obsidian-comments
             PROJECT_DIR="/root/obsidian-comments"
-          elif [ -d "~/obsidian-comments" ]; then
-            cd ~/obsidian-comments
-            PROJECT_DIR="~/obsidian-comments"
-          elif [ -d "/home/deploy/obsidian-comments" ]; then
-            cd /home/deploy/obsidian-comments
-            PROJECT_DIR="/home/deploy/obsidian-comments"
+            echo "✅ Found project in root: \$PROJECT_DIR"
+          elif [ -d "./obsidian-comments" ]; then
+            cd ./obsidian-comments
+            PROJECT_DIR="./obsidian-comments"
+            echo "✅ Found project in current dir: \$PROJECT_DIR"
           else
             echo "❌ Project directory not found!"
-            echo "Listing directories..."
-            ls -la /root/ || echo "Cannot access /root"
-            ls -la ~/ || echo "Cannot access home"
-            ls -la /home/ || echo "Cannot access /home"
+            echo "Searching for any obsidian-comments directories..."
+            find / -name "obsidian-comments" -type d 2>/dev/null || echo "No directories found"
             exit 1
           fi
           
           echo "✅ Using project directory: \$PROJECT_DIR"
+          echo "Directory contents:"
+          ls -la
           
           # Create .env file with production environment variables
           cat > .env << ENV_EOF
