@@ -228,8 +228,24 @@ jobs:
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Change to project directory using absolute path
-          cd /root/obsidian-comments
+          # Check current user and find obsidian-comments directory
+          echo "Current user: $(whoami)"
+          echo "Home directory: $HOME"
+          echo "Current directory: $(pwd)"
+          
+          # Check if project exists in current user's home directory
+          if [ -d "$HOME/obsidian-comments" ]; then
+              echo "Found project in user home directory"
+              cd "$HOME/obsidian-comments"
+          elif [ -d "/root/obsidian-comments" ]; then
+              echo "Found project in root directory, using sudo"
+              cd /root/obsidian-comments
+          else
+              echo "Project directory not found!"
+              ls -la $HOME/
+              ls -la /root/ || echo "Cannot access /root"
+              exit 1
+          fi
           pwd
           ls -la docker-compose.prod.yml
           
