@@ -189,14 +189,17 @@ jobs:
           EOF
           
           # Replace placeholders (use | as delimiter to avoid issues with /)
+          echo "Debug: REPO_LOWER=$REPO_LOWER"
           sed -i "s|REPO_PLACEHOLDER|${REPO_LOWER}|g" docker-compose.override.yml
           sed -i "s|SHA_PLACEHOLDER|${{ github.sha }}|g" docker-compose.override.yml
+          echo "Generated docker-compose.override.yml:"
+          cat docker-compose.override.yml
           
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Stop existing containers
-          docker-compose -f docker-compose.production.yml down --remove-orphans || true
+          ~/docker-compose -f docker-compose.production.yml down --remove-orphans || true
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
@@ -204,17 +207,17 @@ jobs:
           docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           
           # Start services with new images
-          docker-compose -f docker-compose.production.yml -f docker-compose.override.yml up -d
+          ~/docker-compose -f docker-compose.production.yml -f docker-compose.override.yml up -d
           
           # Wait for services to be ready
           echo "⏳ Waiting for services to start..."
           sleep 30
           
           # Run database migrations
-          docker-compose -f docker-compose.production.yml exec -T backend npx prisma migrate deploy || echo "Migration completed"
+          ~/docker-compose -f docker-compose.production.yml exec -T backend npx prisma migrate deploy || echo "Migration completed"
           
           # Show status
-          docker-compose -f docker-compose.production.yml ps
+          ~/docker-compose -f docker-compose.production.yml ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
