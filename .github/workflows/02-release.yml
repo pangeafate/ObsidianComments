@@ -177,16 +177,44 @@ jobs:
           # Navigate to project directory
           cd ~/obsidian-comments
           
-          # Update docker-compose to use new images
-          cat > docker-compose.override.yml << EOF
+          # Create .env file with production environment variables
+          cat > .env << ENV_EOF
+          # Production Environment Variables
+          NODE_ENV=production
+          POSTGRES_DB=obsidian_comments
+          POSTGRES_USER=obsidian
+          POSTGRES_PASSWORD=obsidian_secure_password_2024
+          JWT_SECRET=production_jwt_secret_very_secure_key_2024
+          FRONTEND_URL=https://obsidiancomments.serverado.app
+          CORS_ORIGIN=https://obsidiancomments.serverado.app
+          RATE_LIMIT_WINDOW=900000
+          RATE_LIMIT_MAX=100
+          ENV_EOF
+          
+          echo "✅ Environment file created"
+          
+          # Update docker-compose to use new images (override existing image definitions)
+          cat > docker-compose.override.yml << OVERRIDE_EOF
           services:
             backend:
               image: ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
+              environment:
+                - NODE_ENV=production
+                - DATABASE_URL=postgresql://obsidian:obsidian_secure_password_2024@postgres:5432/obsidian_comments
+                - FRONTEND_URL=https://obsidiancomments.serverado.app
+                - PORT=8081
+                - JWT_SECRET=production_jwt_secret_very_secure_key_2024
+                - CORS_ORIGIN=https://obsidiancomments.serverado.app
             frontend:
               image: ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
             hocuspocus:
               image: ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
-          EOF
+            postgres:
+              environment:
+                - POSTGRES_DB=obsidian_comments
+                - POSTGRES_USER=obsidian
+                - POSTGRES_PASSWORD=obsidian_secure_password_2024
+          OVERRIDE_EOF
           
           echo "Generated docker-compose.override.yml:"
           cat docker-compose.override.yml
@@ -195,7 +223,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Stop existing containers
-          ~/docker-compose -f docker-compose.production.yml down --remove-orphans || true
+          ~/docker-compose -f docker-compose.prod.yml down --remove-orphans || true
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
@@ -203,17 +231,17 @@ jobs:
           docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           
           # Start services with new images
-          ~/docker-compose -f docker-compose.production.yml -f docker-compose.override.yml up -d
+          ~/docker-compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
           
           # Wait for services to be ready
           echo "⏳ Waiting for services to start..."
           sleep 30
           
-          # Run database migrations
-          ~/docker-compose -f docker-compose.production.yml exec -T backend npx prisma migrate deploy || echo "Migration completed"
+          # Run database migrations (if backend container is accessible)
+          ~/docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
           
           # Show status
-          ~/docker-compose -f docker-compose.production.yml ps
+          ~/docker-compose -f docker-compose.prod.yml ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
