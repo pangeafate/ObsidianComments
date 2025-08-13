@@ -167,8 +167,8 @@ jobs:
           # Convert repository name to lowercase for Docker tags
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           
-          # Create deployment script
-          cat > deploy.sh << 'DEPLOY_SCRIPT'
+          # Create deployment script with variables substituted
+          cat > deploy.sh << DEPLOY_SCRIPT
           #!/bin/bash
           set -e
           
@@ -181,17 +181,13 @@ jobs:
           cat > docker-compose.override.yml << EOF
           services:
             backend:
-              image: ghcr.io/REPO_PLACEHOLDER-backend:SHA_PLACEHOLDER
+              image: ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
             frontend:
-              image: ghcr.io/REPO_PLACEHOLDER-frontend:SHA_PLACEHOLDER
+              image: ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
             hocuspocus:
-              image: ghcr.io/REPO_PLACEHOLDER-hocuspocus:SHA_PLACEHOLDER
+              image: ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           EOF
           
-          # Replace placeholders (use | as delimiter to avoid issues with /)
-          echo "Debug: REPO_LOWER=$REPO_LOWER"
-          sed -i "s|REPO_PLACEHOLDER|${REPO_LOWER}|g" docker-compose.override.yml
-          sed -i "s|SHA_PLACEHOLDER|${{ github.sha }}|g" docker-compose.override.yml
           echo "Generated docker-compose.override.yml:"
           cat docker-compose.override.yml
           
@@ -222,9 +218,6 @@ jobs:
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
           DEPLOY_SCRIPT
-          
-          # Replace placeholder in deploy script (use | as delimiter to avoid issues with /)
-          sed -i "s|REPO_PLACEHOLDER|${REPO_LOWER}|g" deploy.sh
           
           echo "🔍 Deploy script preview:"
           head -20 deploy.sh
