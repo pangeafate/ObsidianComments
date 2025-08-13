@@ -188,9 +188,9 @@ jobs:
               image: ghcr.io/REPO_PLACEHOLDER-hocuspocus:SHA_PLACEHOLDER
           EOF
           
-          # Replace placeholders
-          sed -i "s/REPO_PLACEHOLDER/${REPO_LOWER}/g" docker-compose.override.yml
-          sed -i "s/SHA_PLACEHOLDER/${{ github.sha }}/g" docker-compose.override.yml
+          # Replace placeholders (use | as delimiter to avoid issues with /)
+          sed -i "s|REPO_PLACEHOLDER|${REPO_LOWER}|g" docker-compose.override.yml
+          sed -i "s|SHA_PLACEHOLDER|${{ github.sha }}|g" docker-compose.override.yml
           
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -220,8 +220,8 @@ jobs:
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
           DEPLOY_SCRIPT
           
-          # Replace placeholder in deploy script
-          sed -i "s/REPO_PLACEHOLDER/${REPO_LOWER}/g" deploy.sh
+          # Replace placeholder in deploy script (use | as delimiter to avoid issues with /)
+          sed -i "s|REPO_PLACEHOLDER|${REPO_LOWER}|g" deploy.sh
           
           echo "🔍 Deploy script preview:"
           head -20 deploy.sh
