@@ -105,24 +105,15 @@ services:
       start_period: 10s
 
   nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
+    image: nginx:alpine
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx-ssl.conf:/etc/nginx/nginx.conf:ro
-      - ssl_certs:/etc/nginx/ssl:ro
-      - certbot_webroot:/var/www/certbot:ro
+      - ./nginx-http.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
     depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-      hocuspocus:
-        condition: service_healthy
+      - frontend
     restart: unless-stopped
     networks:
       - obsidian_network
@@ -137,8 +128,6 @@ volumes:
   postgres_data:
   redis_data:
   nginx_logs:
-  ssl_certs:
-  certbot_webroot:
 
 networks:
   obsidian_network:
