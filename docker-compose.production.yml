@@ -32,7 +32,7 @@ services:
       - obsidian_network
 
   backend:
-    image: obsidiancomments-backend:latest
+    image: ghcr.io/pangeafate/obsidiancomments-backend:latest
     expose:
       - "8081"
     environment:
@@ -61,9 +61,7 @@ services:
       start_period: 40s
 
   hocuspocus:
-    build:
-      context: ./packages/hocuspocus
-      dockerfile: Dockerfile.production
+    image: ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest
     expose:
       - "8082"
     environment:
@@ -90,12 +88,10 @@ services:
       start_period: 30s
 
   frontend:
-    build:
-      context: ./packages/frontend
-      dockerfile: Dockerfile.production
-      args:
-        - VITE_API_URL=https://obsidiancomments.serverado.app/api
-        - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
+    image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
+    environment:
+      - VITE_API_URL=https://obsidiancomments.serverado.app/api
+      - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
     expose:
       - "80"
     restart: unless-stopped

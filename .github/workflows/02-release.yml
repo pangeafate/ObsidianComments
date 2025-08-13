@@ -174,8 +174,26 @@ jobs:
           
           echo "🚀 Starting production deployment on server..."
           
-          # Navigate to project directory
-          cd ~/obsidian-comments
+          # Navigate to project directory (try different possible locations)
+          if [ -d "/root/obsidian-comments" ]; then
+            cd /root/obsidian-comments
+            PROJECT_DIR="/root/obsidian-comments"
+          elif [ -d "~/obsidian-comments" ]; then
+            cd ~/obsidian-comments
+            PROJECT_DIR="~/obsidian-comments"
+          elif [ -d "/home/deploy/obsidian-comments" ]; then
+            cd /home/deploy/obsidian-comments
+            PROJECT_DIR="/home/deploy/obsidian-comments"
+          else
+            echo "❌ Project directory not found!"
+            echo "Listing directories..."
+            ls -la /root/ || echo "Cannot access /root"
+            ls -la ~/ || echo "Cannot access home"
+            ls -la /home/ || echo "Cannot access /home"
+            exit 1
+          fi
+          
+          echo "✅ Using project directory: \$PROJECT_DIR"
           
           # Create .env file with production environment variables
           cat > .env << ENV_EOF
@@ -228,29 +246,26 @@ jobs:
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Check current user and find obsidian-comments directory
-          echo "Current user: $(whoami)"
-          echo "Home directory: $HOME"
-          echo "Current directory: $(pwd)"
+          # Verify we're in the right directory and docker-compose file exists
+          echo "Current directory: \$(pwd)"
+          echo "Current user: \$(whoami)"
           
-          # Check if project exists in current user's home directory
-          if [ -d "$HOME/obsidian-comments" ]; then
-              echo "Found project in user home directory"
-              cd "$HOME/obsidian-comments"
-          elif [ -d "/root/obsidian-comments" ]; then
-              echo "Found project in root directory, using sudo"
-              cd /root/obsidian-comments
+          # Check for the correct docker-compose file
+          if [ -f "docker-compose.production.yml" ]; then
+            COMPOSE_FILE="docker-compose.production.yml"
+            echo "✅ Using docker-compose.production.yml"
+          elif [ -f "docker-compose.prod.yml" ]; then
+            COMPOSE_FILE="docker-compose.prod.yml"
+            echo "✅ Using docker-compose.prod.yml"
           else
-              echo "Project directory not found!"
-              ls -la $HOME/
-              ls -la /root/ || echo "Cannot access /root"
-              exit 1
+            echo "❌ No production docker-compose file found!"
+            echo "Available files:"
+            ls -la *.yml *.yaml 2>/dev/null || echo "No YAML files found"
+            exit 1
           fi
-          pwd
-          ls -la docker-compose.prod.yml
           
           # Stop existing containers
-          /usr/bin/docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans || true
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
@@ -258,17 +273,17 @@ jobs:
           docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           
           # Start services with new images
-          /usr/bin/docker-compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
+          /usr/bin/docker-compose -f \$COMPOSE_FILE -f docker-compose.override.yml up -d
           
           # Wait for services to be ready
           echo "⏳ Waiting for services to start..."
           sleep 30
           
           # Run database migrations (if backend container is accessible)
-          /usr/bin/docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
+          /usr/bin/docker-compose -f \$COMPOSE_FILE exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
           
           # Show status
-          /usr/bin/docker-compose -f docker-compose.prod.yml ps
+          /usr/bin/docker-compose -f \$COMPOSE_FILE ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
