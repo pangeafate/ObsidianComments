@@ -1,0 +1,68 @@
+name: "🚀 Simple Deploy"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: "Deploy"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" | base64 -d > ~/.ssh/id_ed25519 || echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 138.197.187.49 >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          ssh -o StrictHostKeyChecking=no root@138.197.187.49 << 'ENDSSH'
+          set -e
+          cd ~
+          rm -rf obsidian-comments
+          git clone https://github.com/pangeafate/ObsidianComments.git obsidian-comments
+          cd obsidian-comments
+          
+          echo "Installing dependencies..."
+          npm ci
+          
+          echo "Building backend..."
+          cd packages/backend
+          npm ci
+          npm run build
+          
+          echo "Building frontend..."  
+          cd ../frontend
+          npm ci
+          npm run build
+          
+          echo "Building hocuspocus..."
+          cd ../hocuspocus
+          npm ci
+          npm run build
+          
+          cd ../..
+          
+          echo "Starting services..."
+          npx pm2 delete all || true
+          
+          cd packages/backend
+          npx pm2 start dist/index.js --name backend -- --port 3001
+          
+          cd ../frontend  
+          npx pm2 serve dist 3000 --name frontend --spa
+          
+          cd ../hocuspocus
+          npx pm2 start dist/index.js --name hocuspocus -- --port 3002
+          
+          npx pm2 save
+          npx pm2 list
+          
+          echo "Deployment complete!"
+          ENDSSH
