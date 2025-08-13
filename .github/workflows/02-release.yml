@@ -152,47 +152,87 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Create production environment files
+      - name: Setup SSH key
         run: |
-          echo "🔧 Setting up production environment..."
+          echo "🔑 Setting up SSH key for deployment..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Create deployment package
+        run: |
+          echo "📦 Creating deployment package..."
           
           # Convert repository name to lowercase for Docker tags
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           
-          # Create production docker-compose override
+          # Create deployment script
+          cat > deploy.sh << 'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -e
+          
+          echo "🚀 Starting production deployment on server..."
+          
+          # Navigate to project directory
+          cd ~/obsidian-comments
+          
+          # Update docker-compose to use new images
           cat > docker-compose.override.yml << EOF
           services:
             backend:
-              image: ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
+              image: ghcr.io/REPO_PLACEHOLDER-backend:SHA_PLACEHOLDER
             frontend:
-              image: ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
+              image: ghcr.io/REPO_PLACEHOLDER-frontend:SHA_PLACEHOLDER
             hocuspocus:
-              image: ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
+              image: ghcr.io/REPO_PLACEHOLDER-hocuspocus:SHA_PLACEHOLDER
           EOF
-      
-      - name: Deploy with docker compose
-        run: |
-          echo "🚀 Starting production deployment..."
           
-          # Create production environment
-          export POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
-          export JWT_SECRET="${{ secrets.JWT_SECRET }}"
-          export CORS_ORIGIN="https://obsidiancomments.serverado.app"
-          export DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/obsidian_comments"
-          export REDIS_URL="redis://redis:6379"
-          export NODE_ENV="production"
+          # Replace placeholders
+          sed -i "s/REPO_PLACEHOLDER/${REPO_LOWER}/g" docker-compose.override.yml
+          sed -i "s/SHA_PLACEHOLDER/${{ github.sha }}/g" docker-compose.override.yml
           
-          # Deploy using production compose file
-          docker compose -f docker-compose.production.yml -f docker-compose.override.yml up -d --pull always
+          # Login to GitHub Container Registry on server
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          echo "⏳ Waiting for services to be ready..."
+          # Stop existing containers
+          docker-compose -f docker-compose.production.yml down --remove-orphans || true
+          
+          # Pull new images
+          docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
+          docker pull ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
+          docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
+          
+          # Start services with new images
+          docker-compose -f docker-compose.production.yml -f docker-compose.override.yml up -d
+          
+          # Wait for services to be ready
+          echo "⏳ Waiting for services to start..."
           sleep 30
           
           # Run database migrations
-          docker compose -f docker-compose.production.yml exec -T backend npx prisma migrate deploy || echo "Migration completed"
+          docker-compose -f docker-compose.production.yml exec -T backend npx prisma migrate deploy || echo "Migration completed"
+          
+          # Show status
+          docker-compose -f docker-compose.production.yml ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
+          DEPLOY_SCRIPT
+          
+          # Replace placeholder in deploy script
+          sed -i "s/REPO_PLACEHOLDER/${REPO_LOWER}/g" deploy.sh
+          chmod +x deploy.sh
+      
+      - name: Deploy to production server
+        run: |
+          echo "🚀 Deploying to production server..."
+          
+          # Copy and execute deployment script on server
+          scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/deploy.sh
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'bash ~/deploy.sh && rm ~/deploy.sh'
+          
+          echo "✅ Deployment completed successfully!"
 
   # Job 6: Post-deployment validation
   validate:
