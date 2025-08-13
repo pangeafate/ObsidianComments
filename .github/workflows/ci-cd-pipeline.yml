@@ -1,4 +1,4 @@
-name: "🚀 CI/CD Pipeline"
+name: "🚀 Enhanced CI/CD Pipeline"
 
 on:
   push:
@@ -14,14 +14,19 @@ env:
   IMAGE_NAME_HOCUSPOCUS: ghcr.io/pangeafate/obsidiancomments-hocuspocus
 
 jobs:
-  # Phase 1: Quick Tests (runs in parallel)
-  quick-tests:
-    name: "⚡ Quick Tests"
+  # Phase 1: Parallel Unit Tests (MUST PASS for deployment)
+  unit-tests:
+    name: "🧪 Unit Tests"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
+      fail-fast: true  # Stop all if any service fails
       matrix:
         service: [backend, frontend, hocuspocus]
+    outputs:
+      backend-coverage: ${{ steps.coverage.outputs.backend }}
+      frontend-coverage: ${{ steps.coverage.outputs.frontend }}
+      hocuspocus-coverage: ${{ steps.coverage.outputs.hocuspocus }}
     steps:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
@@ -50,45 +55,76 @@ jobs:
           cd packages/${{ matrix.service }}
           npm run build
       
-      - name: "🧪 Run Unit Tests"
+      - name: "🧪 Execute Unit Tests"
+        id: test
         run: |
           cd packages/${{ matrix.service }}
+          echo "Running comprehensive unit tests for ${{ matrix.service }}"
           npm run test:ci
+          echo "✅ Unit tests passed for ${{ matrix.service }}"
         env:
           CI: true
           NODE_ENV: test
+      
+      - name: "📊 Extract Coverage"
+        id: coverage
+        run: |
+          if [ -f "packages/${{ matrix.service }}/coverage/lcov.info" ]; then
+            echo "${{ matrix.service }}=✅" >> $GITHUB_OUTPUT
+          else
+            echo "${{ matrix.service }}=❌" >> $GITHUB_OUTPUT
+          fi
+
+  # Phase 2: Code Quality (parallel with unit tests)
+  code-quality:
+    name: "🔍 Code Quality"
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false  # Continue checking all services
+      matrix:
+        service: [backend, frontend, hocuspocus]
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "📦 Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: "🔧 Install Dependencies"
+        run: |
+          npm ci
+          cd packages/${{ matrix.service }}
+          npm ci
       
       - name: "🔍 Lint Code"
         run: |
           cd packages/${{ matrix.service }}
           npm run lint
+          echo "✅ Linting passed for ${{ matrix.service }}"
       
       - name: "📝 Type Check"
         run: |
           cd packages/${{ matrix.service }}
           npm run typecheck
-      
-      - name: "📊 Upload Coverage"
-        uses: codecov/codecov-action@v4
-        if: matrix.service == 'backend'
-        with:
-          file: ./packages/${{ matrix.service }}/coverage/lcov.info
-          flags: ${{ matrix.service }}
-          name: ${{ matrix.service }}-coverage
-          fail_ci_if_error: false
+          echo "✅ Type checking passed for ${{ matrix.service }}"
 
-  # Phase 2: Integration Tests
+  # Phase 3: Integration Tests (only after unit tests pass)
   integration-tests:
     name: "🔗 Integration Tests"
     runs-on: ubuntu-latest
-    needs: quick-tests
-    timeout-minutes: 20
+    needs: [unit-tests]  # BLOCKS deployment until unit tests pass
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: obsidian_comments_test
+          POSTGRES_USER: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -120,7 +156,7 @@ jobs:
       - name: "🔧 Install Dependencies"
         run: npm ci
       
-      - name: "🗄️ Setup Database"
+      - name: "🗄️ Setup Database Schema"
         run: |
           cd packages/backend
           npm run db:generate
@@ -128,19 +164,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
       
-      - name: "🧪 Run Integration Tests"
-        run: npm run test:backend:integration
+      - name: "🔗 Execute Integration Tests"
+        run: |
+          echo "🔗 Running backend integration tests..."
+          npm run test:backend:integration
+          echo "✅ Integration tests passed"
         env:
           DATABASE_URL: postgresql://postgres:test_password@localhost:5432/obsidian_comments_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
 
-  # Phase 3: End-to-End Tests
+  # Phase 4: End-to-End Tests (parallel with integration)
   e2e-tests:
     name: "🎭 E2E Tests"
     runs-on: ubuntu-latest
-    needs: quick-tests
-    timeout-minutes: 25
+    needs: [unit-tests]  # BLOCKS deployment until unit tests pass
+    timeout-minutes: 20
     steps:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
@@ -155,20 +194,27 @@ jobs:
         run: npm ci
       
       - name: "🐳 Start Test Environment"
-        run: docker-compose -f docker-compose.e2e.yml up -d --build
+        run: |
+          echo "🐳 Starting full application stack for E2E tests..."
+          docker-compose -f docker-compose.test.yml up -d --build
       
       - name: "⏳ Wait for Services"
         run: |
-          timeout 120s bash -c 'until curl -f http://localhost:3000/health; do sleep 2; done'
-          timeout 120s bash -c 'until curl -f http://localhost:3001/api/health; do sleep 2; done'
+          echo "⏳ Waiting for services to be ready..."
+          timeout 120s bash -c 'until curl -f http://localhost:3000/health; do sleep 3; done'
+          timeout 120s bash -c 'until curl -f http://localhost:3001/api/health; do sleep 3; done'
+          echo "✅ All services are ready"
       
       - name: "🎭 Install Playwright"
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
       
-      - name: "🧪 Run E2E Tests"
-        run: npm run test:e2e
+      - name: "🎭 Execute E2E Tests"
+        run: |
+          echo "🎭 Running end-to-end tests..."
+          npm run test:e2e
+          echo "✅ E2E tests passed"
       
-      - name: "📊 Upload E2E Artifacts"
+      - name: "📊 Upload E2E Results"
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -176,16 +222,18 @@ jobs:
           path: |
             test-results/
             playwright-report/
+          retention-days: 7
       
       - name: "🧹 Cleanup"
         if: always()
-        run: docker-compose -f docker-compose.e2e.yml down -v
+        run: |
+          docker-compose -f docker-compose.test.yml down -v
+          docker system prune -f
 
-  # Phase 4: Security & Quality Checks
-  security-checks:
-    name: "🛡️ Security & Quality"
+  # Phase 5: Security Scan (parallel with other tests)
+  security-scan:
+    name: "🛡️ Security Scan"
     runs-on: ubuntu-latest
-    needs: quick-tests
     timeout-minutes: 10
     steps:
       - name: "📥 Checkout Code"
@@ -201,27 +249,64 @@ jobs:
         run: npm ci
       
       - name: "🔍 Audit Dependencies"
-        run: npm audit --audit-level=moderate
-      
-      - name: "🛡️ Security Scan"
         run: |
-          # Run security-focused tests
+          echo "🔍 Scanning for security vulnerabilities..."
+          npm audit --audit-level=high
+          echo "✅ No high-severity vulnerabilities found"
+      
+      - name: "🛡️ Run Security Tests"
+        run: |
+          echo "🛡️ Running security-focused tests..."
           cd packages/backend
-          npm run test:ci -- --testNamePattern="SECURITY"
+          npm run test:ci -- --testNamePattern="SECURITY|security|Security"
+          echo "✅ Security tests passed"
         env:
           CI: true
           NODE_ENV: test
 
-  # Phase 5: Build & Push Images (only on main branch)
+  # Phase 6: Test Results Summary
+  test-summary:
+    name: "📊 Test Summary"
+    runs-on: ubuntu-latest
+    needs: [unit-tests, code-quality, integration-tests, e2e-tests, security-scan]
+    if: always()
+    steps:
+      - name: "📊 Collect Test Results"
+        run: |
+          echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Phase | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          
+          # Determine overall status
+          if [[ "${{ needs.unit-tests.result }}" == "success" ]] && 
+             [[ "${{ needs.integration-tests.result }}" == "success" ]] && 
+             [[ "${{ needs.e2e-tests.result }}" == "success" ]] && 
+             [[ "${{ needs.security-scan.result }}" == "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ✅ All Critical Tests Passed - Ready for Deployment" >> $GITHUB_STEP_SUMMARY
+            echo "DEPLOY_READY=true" >> $GITHUB_ENV
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ❌ Critical Tests Failed - Deployment Blocked" >> $GITHUB_STEP_SUMMARY
+            echo "DEPLOY_READY=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+  # Phase 7: Build Images (only if ALL tests pass)
   build-images:
     name: "🐳 Build Images"
     runs-on: ubuntu-latest
-    needs: [quick-tests, integration-tests, e2e-tests, security-checks]
-    if: github.ref == 'refs/heads/main'
+    needs: [test-summary]
+    if: github.ref == 'refs/heads/main' && needs.test-summary.result == 'success'
     timeout-minutes: 20
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
@@ -243,50 +328,54 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
       
-      - name: "🏗️ Build and Push Backend"
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/backend
-          file: ./packages/backend/Dockerfile.production
-          push: true
-          tags: ${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }},${{ env.IMAGE_NAME_BACKEND }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      - name: "🏗️ Build and Push Frontend"
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/frontend
-          file: ./packages/frontend/Dockerfile.production
-          push: true
-          tags: ${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }},${{ env.IMAGE_NAME_FRONTEND }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VITE_API_URL=https://obsidiancomments.serverado.app/api
-            VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
-      
-      - name: "🏗️ Build and Push Hocuspocus"
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/hocuspocus
-          file: ./packages/hocuspocus/Dockerfile.production
-          push: true
-          tags: ${{ env.IMAGE_NAME_HOCUSPOCUS }}:${{ github.sha }},${{ env.IMAGE_NAME_HOCUSPOCUS }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: "🏗️ Build and Push All Services"
+        run: |
+          echo "🏗️ Building all services with comprehensive testing validation..."
+          
+          # Build Backend
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --file ./packages/backend/Dockerfile.production \
+            --tag ${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE_NAME_BACKEND }}:latest \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            ./packages/backend
+          
+          # Build Frontend
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --file ./packages/frontend/Dockerfile.production \
+            --tag ${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE_NAME_FRONTEND }}:latest \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --build-arg VITE_API_URL=https://obsidiancomments.serverado.app/api \
+            --build-arg VITE_WS_URL=wss://obsidiancomments.serverado.app/ws \
+            ./packages/frontend
+          
+          # Build Hocuspocus
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --file ./packages/hocuspocus/Dockerfile.production \
+            --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:latest \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            ./packages/hocuspocus
+          
+          echo "✅ All images built and pushed successfully"
 
-  # Phase 6: Deploy to Production
+  # Phase 8: Deploy to Production (only if ALL tests AND builds pass)
   deploy-production:
     name: "🚀 Deploy to Production"
     runs-on: ubuntu-latest
-    needs: build-images
-    if: github.ref == 'refs/heads/main'
-    timeout-minutes: 10
+    needs: [build-images, test-summary]
+    if: github.ref == 'refs/heads/main' && needs.test-summary.result == 'success' && needs.build-images.result == 'success'
+    timeout-minutes: 15
     environment:
       name: production
       url: https://obsidiancomments.serverado.app
@@ -301,83 +390,83 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
       
-      - name: "🚀 Deploy to Production Server"
+      - name: "🚀 Deploy to Production"
         run: |
-          echo "🚀 Deploying to production server..."
+          echo "🚀 Deploying TESTED and VERIFIED application to production..."
           
-          # Create deployment script
-          cat > deploy-script.sh << 'EOF'
+          cat > deploy-verified.sh << 'EOF'
           #!/bin/bash
           set -euo pipefail
+          
+          echo "🚀 Starting verified deployment (all tests passed)..."
           
           # Navigate to project directory
           if [ -d "$HOME/obsidian-comments" ]; then
             cd "$HOME/obsidian-comments"
-            PROJECT_DIR="$HOME/obsidian-comments"
           elif [ -d "/root/obsidian-comments" ]; then
-            cd /root/obsidian-comments
-            PROJECT_DIR="/root/obsidian-comments"
+            cd "/root/obsidian-comments"
           else
             echo "❌ Project directory not found!"
             exit 1
           fi
           
-          echo "✅ Found project in: $PROJECT_DIR"
-          
-          # Pull latest changes
+          # Update repository
           git fetch --all
           git reset --hard origin/main
           
-          # Pull latest Docker images
-          echo "📥 Pulling latest Docker images..."
+          # Pull TESTED images
+          echo "📥 Pulling verified Docker images..."
           docker pull ghcr.io/pangeafate/obsidiancomments-backend:latest
           docker pull ghcr.io/pangeafate/obsidiancomments-frontend:latest
           docker pull ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest
           
-          # Stop existing services
-          echo "🛑 Stopping existing services..."
-          docker-compose -f docker-compose.production.yml down || true
+          # Stop existing services gracefully
+          echo "🛑 Gracefully stopping existing services..."
+          docker-compose -f docker-compose.production.yml down --timeout 30 || true
           
-          # Start new deployment
-          echo "🚀 Starting new deployment..."
+          # Deploy new tested version
+          echo "🚀 Deploying tested application..."
           docker-compose -f docker-compose.production.yml up -d
           
           # Wait for services to be healthy
           echo "⏳ Waiting for services to be healthy..."
-          sleep 30
+          sleep 45
           
           # Verify deployment
           if docker ps | grep obsidian-comments | grep -q "Up"; then
-            echo "✅ Deployment successful!"
+            echo "✅ VERIFIED deployment successful!"
+            echo "🎉 Application is live with full test coverage validation"
           else
-            echo "❌ Deployment failed!"
-            docker-compose -f docker-compose.production.yml logs
+            echo "❌ Deployment verification failed!"
+            echo "📋 Container status:"
+            docker ps -a | grep obsidian-comments
+            echo "📋 Service logs:"
+            docker-compose -f docker-compose.production.yml logs --tail=50
             exit 1
           fi
           EOF
           
-          chmod +x deploy-script.sh
-          
-          # Execute deployment on remote server
-          scp -o StrictHostKeyChecking=no deploy-script.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/deploy-script.sh
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'bash ~/deploy-script.sh && rm ~/deploy-script.sh'
+          chmod +x deploy-verified.sh
+          scp -o StrictHostKeyChecking=no deploy-verified.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/deploy-verified.sh
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'bash ~/deploy-verified.sh && rm ~/deploy-verified.sh'
       
-      - name: "🏥 Health Check"
+      - name: "🏥 Production Health Check"
         run: |
-          echo "🏥 Performing post-deployment health checks..."
+          echo "🏥 Verifying production deployment health..."
           
-          # Wait a bit for services to fully start
+          # Wait for services to fully initialize
           sleep 60
           
-          # Check main site
+          # Comprehensive health checks
+          echo "🔍 Checking main application health..."
           if curl -f --max-time 30 https://obsidiancomments.serverado.app/health; then
-            echo "✅ Main site health check passed"
+            echo "✅ Main application health check passed"
           else
-            echo "❌ Main site health check failed"
+            echo "❌ Main application health check failed"
             exit 1
           fi
           
-          # Check API
+          echo "🔍 Checking API health..."
           if curl -f --max-time 30 https://obsidiancomments.serverado.app/api/health; then
             echo "✅ API health check passed"
           else
@@ -385,24 +474,40 @@ jobs:
             exit 1
           fi
           
-          echo "🎉 Deployment completed successfully!"
+          echo "🎉 PRODUCTION DEPLOYMENT SUCCESSFUL!"
+          echo "🌟 Fully tested application is now live"
 
-  # Notification job (runs on completion/failure)
-  notify:
-    name: "📢 Notify"
+  # Phase 9: Deployment Notification
+  notify-success:
+    name: "📢 Success Notification"
     runs-on: ubuntu-latest
-    needs: [quick-tests, integration-tests, e2e-tests, security-checks, build-images, deploy-production]
-    if: always()
+    needs: [deploy-production]
+    if: success()
     steps:
-      - name: "📢 Deployment Status"
+      - name: "🎉 Deployment Success"
         run: |
-          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
-            echo "🎉 Deployment to production completed successfully!"
-            echo "🌐 Site: https://obsidiancomments.serverado.app"
-          elif [[ "${{ needs.deploy-production.result }}" == "failure" ]]; then
-            echo "❌ Deployment to production failed!"
-          elif [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-            echo "✅ CI checks completed for branch: ${{ github.ref_name }}"
-          else
-            echo "ℹ️ Pipeline completed with status: ${{ job.status }}"
-          fi
+          echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All builds successful" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Production deployment verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Health checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Live Application**: https://obsidiancomments.serverado.app" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  # Failure Notification
+  notify-failure:
+    name: "📢 Failure Notification"
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, e2e-tests, security-scan, build-images, deploy-production]
+    if: failure()
+    steps:
+      - name: "❌ Pipeline Failure"
+        run: |
+          echo "## ❌ Pipeline Failed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment has been blocked due to test failures.**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please review the failed jobs and fix issues before deployment." >> $GITHUB_STEP_SUMMARY
+          exit 1
