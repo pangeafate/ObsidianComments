@@ -28,8 +28,11 @@ jobs:
           echo "Setting up project directory..."
           if [ ! -d "/opt/obsidian-comments" ]; then
             sudo mkdir -p /opt/obsidian-comments
-            sudo chown dev:dev /opt/obsidian-comments
+            sudo chown -R dev:dev /opt/obsidian-comments
           fi
+          
+          # Fix any permission issues
+          sudo chown -R dev:dev /opt/obsidian-comments || true
           
           cd /opt/obsidian-comments
           
