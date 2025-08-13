@@ -68,40 +68,11 @@ export function createServer() {
             console.log(`✅ [DATABASE] Found existing Yjs state for ${documentName}`);
             return new Uint8Array(document.yjsState);
           } else {
-            console.log(`📝 [DATABASE] No Yjs state found, initializing with content for ${documentName}`);
-            // Create new Yjs doc with initial content from database
-            const ydoc = new Y.Doc();
-            
-            if (document.content && document.content.trim()) {
-              // Use 'default' fragment to match TipTap/ProseMirror structure
-              const prosemirrorFragment = ydoc.getXmlFragment('default');
-              
-              // Create a paragraph node with the content
-              const paragraph = new Y.XmlElement('paragraph');
-              const textNode = new Y.XmlText();
-              textNode.insert(0, document.content);
-              paragraph.insert(0, [textNode]);
-              prosemirrorFragment.insert(0, [paragraph]);
-              
-              console.log(`✅ [DATABASE] Initialized Yjs state with content for ${documentName}`);
-            } else {
-              console.log(`ℹ️ [DATABASE] Initialized empty Yjs state for ${documentName}`);
-            }
-            
-            const state = Y.encodeStateAsUpdate(ydoc);
-            
-            // Store the initialized state back to database for future use
-            try {
-              await prisma.document.update({
-                where: { id: documentName },
-                data: { yjsState: Buffer.from(state) }
-              });
-              console.log(`💾 [DATABASE] Stored initialized Yjs state for ${documentName}`);
-            } catch (error) {
-              console.error(`❌ [DATABASE] Failed to store Yjs state for ${documentName}:`, error);
-            }
-            
-            return state;
+            console.log(`📝 [DATABASE] No Yjs state found for ${documentName}, returning empty state`);
+            console.log(`ℹ️ [DATABASE] Frontend will handle content initialization to avoid duplication`);
+            // Return empty state - let the frontend initialize the content
+            // This prevents double-initialization that causes content duplication
+            return null;
           }
         }
         
