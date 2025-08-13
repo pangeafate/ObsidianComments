@@ -222,6 +222,9 @@ jobs:
           
           # Replace placeholder in deploy script
           sed -i "s/REPO_PLACEHOLDER/${REPO_LOWER}/g" deploy.sh
+          
+          echo "🔍 Deploy script preview:"
+          head -20 deploy.sh
           chmod +x deploy.sh
       
       - name: Deploy to production server
