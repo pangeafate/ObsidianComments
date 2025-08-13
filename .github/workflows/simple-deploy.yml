@@ -24,45 +24,49 @@ jobs:
           
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 dev@138.197.187.49 << 'ENDSSH'
           set -e
-          cd ~
-          rm -rf obsidian-comments
-          git clone https://github.com/pangeafate/ObsidianComments.git obsidian-comments
-          cd obsidian-comments
+          cd /opt/obsidian-comments
           
-          echo "Installing dependencies..."
-          npm ci
+          echo "Pulling latest code..."
+          git fetch origin main
+          git reset --hard origin/main
           
-          echo "Building backend..."
-          cd packages/backend
-          npm ci
-          npm run build
+          echo "Stopping existing services..."
+          docker stop $(docker ps -q) 2>/dev/null || true
+          docker rm $(docker ps -aq) 2>/dev/null || true
           
-          echo "Building frontend..."  
-          cd ../frontend
-          npm ci
-          npm run build
+          echo "Starting PostgreSQL and Redis..."
+          docker run -d --name postgres --network obsidian-comments_obsidian_network \
+            -e POSTGRES_DB=obsidian_comments \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=obsidian_prod_db_2025_secure \
+            postgres:15
           
-          echo "Building hocuspocus..."
-          cd ../hocuspocus
-          npm ci
-          npm run build
+          docker run -d --name redis --network obsidian-comments_obsidian_network \
+            redis:7-alpine
           
-          cd ../..
+          echo "Waiting for database to be ready..."
+          sleep 15
           
-          echo "Starting services..."
-          npx pm2 delete all || true
+          echo "Starting application services..."
+          docker run -d --name backend --network obsidian-comments_obsidian_network \
+            --env-file .env.production \
+            ghcr.io/pangeafate/obsidiancomments-backend:${GITHUB_SHA}
           
-          cd packages/backend
-          npx pm2 start dist/index.js --name backend -- --port 3001
+          docker run -d --name hocuspocus --network obsidian-comments_obsidian_network \
+            --env-file .env.production \
+            -e PORT=8082 \
+            ghcr.io/pangeafate/obsidiancomments-hocuspocus:${GITHUB_SHA}
           
-          cd ../frontend  
-          npx pm2 serve dist 3000 --name frontend --spa
+          docker run -d --name frontend --network obsidian-comments_obsidian_network \
+            ghcr.io/pangeafate/obsidiancomments-frontend:${GITHUB_SHA}
           
-          cd ../hocuspocus
-          npx pm2 start dist/index.js --name hocuspocus -- --port 3002
-          
-          npx pm2 save
-          npx pm2 list
+          echo "Starting nginx..."
+          docker run -d --name nginx --network obsidian-comments_obsidian_network \
+            -p 80:80 -p 443:443 \
+            -v /opt/obsidian-comments/nginx.conf:/etc/nginx/nginx.conf \
+            -v /etc/nginx/ssl:/etc/nginx/ssl \
+            nginx:alpine
           
           echo "Deployment complete!"
+          docker ps
           ENDSSH
