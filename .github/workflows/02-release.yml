@@ -228,8 +228,11 @@ jobs:
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
+          # Change to project directory and run docker-compose from there
+          cd ~/obsidian-comments
+          
           # Stop existing containers
-          /usr/bin/docker-compose -f /root/obsidian-comments/docker-compose.prod.yml down --remove-orphans || true
+          /usr/bin/docker-compose -f docker-compose.prod.yml down --remove-orphans || true
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
@@ -237,17 +240,17 @@ jobs:
           docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           
           # Start services with new images
-          /usr/bin/docker-compose -f /root/obsidian-comments/docker-compose.prod.yml -f /root/obsidian-comments/docker-compose.override.yml up -d
+          /usr/bin/docker-compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
           
           # Wait for services to be ready
           echo "⏳ Waiting for services to start..."
           sleep 30
           
           # Run database migrations (if backend container is accessible)
-          /usr/bin/docker-compose -f /root/obsidian-comments/docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
+          /usr/bin/docker-compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
           
           # Show status
-          /usr/bin/docker-compose -f /root/obsidian-comments/docker-compose.prod.yml ps
+          /usr/bin/docker-compose -f docker-compose.prod.yml ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"
