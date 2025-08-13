@@ -72,6 +72,7 @@ export function createServer() {
             console.log(`ℹ️ [DATABASE] Frontend will handle content initialization to avoid duplication`);
             // Return empty state - let the frontend initialize the content
             // This prevents double-initialization that causes content duplication
+            // DEPLOYMENT: Force re-deployment to fix content duplication issue
             return null;
           }
         }
