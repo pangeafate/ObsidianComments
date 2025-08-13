@@ -34,12 +34,25 @@ jobs:
           
           echo "🚀 Starting quick deployment..."
           
-          # Navigate to project
-          cd ~/obsidian-comments || cd /root/obsidian-comments || { echo "Project not found"; exit 1; }
-          
-          # Pull latest code
-          git fetch origin main
-          git reset --hard origin/main
+          # Setup project directory
+          if [ ! -d ~/obsidian-comments ]; then
+            echo "Cloning repository..."
+            cd ~
+            git clone https://github.com/pangeafate/ObsidianComments.git obsidian-comments
+            cd obsidian-comments
+          else
+            cd ~/obsidian-comments
+            if [ -d .git ]; then
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              echo "Not a git repo, removing and cloning fresh..."
+              cd ~
+              rm -rf obsidian-comments
+              git clone https://github.com/pangeafate/ObsidianComments.git obsidian-comments
+              cd obsidian-comments
+            fi
+          fi
           
           # Install dependencies
           npm ci
