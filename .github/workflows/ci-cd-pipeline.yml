@@ -39,6 +39,12 @@ jobs:
           cd packages/${{ matrix.service }}
           npm ci
       
+      - name: "🗄️ Generate Prisma Client"
+        if: matrix.service == 'backend' || matrix.service == 'hocuspocus'
+        run: |
+          cd packages/${{ matrix.service }}
+          npx prisma generate
+      
       - name: "🏗️ Build Service"
         run: |
           cd packages/${{ matrix.service }}
