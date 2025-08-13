@@ -228,8 +228,10 @@ jobs:
           # Login to GitHub Container Registry on server
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Change to project directory and run docker-compose from there
+          # Change to project directory and verify it exists
           cd ~/obsidian-comments
+          pwd
+          ls -la docker-compose.prod.yml
           
           # Stop existing containers
           /usr/bin/docker-compose -f docker-compose.prod.yml down --remove-orphans || true
