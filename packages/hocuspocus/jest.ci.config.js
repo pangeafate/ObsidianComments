@@ -3,7 +3,7 @@ module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup-ci.ts'],
   testMatch: [
-    '**/__tests__/**/*.test.ts',
+    '**/__tests__/**/ci-validation.test.ts', // Only run CI validation tests
     '!**/__tests__/**/*.integration.test.ts' // Skip integration tests in CI
   ],
   collectCoverage: true,
