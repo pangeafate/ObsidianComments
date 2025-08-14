@@ -15,7 +15,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
 
   redis:
     image: redis:7-alpine
@@ -29,7 +29,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
 
   backend:
     image: ghcr.io/pangeafate/obsidiancomments-backend:latest
@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
@@ -76,7 +76,7 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
     # Use built-in Docker health check from Dockerfile instead of overriding
 
   frontend:
@@ -88,7 +88,7 @@ services:
       - "80"
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 30s
@@ -107,7 +107,7 @@ services:
       - frontend
     restart: unless-stopped
     networks:
-      - obsidian_network
+      - obsidian_prod_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
@@ -121,5 +121,5 @@ volumes:
   nginx_logs:
 
 networks:
-  obsidian_network:
+  obsidian_prod_network:
     driver: bridge

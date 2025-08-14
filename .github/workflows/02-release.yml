@@ -287,6 +287,7 @@ jobs:
           # Remove all networks related to obsidian-comments
           echo "🌐 Cleaning up networks..."
           docker network ls --format "{{.Name}}" | grep -E "obsidian|comments" | xargs -r docker network rm 2>/dev/null || true
+          docker network rm obsidian-comments_obsidian_prod_network 2>/dev/null || true
           docker network prune -f || true
           
           # Wait a moment for cleanup to complete
