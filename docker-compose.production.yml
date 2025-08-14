@@ -71,12 +71,9 @@ services:
       - PORT=8082
       - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
+      - postgres
+      - redis
+      - backend
     restart: unless-stopped
     networks:
       - obsidian_network
