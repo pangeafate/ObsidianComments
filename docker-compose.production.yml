@@ -40,8 +40,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
       - REDIS_URL=redis://redis:6379
       - PORT=8081
-      - FRONTEND_URL=${FRONTEND_URL:-https://obsidiancomments.serverado.app}
-      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
+      - FRONTEND_URL=${FRONTEND_URL:-http://obsidiancomments.serverado.app}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://obsidiancomments.serverado.app}
       - JWT_SECRET=${JWT_SECRET}
       - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-900000}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
@@ -69,7 +69,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
       - REDIS_URL=redis://redis:6379
       - PORT=8082
-      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://obsidiancomments.serverado.app}
     depends_on:
       - postgres
       - redis
@@ -82,8 +82,8 @@ services:
   frontend:
     image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
     environment:
-      - VITE_API_URL=https://obsidiancomments.serverado.app/api
-      - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
+      - VITE_API_URL=http://obsidiancomments.serverado.app/api
+      - VITE_WS_URL=ws://obsidiancomments.serverado.app/ws
     expose:
       - "80"
     restart: unless-stopped
@@ -101,7 +101,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-http.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - frontend

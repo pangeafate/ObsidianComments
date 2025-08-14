@@ -214,8 +214,8 @@ jobs:
           POSTGRES_USER=obsidian
           POSTGRES_PASSWORD=obsidian_secure_password_2024
           JWT_SECRET=production_jwt_secret_very_secure_key_2024
-          FRONTEND_URL=https://obsidiancomments.serverado.app
-          CORS_ORIGIN=https://obsidiancomments.serverado.app
+          FRONTEND_URL=http://obsidiancomments.serverado.app
+          CORS_ORIGIN=http://obsidiancomments.serverado.app
           RATE_LIMIT_WINDOW=900000
           RATE_LIMIT_MAX=100
           ENV_EOF
@@ -230,15 +230,15 @@ jobs:
               environment:
                 NODE_ENV: production
                 DATABASE_URL: postgresql://obsidian:obsidian_secure_password_2024@postgres:5432/obsidian_comments
-                FRONTEND_URL: https://obsidiancomments.serverado.app
+                FRONTEND_URL: http://obsidiancomments.serverado.app
                 PORT: 8081
                 JWT_SECRET: production_jwt_secret_very_secure_key_2024
-                CORS_ORIGIN: https://obsidiancomments.serverado.app
+                CORS_ORIGIN: http://obsidiancomments.serverado.app
             frontend:
               image: ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
               environment:
-                VITE_API_URL: https://obsidiancomments.serverado.app/api
-                VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
+                VITE_API_URL: http://obsidiancomments.serverado.app/api
+                VITE_WS_URL: ws://obsidiancomments.serverado.app/ws
             hocuspocus:
               image: ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
               environment:
