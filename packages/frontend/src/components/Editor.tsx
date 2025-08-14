@@ -40,6 +40,8 @@ export function Editor({ documentId }: EditorProps) {
     setUser, 
     users, 
     status, 
+    synced,
+    isInitialSyncComplete,
     getTitle, 
     setTitle, 
     onTitleChange 
@@ -225,9 +227,9 @@ export function Editor({ documentId }: EditorProps) {
     },
   }, [provider, currentUser, userColor, ydoc]);
 
-  // Initialize editor with safe content deduplication
+  // Initialize editor with safe content deduplication - FIXED: Wait for Yjs sync completion
   useEffect(() => {
-    if (editor && obsidianDocument && !isLoadingDocument && ydoc) {
+    if (editor && obsidianDocument && !isLoadingDocument && ydoc && synced && isInitialSyncComplete) {
       const yXmlFragment = ydoc.getXmlFragment('content');
       const yjsContent = editor.getHTML();
       
@@ -235,15 +237,21 @@ export function Editor({ documentId }: EditorProps) {
       console.log('Yjs fragment length:', yXmlFragment.length);
       console.log('Current editor content length:', yjsContent.length);
       console.log('API content length:', obsidianDocument.content.length);
+      console.log('Sync status - synced:', synced, 'isInitialSyncComplete:', isInitialSyncComplete);
       
-      // IMPROVED CONTENT LOADING: Load content if editor is empty or has minimal content
-      // Only skip loading if we just created the document (to prevent immediate overwrite)
-      const editorIsEmpty = (!yjsContent || yjsContent.trim().length <= 50);
-      const shouldLoadContent = editorIsEmpty && !justCreatedDocument;
+      // FIXED: Check Yjs fragment length instead of HTML length to prevent race condition
+      // Only load content if Yjs fragment is truly empty and sync is complete
+      const yjsFragmentIsEmpty = yXmlFragment.length === 0;
+      const shouldLoadContent = yjsFragmentIsEmpty && !justCreatedDocument;
+      
+      console.log('🔍 Content loading decision:');
+      console.log('   - Yjs fragment empty?', yjsFragmentIsEmpty);
+      console.log('   - Just created?', justCreatedDocument);
+      console.log('   - Should load?', shouldLoadContent);
       
       if (shouldLoadContent) {
         const chosen = pickInitialContent(obsidianDocument);
-        console.log('📝 Loading API content into editor (editor is empty) via', chosen.type);
+        console.log('📝 Loading API content into editor (Yjs fragment is empty) via', chosen.type);
         if (chosen.type === 'html') {
           // Directly set HTML for TipTap, allowing its parser to ingest DOM
           editor.commands.setContent(chosen.content, false, { parseOptions: { preserveWhitespace: 'full' } });
@@ -266,12 +274,15 @@ export function Editor({ documentId }: EditorProps) {
         }
       } else {
         console.log('⚠️ Skipping API content loading');
-        console.log('   - Editor has content or document was just created');
-        console.log('   - Editor empty?', editorIsEmpty);
+        console.log('   - Yjs fragment has content or document was just created');
+        console.log('   - Yjs fragment empty?', yjsFragmentIsEmpty);
         console.log('   - Just created?', justCreatedDocument);
       }
+    } else if (editor && obsidianDocument && !isLoadingDocument && ydoc && (!synced || !isInitialSyncComplete)) {
+      console.log('⏳ Waiting for Yjs sync completion before loading content...');
+      console.log('   - synced:', synced, 'isInitialSyncComplete:', isInitialSyncComplete);
     }
-  }, [editor, obsidianDocument, isLoadingDocument, ydoc, justCreatedDocument]);
+  }, [editor, obsidianDocument, isLoadingDocument, ydoc, synced, isInitialSyncComplete, justCreatedDocument]);
 
   // Fallback content loading when Yjs fails or is delayed
   useEffect(() => {
