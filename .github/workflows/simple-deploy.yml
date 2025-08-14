@@ -65,17 +65,20 @@ jobs:
           sleep 15
           
           echo "Starting application services..."
+          # Convert repository name to lowercase for Docker
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          
           docker run -d --name backend --network obsidian-comments_obsidian_network \
             --env-file .env.production \
-            ghcr.io/pangeafate/obsidiancomments-backend:${GITHUB_SHA}
+            ghcr.io/${REPO_LOWER}-backend:${GITHUB_SHA}
           
           docker run -d --name hocuspocus --network obsidian-comments_obsidian_network \
             --env-file .env.production \
             -e PORT=8082 \
-            ghcr.io/pangeafate/obsidiancomments-hocuspocus:${GITHUB_SHA}
+            ghcr.io/${REPO_LOWER}-hocuspocus:${GITHUB_SHA}
           
           docker run -d --name frontend --network obsidian-comments_obsidian_network \
-            ghcr.io/pangeafate/obsidiancomments-frontend:${GITHUB_SHA}
+            ghcr.io/${REPO_LOWER}-frontend:${GITHUB_SHA}
           
           echo "Starting nginx..."
           docker run -d --name nginx --network obsidian-comments_obsidian_network \

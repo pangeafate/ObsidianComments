@@ -182,18 +182,21 @@ jobs:
       
       - name: Start services with built images
         run: |
+          # Convert repository name to lowercase for Docker
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          
           docker run -d --name backend \
             --network ${{ job.container.network }} \
             -e DATABASE_URL=postgresql://postgres:test@postgres:5432/test \
             -e REDIS_URL=redis://redis:6379 \
             -e JWT_SECRET=test \
             -p 8081:8081 \
-            ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+            ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
           
           docker run -d --name frontend \
             --network ${{ job.container.network }} \
             -p 3000:80 \
-            ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+            ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
       
       - name: Health check
         run: |
