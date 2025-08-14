@@ -276,11 +276,16 @@ jobs:
           fi
           
           # Stop existing containers - enhanced cleanup for container conflicts
-          echo "🧹 Stopping all existing containers..."
+          echo "🧹 Stopping all existing containers and cleaning up..."
           /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans || true
           docker stop \$(docker ps -q) 2>/dev/null || true
           docker rm \$(docker ps -aq) 2>/dev/null || true
+          
+          # Remove specific network if it exists
+          docker network rm obsidian-comments_obsidian_network 2>/dev/null || true
           docker network prune -f || true
+          
+          echo "✅ Cleanup complete"
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
