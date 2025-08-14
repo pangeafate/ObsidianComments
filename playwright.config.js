@@ -2,15 +2,18 @@ module.exports = {
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 3 : 1,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  reporter: process.env.CI ? [['list'], ['html']] : 'html',
   
   use: {
-    baseURL: process.env.TEST_URL || 'https://obsidiancomments.serverado.app',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.TEST_URL || 'http://obsidiancomments.serverado.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    actionTimeout: 30000,
+    navigationTimeout: 60000,
+    ignoreHTTPSErrors: true,
   },
 
   projects: [

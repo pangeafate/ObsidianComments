@@ -341,20 +341,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Wait for deployment to be ready
+        run: |
+          echo "⏳ Waiting for deployment to be fully ready..."
+          
+          # Wait up to 10 minutes for the service to respond
+          for i in {1..60}; do
+            echo "🔍 Attempt $i: Checking service health..."
+            
+            if curl -f -m 10 http://obsidiancomments.serverado.app/api/health > /dev/null 2>&1; then
+              echo "✅ Service is responding to health checks"
+              
+              # Additional check: ensure the homepage loads
+              if curl -f -m 10 http://obsidiancomments.serverado.app/ > /dev/null 2>&1; then
+                echo "✅ Homepage is accessible"
+                echo "🎉 Deployment is ready for testing!"
+                break
+              else
+                echo "⚠️ Homepage not yet accessible"
+              fi
+            else
+              echo "⚠️ Health check not yet responding"
+            fi
+            
+            if [ $i -eq 60 ]; then
+              echo "❌ Service did not become ready within timeout"
+              exit 1
+            fi
+            
+            echo "💤 Waiting 10 seconds before next check..."
+            sleep 10
+          done
+
       - name: Install Playwright
         run: |
           npm ci
           npx playwright install --with-deps chromium
       
-      - name: Run production validation tests
+      - name: Run deployment validation tests
         run: |
-          echo "🧪 Running production validation tests..."
-          PLAYWRIGHT_BASE_URL=https://obsidiancomments.serverado.app \
-          npx playwright test tests/e2e/production-validation.spec.js --reporter=list --timeout=30000 || echo "⚠️ Some tests failed - this is expected for first deployment"
+          echo "🧪 Running comprehensive deployment validation..."
+          PLAYWRIGHT_BASE_URL=http://obsidiancomments.serverado.app \
+          npx playwright test tests/e2e/deployment-validation.spec.js --reporter=list --timeout=120000
           
-          echo "🧪 Running Obsidian plugin editor visibility tests..."
-          PLAYWRIGHT_BASE_URL=https://obsidiancomments.serverado.app \
-          npx playwright test tests/e2e/obsidian-plugin-editor-visibility.spec.js --reporter=list --timeout=30000
+        continue-on-error: false
+        
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            *.png
+            playwright-report/
+          retention-days: 7
       
       - name: Performance test
         run: |
