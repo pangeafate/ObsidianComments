@@ -275,8 +275,12 @@ jobs:
             exit 1
           fi
           
-          # Stop existing containers
+          # Stop existing containers - enhanced cleanup for container conflicts
+          echo "🧹 Stopping all existing containers..."
           /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans || true
+          docker stop \$(docker ps -q) 2>/dev/null || true
+          docker rm \$(docker ps -aq) 2>/dev/null || true
+          docker network prune -f || true
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
