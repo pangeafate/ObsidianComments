@@ -277,13 +277,21 @@ jobs:
           
           # Stop existing containers - enhanced cleanup for container conflicts
           echo "🧹 Stopping all existing containers and cleaning up..."
-          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans || true
-          docker stop \$(docker ps -q) 2>/dev/null || true
-          docker rm \$(docker ps -aq) 2>/dev/null || true
+          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans --volumes || true
           
-          # Remove specific network if it exists
-          docker network rm obsidian-comments_obsidian_network 2>/dev/null || true
+          # Force stop and remove all containers
+          echo "🔥 Force stopping all containers..."
+          docker stop \$(docker ps -q) 2>/dev/null || true
+          docker rm -f \$(docker ps -aq) 2>/dev/null || true
+          
+          # Remove all networks related to obsidian-comments
+          echo "🌐 Cleaning up networks..."
+          docker network ls --format "{{.Name}}" | grep -E "obsidian|comments" | xargs -r docker network rm 2>/dev/null || true
           docker network prune -f || true
+          
+          # Wait a moment for cleanup to complete
+          echo "⏳ Waiting for cleanup to complete..."
+          sleep 10
           
           echo "✅ Cleanup complete"
           
