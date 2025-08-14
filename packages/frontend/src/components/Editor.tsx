@@ -235,23 +235,28 @@ export function Editor({ documentId }: EditorProps) {
       
       console.log('🛡️ Starting safe content initialization');
       console.log('Yjs fragment length:', yXmlFragment.length);
+      console.log('Yjs fragment toString():', yXmlFragment.toString());
       console.log('Current editor content length:', yjsContent.length);
+      console.log('Current editor HTML:', yjsContent);
       console.log('API content length:', obsidianDocument.content.length);
+      console.log('API content preview:', obsidianDocument.content.substring(0, 100) + '...');
       console.log('Sync status - synced:', synced, 'isInitialSyncComplete:', isInitialSyncComplete);
       
-      // FIXED: Check Yjs fragment length instead of HTML length to prevent race condition
-      // Only load content if Yjs fragment is truly empty and sync is complete
+      // ENHANCED: Check both Yjs fragment length AND if editor appears empty
+      // Sometimes Yjs has structure but no actual content
       const yjsFragmentIsEmpty = yXmlFragment.length === 0;
-      const shouldLoadContent = yjsFragmentIsEmpty && !justCreatedDocument;
+      const editorContentIsEmpty = !yjsContent || yjsContent.replace(/<[^>]*>/g, '').trim().length === 0;
+      const shouldLoadContent = (yjsFragmentIsEmpty || editorContentIsEmpty) && !justCreatedDocument;
       
-      console.log('🔍 Content loading decision:');
+      console.log('🔍 Enhanced content loading decision:');
       console.log('   - Yjs fragment empty?', yjsFragmentIsEmpty);
-      console.log('   - Just created?', justCreatedDocument);
-      console.log('   - Should load?', shouldLoadContent);
+      console.log('   - Editor content effectively empty?', editorContentIsEmpty);
+      console.log('   - Just created document?', justCreatedDocument);
+      console.log('   - Should load API content?', shouldLoadContent);
       
       if (shouldLoadContent) {
         const chosen = pickInitialContent(obsidianDocument);
-        console.log('📝 Loading API content into editor (Yjs fragment is empty) via', chosen.type);
+        console.log('📝 Loading API content into editor (editor appears empty) via', chosen.type);
         if (chosen.type === 'html') {
           // Directly set HTML for TipTap, allowing its parser to ingest DOM
           editor.commands.setContent(chosen.content, false, { parseOptions: { preserveWhitespace: 'full' } });
@@ -274,8 +279,9 @@ export function Editor({ documentId }: EditorProps) {
         }
       } else {
         console.log('⚠️ Skipping API content loading');
-        console.log('   - Yjs fragment has content or document was just created');
+        console.log('   - Editor has content or document was just created');
         console.log('   - Yjs fragment empty?', yjsFragmentIsEmpty);
+        console.log('   - Editor content effectively empty?', editorContentIsEmpty);
         console.log('   - Just created?', justCreatedDocument);
       }
     } else if (editor && obsidianDocument && !isLoadingDocument && ydoc && (!synced || !isInitialSyncComplete)) {
