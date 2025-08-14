@@ -275,26 +275,51 @@ jobs:
             exit 1
           fi
           
-          # Stop existing containers - enhanced cleanup for container conflicts
-          echo "🧹 Stopping all existing containers and cleaning up..."
-          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans --volumes || true
+          # Aggressive cleanup to prevent container conflicts
+          echo "🧹 Performing aggressive cleanup to prevent container conflicts..."
           
-          # Force stop and remove all containers
-          echo "🔥 Force stopping all containers..."
+          # Stop all containers first
+          echo "🛑 Stopping all running containers..."
           docker stop \$(docker ps -q) 2>/dev/null || true
+          
+          # Remove containers by name pattern (if they exist)
+          echo "🗑️ Removing containers by name pattern..."
+          docker rm -f obsidian-comments_postgres_1 2>/dev/null || true
+          docker rm -f obsidian-comments_redis_1 2>/dev/null || true
+          docker rm -f obsidian-comments_backend_1 2>/dev/null || true
+          docker rm -f obsidian-comments_frontend_1 2>/dev/null || true
+          docker rm -f obsidian-comments_hocuspocus_1 2>/dev/null || true
+          docker rm -f obsidian-comments_nginx_1 2>/dev/null || true
+          
+          # Remove all containers (nuclear option)
+          echo "💥 Removing all containers..."
           docker rm -f \$(docker ps -aq) 2>/dev/null || true
           
-          # Remove all networks related to obsidian-comments
+          # Use docker-compose down with the project name
+          echo "📦 Docker compose cleanup..."
+          cd \$PROJECT_DIR
+          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
+          /usr/bin/docker-compose -p obsidian-comments -f \$COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
+          
+          # Clean up networks
           echo "🌐 Cleaning up networks..."
           docker network ls --format "{{.Name}}" | grep -E "obsidian|comments" | xargs -r docker network rm 2>/dev/null || true
-          docker network rm obsidian-comments_obsidian_prod_network 2>/dev/null || true
           docker network prune -f || true
           
-          # Wait a moment for cleanup to complete
-          echo "⏳ Waiting for cleanup to complete..."
-          sleep 10
+          # Clean up volumes
+          echo "💾 Cleaning up volumes..."
+          docker volume ls --format "{{.Name}}" | grep -E "obsidian|comments" | xargs -r docker volume rm 2>/dev/null || true
+          docker volume prune -f || true
           
-          echo "✅ Cleanup complete"
+          # Final verification
+          echo "🔍 Verifying cleanup..."
+          docker ps -a | grep obsidian || echo "No obsidian containers found"
+          
+          # Wait for cleanup to settle
+          echo "⏳ Waiting for cleanup to settle..."
+          sleep 15
+          
+          echo "✅ Aggressive cleanup complete"
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
