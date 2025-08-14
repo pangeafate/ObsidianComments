@@ -80,12 +80,7 @@ services:
     restart: unless-stopped
     networks:
       - obsidian_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    # Use built-in Docker health check from Dockerfile instead of overriding
 
   frontend:
     image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
