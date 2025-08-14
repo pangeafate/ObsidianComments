@@ -1,6 +1,6 @@
 {
   "name": "obsidian-comments",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Collaborative Markdown editor with real-time editing, commenting, UI improvements and title deduplication",
   "private": true,
   "workspaces": [
