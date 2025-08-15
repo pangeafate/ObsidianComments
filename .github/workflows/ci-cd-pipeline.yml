@@ -9,9 +9,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_BACKEND: ghcr.io/pangeafate/obsidiancomments-backend
-  IMAGE_NAME_FRONTEND: ghcr.io/pangeafate/obsidiancomments-frontend
-  IMAGE_NAME_HOCUSPOCUS: ghcr.io/pangeafate/obsidiancomments-hocuspocus
+  IMAGE_NAME_BACKEND: ghcr.io/${{ github.repository }}-backend
+  IMAGE_NAME_FRONTEND: ghcr.io/${{ github.repository }}-frontend
+  IMAGE_NAME_HOCUSPOCUS: ghcr.io/${{ github.repository }}-hocuspocus
 
 jobs:
   # Phase 1: Parallel Unit Tests (MUST PASS for deployment)
@@ -307,6 +307,9 @@ jobs:
     needs: [test-summary]
     if: github.ref == 'refs/heads/main' && needs.test-summary.result == 'success'
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
     steps:
@@ -337,12 +340,15 @@ jobs:
         run: |
           echo "🏗️ Building all services with comprehensive testing validation..."
           
+          # Convert repository name to lowercase for Docker
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          
           # Build Backend (single architecture for faster deployment)
           docker buildx build --push \
             --platform linux/amd64 \
             --file ./packages/backend/Dockerfile.production \
-            --tag ${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} \
-            --tag ${{ env.IMAGE_NAME_BACKEND }}:latest \
+            --tag ghcr.io/${REPO_LOWER}-backend:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-backend:latest \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             ./packages/backend
@@ -351,8 +357,8 @@ jobs:
           docker buildx build --push \
             --platform linux/amd64 \
             --file ./packages/frontend/Dockerfile.production \
-            --tag ${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }} \
-            --tag ${{ env.IMAGE_NAME_FRONTEND }}:latest \
+            --tag ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-frontend:latest \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             --build-arg VITE_API_URL=https://obsidiancomments.serverado.app/api \
@@ -363,8 +369,8 @@ jobs:
           docker buildx build --push \
             --platform linux/amd64 \
             --file ./packages/hocuspocus/Dockerfile.production \
-            --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:${{ github.sha }} \
-            --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:latest \
+            --tag ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }} \
+            --tag ghcr.io/${REPO_LOWER}-hocuspocus:latest \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             ./packages/hocuspocus
