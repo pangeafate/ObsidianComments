@@ -275,49 +275,41 @@ jobs:
             exit 1
           fi
           
-          # Efficient cleanup to prevent container conflicts
-          echo "🧹 Performing efficient cleanup to prevent container conflicts..."
+          # Simple and reliable cleanup
+          echo "🧹 Starting deployment cleanup..."
           
-          # Use docker-compose down first (most effective)
-          echo "📦 Docker compose cleanup..."
-          cd \$PROJECT_DIR
-          /usr/bin/docker-compose -f \$COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
+          # Stop and remove everything related to our project
+          echo "📦 Removing existing deployment..."
+          docker-compose -p obsidian-comments -f \$COMPOSE_FILE down -v --remove-orphans || true
+          docker-compose -f \$COMPOSE_FILE down -v --remove-orphans || true
           
-          # Remove specific containers that might conflict
-          echo "🗑️ Removing specific containers..."
-          docker rm -f obsidian-comments_postgres_1 obsidian-comments_redis_1 obsidian-comments_backend_1 obsidian-comments_frontend_1 obsidian-comments_hocuspocus_1 obsidian-comments_nginx_1 2>/dev/null || true
+          # Force remove any remaining containers
+          echo "🗑️ Force removing containers..."
+          docker ps -aq | xargs -r docker rm -f 2>/dev/null || true
           
-          # Clean up networks quickly
-          echo "🌐 Cleaning up networks..."
-          docker network rm obsidian-comments_obsidian_prod_network 2>/dev/null || true
+          # Clean networks
+          echo "🌐 Cleaning networks..."
           docker network prune -f || true
           
-          # Quick verification
-          echo "🔍 Quick verification..."
-          if docker ps -a --format "{{.Names}}" | grep -q obsidian; then
-            echo "⚠️ Some obsidian containers still exist, removing forcefully..."
-            docker rm -f \$(docker ps -a --format "{{.Names}}" | grep obsidian) 2>/dev/null || true
-          fi
-          
-          echo "✅ Efficient cleanup complete"
+          echo "✅ Cleanup complete"
           
           # Pull new images
           docker pull ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}
           docker pull ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}
           docker pull ghcr.io/${REPO_LOWER}-hocuspocus:${{ github.sha }}
           
-          # Start services with new images
-          /usr/bin/docker-compose -f \$COMPOSE_FILE -f docker-compose.override.yml up -d
+          # Start services with new images using consistent project name
+          /usr/bin/docker-compose -p obsidian-comments -f \$COMPOSE_FILE -f docker-compose.override.yml up -d --force-recreate
           
           # Wait for services to be ready
           echo "⏳ Waiting for services to start..."
           sleep 30
           
           # Run database migrations (if backend container is accessible)
-          /usr/bin/docker-compose -f \$COMPOSE_FILE exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
+          /usr/bin/docker-compose -p obsidian-comments -f \$COMPOSE_FILE exec -T backend npx prisma migrate deploy || echo "Migration completed or backend not available"
           
           # Show status
-          /usr/bin/docker-compose -f \$COMPOSE_FILE ps
+          /usr/bin/docker-compose -p obsidian-comments -f \$COMPOSE_FILE ps
           
           echo "✅ Production deployment completed!"
           echo "🌐 Application URL: https://obsidiancomments.serverado.app"

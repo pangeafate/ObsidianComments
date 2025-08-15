@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:15
@@ -101,7 +103,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx-http.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-fixed.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - frontend
