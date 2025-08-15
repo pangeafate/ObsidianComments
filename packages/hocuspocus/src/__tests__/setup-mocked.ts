@@ -1,4 +1,4 @@
-// Mocked setup for TDD development
+// Mocked setup for Hocuspocus TDD development
 // This setup uses mocks instead of real database connections for fast, isolated tests
 
 // Mock PrismaClient to avoid database connection attempts
@@ -7,6 +7,12 @@ jest.mock('@prisma/client', () => ({
     $connect: jest.fn().mockResolvedValue(undefined),
     $disconnect: jest.fn().mockResolvedValue(undefined),
     $queryRaw: jest.fn().mockResolvedValue([{ version: 'PostgreSQL 15.0' }]),
+    $transaction: jest.fn().mockImplementation(async (ops) => {
+      if (Array.isArray(ops)) {
+        return ops.map(() => ({ count: 0 }));
+      }
+      return ops();
+    }),
     comment: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       create: jest.fn(),
@@ -33,7 +39,7 @@ jest.mock('@prisma/client', () => ({
         htmlContent: data?.data?.htmlContent || null,
         yjsState: data?.data?.yjsState || Buffer.from([]),
         metadata: data?.data?.metadata || {},
-        source: data?.data?.source || 'api',
+        source: data?.data?.source || 'hocuspocus',
         createdAt: new Date(),
         updatedAt: new Date(),
         lastAccessedAt: new Date(),
@@ -42,7 +48,9 @@ jest.mock('@prisma/client', () => ({
       })),
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
       delete: jest.fn()
     },
     user: {
@@ -70,40 +78,13 @@ jest.mock('redis', () => ({
   }))
 }));
 
-// Mock Winston logger
-jest.mock('winston', () => ({
-  createLogger: jest.fn(() => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn()
-  })),
-  format: {
-    combine: jest.fn(),
-    timestamp: jest.fn(),
-    errors: jest.fn(),
-    json: jest.fn(),
-    colorize: jest.fn(),
-    simple: jest.fn(),
-    printf: jest.fn()
-  },
-  transports: {
-    Console: jest.fn(),
-    File: jest.fn()
-  }
-}));
-
-// Mock html-sanitizer module
-jest.mock('../utils/html-sanitizer');
-
 // Global test setup
 beforeAll(() => {
   // Set test environment
   process.env.NODE_ENV = 'test';
-  process.env.FRONTEND_URL = 'http://localhost:5173';
   process.env.MOCK_EXTERNAL_SERVICES = 'true';
   
-  console.log('✅ Test environment configured with mocks (TDD mode)');
+  console.log('✅ Hocuspocus test environment configured with mocks (TDD mode)');
 });
 
 beforeEach(() => {
@@ -116,7 +97,7 @@ beforeEach(() => {
 
 afterAll(() => {
   // Cleanup after all tests
-  console.log('✅ Mocked test environment cleaned up');
+  console.log('✅ Hocuspocus mocked test environment cleaned up');
 });
 
 // Create a mock Prisma client instance for tests that need it
@@ -124,6 +105,12 @@ export const mockPrisma = {
   $connect: jest.fn().mockResolvedValue(undefined),
   $disconnect: jest.fn().mockResolvedValue(undefined),
   $queryRaw: jest.fn().mockResolvedValue([{ version: 'PostgreSQL 15.0' }]),
+  $transaction: jest.fn().mockImplementation(async (ops) => {
+    if (Array.isArray(ops)) {
+      return ops.map(() => ({ count: 0 }));
+    }
+    return ops();
+  }),
   comment: {
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     create: jest.fn(),
@@ -150,7 +137,7 @@ export const mockPrisma = {
       htmlContent: data?.data?.htmlContent || null,
       yjsState: data?.data?.yjsState || Buffer.from([]),
       metadata: data?.data?.metadata || {},
-      source: data?.data?.source || 'api',
+      source: data?.data?.source || 'hocuspocus',
       createdAt: new Date(),
       updatedAt: new Date(),
       lastAccessedAt: new Date(),
@@ -159,7 +146,9 @@ export const mockPrisma = {
     })),
     findMany: jest.fn().mockResolvedValue([]),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
+    upsert: jest.fn(),
     delete: jest.fn()
   },
   user: {
@@ -172,8 +161,10 @@ export const mockPrisma = {
   }
 };
 
+export const prisma = mockPrisma;
+
 // Dummy test to satisfy Jest requirement
-describe('Mocked Test Setup', () => {
+describe('Hocuspocus Mocked Test Setup', () => {
   it('should configure mocked test environment correctly', () => {
     expect(process.env.NODE_ENV).toBe('test');
     expect(process.env.MOCK_EXTERNAL_SERVICES).toBe('true');

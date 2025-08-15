@@ -24,7 +24,7 @@ module.exports = {
   setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
   
   // Use mocked setup by default for TDD
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup-mocked.ts'],
   
   // Coverage configuration
   coverageDirectory: '<rootDir>/coverage',
