@@ -107,12 +107,12 @@ const tests = {
     }
     
     // Check database connectivity
-    if (!data.database || data.database !== 'healthy') {
+    if (!data.services || !data.services.database || data.services.database !== 'connected') {
       throw new Error('Database is not healthy');
     }
     
     // Check Redis connectivity
-    if (!data.redis || data.redis !== 'healthy') {
+    if (!data.services || !data.services.redis || data.services.redis !== 'connected') {
       throw new Error('Redis is not healthy');
     }
   },
@@ -179,8 +179,7 @@ const tests = {
     const response = await makeRequest(`${PRODUCTION_URL}/api/notes/share`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': noteData.length
+        'Content-Type': 'application/json'
       },
       body: noteData
     });
@@ -228,7 +227,11 @@ const tests = {
 
   // 9. Database connectivity via API
   async testDatabaseConnectivity() {
-    const response = await makeRequest(`${PRODUCTION_URL}/api/notes`);
+    const response = await makeRequest(`${PRODUCTION_URL}/api/notes`, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     
     // Even if empty, should return 200
     if (response.statusCode !== 200) {
