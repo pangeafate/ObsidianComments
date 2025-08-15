@@ -94,8 +94,8 @@ services:
       context: ./packages/frontend
       dockerfile: Dockerfile.production
       args:
-        VITE_API_URL: https://obsidiancomments.serverado.app
-        VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
+        VITE_API_URL: http://obsidiancomments.serverado.app
+        VITE_WS_URL: ws://obsidiancomments.serverado.app/ws
     image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
     container_name: obsidian-frontend
     expose:
