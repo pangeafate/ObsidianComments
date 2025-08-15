@@ -439,7 +439,9 @@ jobs:
             echo "Using docker compose V2"
             docker compose -f docker-compose.production.yml down --timeout 30 || true
           else
-            echo "Neither docker-compose nor docker compose available, skipping down"
+            echo "Docker Compose not available, stopping containers manually"
+            docker stop obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
+            docker rm obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
           fi
           
           # Deploy new tested version
@@ -452,8 +454,50 @@ jobs:
             echo "Using docker compose V2"
             docker compose -f docker-compose.production.yml up -d
           else
-            echo "❌ Neither docker-compose nor docker compose available!"
-            exit 1
+            echo "Docker Compose not available, deploying with docker run commands"
+            
+            # Create network
+            docker network create obsidian-network 2>/dev/null || true
+            
+            # Start PostgreSQL
+            docker run -d --name obsidian-postgres --network obsidian-network \
+              -e POSTGRES_DB=obsidian_comments \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=obsidian_prod_db_2025_secure \
+              postgres:15
+              
+            # Start Redis
+            docker run -d --name obsidian-redis --network obsidian-network \
+              redis:7-alpine
+              
+            # Wait for database to be ready
+            sleep 15
+            
+            # Start Backend
+            docker run -d --name obsidian-backend --network obsidian-network \
+              -e NODE_ENV=production \
+              -e DATABASE_URL="postgresql://postgres:obsidian_prod_db_2025_secure@obsidian-postgres:5432/obsidian_comments" \
+              -e REDIS_URL="redis://obsidian-redis:6379" \
+              -e JWT_SECRET="obsidian_jwt_secret_2025_production" \
+              -e PORT=8081 \
+              -e CORS_ORIGIN="https://obsidiancomments.serverado.app" \
+              ghcr.io/pangeafate/obsidiancomments-backend:latest
+              
+            # Start Hocuspocus
+            docker run -d --name obsidian-hocuspocus --network obsidian-network \
+              -e NODE_ENV=production \
+              -e DATABASE_URL="postgresql://postgres:obsidian_prod_db_2025_secure@obsidian-postgres:5432/obsidian_comments" \
+              -e REDIS_URL="redis://obsidian-redis:6379" \
+              -e PORT=8082 \
+              -e CORS_ORIGIN="https://obsidiancomments.serverado.app" \
+              ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest
+              
+            # Start Frontend with reverse proxy
+            docker run -d --name obsidian-frontend --network obsidian-network \
+              -p 80:80 -p 443:443 \
+              -e VITE_API_URL="https://obsidiancomments.serverado.app/api" \
+              -e VITE_WS_URL="wss://obsidiancomments.serverado.app/ws" \
+              ghcr.io/pangeafate/obsidiancomments-frontend:latest
           fi
           
           # Wait for services to be healthy
@@ -461,13 +505,17 @@ jobs:
           sleep 45
           
           # Verify deployment
-          if docker ps | grep obsidian-comments | grep -q "Up"; then
+          if docker ps | grep obsidian | grep -q "Up"; then
             echo "✅ VERIFIED deployment successful!"
             echo "🎉 Application is live with full test coverage validation"
+            echo "📋 Running containers:"
+            docker ps | grep obsidian
           else
             echo "❌ Deployment verification failed!"
             echo "📋 Container status:"
-            docker ps -a | grep obsidian-comments
+            docker ps -a | grep obsidian
+            echo "📋 All containers:"
+            docker ps -a
             echo "📋 Service logs:"
             # Check if docker-compose is working (not just existing)
             if docker-compose --version >/dev/null 2>&1; then
@@ -475,7 +523,10 @@ jobs:
             elif docker compose version >/dev/null 2>&1; then
               docker compose -f docker-compose.production.yml logs --tail=50
             else
-              echo "Neither docker-compose nor docker compose available for logs"
+              echo "Getting logs from individual containers:"
+              docker logs obsidian-backend --tail=20 2>/dev/null || echo "No backend logs"
+              docker logs obsidian-frontend --tail=20 2>/dev/null || echo "No frontend logs"  
+              docker logs obsidian-hocuspocus --tail=20 2>/dev/null || echo "No hocuspocus logs"
             fi
             exit 1
           fi
