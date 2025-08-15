@@ -16,9 +16,10 @@ async function checkHocuspocusHealth(): Promise<boolean> {
   try {
     // Simple check to see if Hocuspocus is responding
     const http = require('http');
+    const hocuspocusUrl = process.env.HOCUSPOCUS_URL || 'http://hocuspocus:8082';
     
     return new Promise((resolve) => {
-      const req = http.get('http://hocuspocus:8082/', { timeout: 5000 }, (res: any) => {
+      const req = http.get(hocuspocusUrl + '/', { timeout: 5000 }, (res: any) => {
         resolve(res.statusCode < 500);
       });
       

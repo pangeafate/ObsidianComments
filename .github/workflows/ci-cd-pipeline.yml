@@ -485,6 +485,7 @@ jobs:
               -e JWT_SECRET="obsidian_jwt_secret_2025_production" \
               -e PORT=8081 \
               -e CORS_ORIGIN="https://obsidiancomments.serverado.app" \
+              -e HOCUSPOCUS_URL="http://obsidian-hocuspocus:8082" \
               ghcr.io/pangeafate/obsidiancomments-backend:latest
               
             # Start Hocuspocus on available port
