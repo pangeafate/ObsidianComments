@@ -194,7 +194,11 @@ const tests = {
     }
     
     // Try to retrieve the created note
-    const getResponse = await makeRequest(`${PRODUCTION_URL}/api/notes/shared/${data.shareId}`);
+    const getResponse = await makeRequest(`${PRODUCTION_URL}/api/notes/${data.shareId}`, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     if (getResponse.statusCode !== 200) {
       throw new Error(`Could not retrieve created note: ${getResponse.statusCode}`);
     }
