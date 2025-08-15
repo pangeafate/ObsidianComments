@@ -88,10 +88,10 @@ jobs:
         id: repo
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: Create production docker-compose
+      - name: Use fixed docker-compose file
         run: |
-          cat > docker-compose.production-new.yml << EOF
-          version: '3.8'
+          echo "Using the existing docker-compose.production.yml with fixes"
+          ls -la docker-compose.production.yml
           services:
             postgres:
               image: postgres:15
@@ -124,6 +124,9 @@ jobs:
                 - obsidian_prod_network
 
             backend:
+              build:
+                context: ./packages/backend
+                dockerfile: Dockerfile.production
               image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-backend:${{ github.sha }}
               expose:
                 - "8081"
@@ -153,6 +156,9 @@ jobs:
                 start_period: 40s
 
             hocuspocus:
+              build:
+                context: ./packages/hocuspocus
+                dockerfile: Dockerfile.production
               image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-hocuspocus:${{ github.sha }}
               expose:
                 - "8082"
@@ -171,10 +177,13 @@ jobs:
                 - obsidian_prod_network
 
             frontend:
+              build:
+                context: ./packages/frontend
+                dockerfile: Dockerfile.production
+                args:
+                  VITE_API_URL: ${{ env.PRODUCTION_URL }}
+                  VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
               image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-frontend:${{ github.sha }}
-              environment:
-                - VITE_API_URL=${{ env.PRODUCTION_URL }}/api
-                - VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
               expose:
                 - "80"
               restart: unless-stopped
@@ -245,7 +254,7 @@ jobs:
           # Run migrations on production database
           docker run --rm \
             --network obsidian_prod_network \
-            -e DATABASE_URL=postgresql://postgres:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/obsidian_comments \
+            -e DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-obsidian_prod_db_2025_secure}@postgres:5432/obsidian_comments \
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-backend:${{ github.sha }} \
             npx prisma migrate deploy
           
