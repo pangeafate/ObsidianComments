@@ -44,10 +44,10 @@ jobs:
           echo "🚀 Deploying to production using docker-compose..."
           
           # Stop existing containers
-          docker-compose -f docker-compose.production.yml down --timeout 30 || true
+          docker compose -f docker-compose.production.yml down --timeout 30 || true
           
           # Deploy with build
-          docker-compose -f docker-compose.production.yml up -d --build
+          docker compose -f docker-compose.production.yml up -d --build
           
           echo "✅ Production deployment completed"
 
@@ -61,7 +61,7 @@ jobs:
           echo "🏥 Running health checks..."
           
           # Check if containers are running
-          docker-compose -f docker-compose.production.yml ps
+          docker compose -f docker-compose.production.yml ps
           
           # Try basic connectivity (might need to wait for reverse proxy setup)
           timeout 120 bash -c 'until curl -f http://localhost/health 2>/dev/null; do echo "Waiting for health endpoint..."; sleep 10; done' || echo "Health check timeout - may need manual verification"
@@ -77,4 +77,4 @@ jobs:
           echo "🌐 URL: ${{ env.PRODUCTION_URL }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Running containers:**" >> $GITHUB_STEP_SUMMARY
-          docker-compose -f docker-compose.production.yml ps --format table >> $GITHUB_STEP_SUMMARY || echo "Could not get container status" >> $GITHUB_STEP_SUMMARY
+          docker compose -f docker-compose.production.yml ps --format table >> $GITHUB_STEP_SUMMARY || echo "Could not get container status" >> $GITHUB_STEP_SUMMARY
