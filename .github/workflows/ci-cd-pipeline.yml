@@ -440,8 +440,11 @@ jobs:
             docker compose -f docker-compose.production.yml down --timeout 30 || true
           else
             echo "Docker Compose not available, stopping containers manually"
+            # Stop containers regardless of port conflicts
             docker stop obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
             docker rm obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
+            # Also try to free up potentially conflicting ports
+            docker ps --filter "publish=8081" --filter "publish=8082" --filter "publish=80" --format "table {{.Names}}" | grep -v NAMES | xargs -r docker stop 2>/dev/null || true
           fi
           
           # Deploy new tested version
@@ -473,9 +476,9 @@ jobs:
             # Wait for database to be ready
             sleep 15
             
-            # Start Backend
+            # Start Backend on available port
             docker run -d --name obsidian-backend --network obsidian-network \
-              -p 8081:8081 \
+              -p 8083:8081 \
               -e NODE_ENV=production \
               -e DATABASE_URL="postgresql://postgres:obsidian_prod_db_2025_secure@obsidian-postgres:5432/obsidian_comments" \
               -e REDIS_URL="redis://obsidian-redis:6379" \
@@ -484,9 +487,9 @@ jobs:
               -e CORS_ORIGIN="https://obsidiancomments.serverado.app" \
               ghcr.io/pangeafate/obsidiancomments-backend:latest
               
-            # Start Hocuspocus
+            # Start Hocuspocus on available port
             docker run -d --name obsidian-hocuspocus --network obsidian-network \
-              -p 8082:8082 \
+              -p 8084:8082 \
               -e NODE_ENV=production \
               -e DATABASE_URL="postgresql://postgres:obsidian_prod_db_2025_secure@obsidian-postgres:5432/obsidian_comments" \
               -e REDIS_URL="redis://obsidian-redis:6379" \
@@ -505,8 +508,10 @@ jobs:
             if docker ps | grep nginx >/dev/null 2>&1; then
               echo "Found existing nginx, application will be available through existing proxy"
             else
-              echo "No reverse proxy found, frontend available on port 8080"
-              echo "Application accessible at: http://\$(hostname -I | awk '{print \$1}'):8080"
+              echo "No reverse proxy found, services available on direct ports:"
+              echo "  - Frontend: http://\$(hostname -I | awk '{print \$1}'):8080"  
+              echo "  - Backend API: http://\$(hostname -I | awk '{print \$1}'):8083"
+              echo "  - WebSocket: ws://\$(hostname -I | awk '{print \$1}'):8084"
             fi
           fi
           
