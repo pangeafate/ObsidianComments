@@ -431,11 +431,21 @@ jobs:
           
           # Stop existing services gracefully
           echo "🛑 Gracefully stopping existing services..."
-          docker compose -f docker-compose.production.yml down --timeout 30 || true
+          # Try docker compose first, fallback to docker-compose for compatibility
+          if command -v docker-compose >/dev/null 2>&1; then
+            docker-compose -f docker-compose.production.yml down --timeout 30 || true
+          else
+            docker compose -f docker-compose.production.yml down --timeout 30 || true
+          fi
           
           # Deploy new tested version
           echo "🚀 Deploying tested application..."
-          docker compose -f docker-compose.production.yml up -d
+          # Try docker compose first, fallback to docker-compose for compatibility
+          if command -v docker-compose >/dev/null 2>&1; then
+            docker-compose -f docker-compose.production.yml up -d
+          else
+            docker compose -f docker-compose.production.yml up -d
+          fi
           
           # Wait for services to be healthy
           echo "⏳ Waiting for services to be healthy..."
@@ -450,7 +460,12 @@ jobs:
             echo "📋 Container status:"
             docker ps -a | grep obsidian-comments
             echo "📋 Service logs:"
-            docker compose -f docker-compose.production.yml logs --tail=50
+            # Try docker compose first, fallback to docker-compose for compatibility
+            if command -v docker-compose >/dev/null 2>&1; then
+              docker-compose -f docker-compose.production.yml logs --tail=50
+            else
+              docker compose -f docker-compose.production.yml logs --tail=50
+            fi
             exit 1
           fi
           EOF
