@@ -431,20 +431,29 @@ jobs:
           
           # Stop existing services gracefully
           echo "🛑 Gracefully stopping existing services..."
-          # Try docker compose first, fallback to docker-compose for compatibility
-          if command -v docker-compose >/dev/null 2>&1; then
+          # Check if docker-compose is working (not just existing)
+          if docker-compose --version >/dev/null 2>&1; then
+            echo "Using docker-compose V1"
             docker-compose -f docker-compose.production.yml down --timeout 30 || true
-          else
+          elif docker compose version >/dev/null 2>&1; then
+            echo "Using docker compose V2"
             docker compose -f docker-compose.production.yml down --timeout 30 || true
+          else
+            echo "Neither docker-compose nor docker compose available, skipping down"
           fi
           
           # Deploy new tested version
           echo "🚀 Deploying tested application..."
-          # Try docker compose first, fallback to docker-compose for compatibility
-          if command -v docker-compose >/dev/null 2>&1; then
+          # Check if docker-compose is working (not just existing)
+          if docker-compose --version >/dev/null 2>&1; then
+            echo "Using docker-compose V1"
             docker-compose -f docker-compose.production.yml up -d
-          else
+          elif docker compose version >/dev/null 2>&1; then
+            echo "Using docker compose V2"
             docker compose -f docker-compose.production.yml up -d
+          else
+            echo "❌ Neither docker-compose nor docker compose available!"
+            exit 1
           fi
           
           # Wait for services to be healthy
@@ -460,11 +469,13 @@ jobs:
             echo "📋 Container status:"
             docker ps -a | grep obsidian-comments
             echo "📋 Service logs:"
-            # Try docker compose first, fallback to docker-compose for compatibility
-            if command -v docker-compose >/dev/null 2>&1; then
+            # Check if docker-compose is working (not just existing)
+            if docker-compose --version >/dev/null 2>&1; then
               docker-compose -f docker-compose.production.yml logs --tail=50
-            else
+            elif docker compose version >/dev/null 2>&1; then
               docker compose -f docker-compose.production.yml logs --tail=50
+            else
+              echo "Neither docker-compose nor docker compose available for logs"
             fi
             exit 1
           fi
