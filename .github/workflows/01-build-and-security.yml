@@ -1,0 +1,312 @@
+name: "01 - Build & Security"
+
+# Stage 1: Build, package, and security scanning
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+
+jobs:
+  # Job 1: Build and Test
+  build:
+    name: "🏗️ Build & Test"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      image-tags: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      matrix:
+        service: [backend, frontend, hocuspocus]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit
+          cd packages/${{ matrix.service }} && npm ci --no-audit
+
+      - name: Run linting
+        run: cd packages/${{ matrix.service }} && npm run lint
+
+      - name: Run type checking
+        run: cd packages/${{ matrix.service }} && npx tsc --noEmit
+
+      - name: Run unit tests
+        run: cd packages/${{ matrix.service }} && npm run test:ci
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase repo name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./packages/${{ matrix.service }}
+          file: ./packages/${{ matrix.service }}/Dockerfile.production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # Job 2: Security Scanning
+  security:
+    name: "🔒 Security Scan"
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        service: [backend, frontend, hocuspocus]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd packages/${{ matrix.service }}
+          npm ci --no-audit
+
+      - name: Run npm audit
+        run: |
+          cd packages/${{ matrix.service }}
+          npm audit --audit-level=moderate --production
+
+      - name: Set lowercase repo name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-${{ matrix.service }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+
+      - name: Secret scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./packages/${{ matrix.service }}
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  # Job 3: Integration Tests
+  integration:
+    name: "🔗 Integration Tests"
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repo name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Create test environment
+        run: |
+          # Create integration test docker-compose
+          cat > docker-compose.integration.yml << EOF
+          version: '3.8'
+          services:
+            backend:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-backend:${{ github.sha }}
+              environment:
+                - NODE_ENV=test
+                - DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db
+                - REDIS_URL=redis://localhost:6379
+                - JWT_SECRET=test_jwt_secret
+                - PORT=8081
+                - CORS_ORIGIN=http://localhost:3000
+              ports:
+                - "8081:8081"
+              network_mode: host
+              
+            hocuspocus:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-hocuspocus:${{ github.sha }}
+              environment:
+                - NODE_ENV=test
+                - DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db
+                - REDIS_URL=redis://localhost:6379
+                - PORT=8082
+                - CORS_ORIGIN=http://localhost:3000
+              ports:
+                - "8082:8082"
+              network_mode: host
+              depends_on:
+                - backend
+                
+            frontend:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-frontend:${{ github.sha }}
+              environment:
+                - VITE_API_URL=http://localhost:8081/api
+                - VITE_WS_URL=ws://localhost:8082
+              ports:
+                - "3000:80"
+              network_mode: host
+          EOF
+
+      - name: Start services
+        run: |
+          docker-compose -f docker-compose.integration.yml up -d
+          sleep 30
+
+      - name: Wait for services
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:8081/api/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3000/health; do sleep 2; done'
+
+      - name: Run integration tests
+        run: |
+          # Test API endpoints
+          echo "Testing API health..."
+          curl -f http://localhost:8081/api/health
+          
+          echo "Testing note creation..."
+          NOTE_RESPONSE=$(curl -X POST http://localhost:8081/api/notes/share \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Integration Test","content":"# Test Content\nThis is a test note."}' \
+            --fail)
+          
+          echo "Note created: $NOTE_RESPONSE"
+          
+          echo "Testing WebSocket connection..."
+          timeout 10 bash -c 'exec 3<>/dev/tcp/localhost/8082 && echo "WebSocket port accessible"'
+
+      - name: Test database connectivity
+        run: |
+          # Test database migrations and connectivity
+          docker run --rm --network host \
+            -e DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db \
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-backend:${{ github.sha }} \
+            node -e "
+              const { PrismaClient } = require('@prisma/client');
+              const prisma = new PrismaClient();
+              prisma.note.count().then(count => {
+                console.log('Database connection successful, note count:', count);
+                process.exit(0);
+              }).catch(err => {
+                console.error('Database connection failed:', err);
+                process.exit(1);
+              });
+            "
+
+      - name: Test CORS configuration
+        run: |
+          # Test CORS headers for Obsidian plugin compatibility
+          CORS_RESPONSE=$(curl -I -X OPTIONS http://localhost:8081/api/notes \
+            -H "Origin: app://obsidian.md" \
+            -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: Content-Type")
+          
+          echo "CORS Response: $CORS_RESPONSE"
+          
+          if echo "$CORS_RESPONSE" | grep -i "access-control-allow-origin"; then
+            echo "✅ CORS headers present"
+          else
+            echo "❌ CORS headers missing"
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.integration.yml down -v
+          docker system prune -f
+
+  # Job 4: Build Status
+  build-status:
+    name: "✅ Build & Security Status"
+    runs-on: ubuntu-latest
+    needs: [build, security, integration]
+    if: always()
+    steps:
+      - name: Check status
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "❌ Build, security, or integration tests failed"
+            exit 1
+          else
+            echo "✅ All build and security checks passed!"
+          fi

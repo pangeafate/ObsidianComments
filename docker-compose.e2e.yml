@@ -1,140 +1,141 @@
-# E2E testing version of docker-compose with nginx but without SSL complexity
+# Ephemeral E2E testing stack - designed to be torn down after tests
 version: '3.8'
 
 services:
-  postgres:
+  postgres-e2e:
     image: postgres:15
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: obsidian_e2e_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-obsidian_comments}"]
+      test: ["CMD-SHELL", "pg_isready -U test_user"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 10
-      start_period: 30s
-    restart: unless-stopped
+    restart: "no"
     networks:
-      - obsidian_e2e_network
+      - e2e_network
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
 
-  redis:
+  redis-e2e:
     image: redis:7-alpine
     volumes:
       - redis_e2e_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+    networks:
+      - e2e_network
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+
+  backend-e2e:
+    image: ${BACKEND_IMAGE:-ghcr.io/pangeafate/obsidiancomments-backend:latest}
+    expose:
+      - "8081"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-e2e:5432/obsidian_e2e_test
+      - REDIS_URL=redis://redis-e2e:6379
+      - PORT=8081
+      - FRONTEND_URL=http://localhost:3001
+      - CORS_ORIGIN=http://localhost:3001
+      - JWT_SECRET=e2e_test_secret_key_12345
+      - RATE_LIMIT_WINDOW=60000
+      - RATE_LIMIT_MAX=1000
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+      redis-e2e:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - e2e_network
+    ports:
+      - "8083:8081"  # Different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - obsidian_e2e_network
-
-  backend:
-    build:
-      context: ./packages/backend
-      dockerfile: Dockerfile.production
-    environment:
-      - NODE_ENV=development  # Use development for better logging
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
-      - REDIS_URL=redis://redis:6379
-      - PORT=8081
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
-      - JWT_SECRET=${JWT_SECRET}
-      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-900000}
-      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
-      - LOG_LEVEL=debug
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - obsidian_e2e_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
       start_period: 30s
 
-  hocuspocus:
-    build:
-      context: ./packages/hocuspocus
-      dockerfile: Dockerfile.production
+  hocuspocus-e2e:
+    image: ${HOCUSPOCUS_IMAGE:-ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest}
+    expose:
+      - "8082"
     environment:
-      - NODE_ENV=development  # Use development for better logging
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
-      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-e2e:5432/obsidian_e2e_test
+      - REDIS_URL=redis://redis-e2e:6379
       - PORT=8082
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - CORS_ORIGIN=http://localhost:3001
       - LOG_LEVEL=debug
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+      - postgres-e2e
+      - redis-e2e
+      - backend-e2e
+    restart: "no"
     networks:
-      - obsidian_e2e_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-      start_period: 20s
+      - e2e_network
+    ports:
+      - "8084:8082"  # Different port to avoid conflicts
+    # Rely on built-in health check from Dockerfile
 
-  frontend:
-    build:
-      context: ./packages/frontend
-      dockerfile: Dockerfile.production
-      args:
-        - VITE_API_URL=http://localhost/api
-        - VITE_WS_URL=ws://localhost/ws
-    restart: unless-stopped
+  frontend-e2e:
+    image: ${FRONTEND_IMAGE:-ghcr.io/pangeafate/obsidiancomments-frontend:latest}
+    environment:
+      - VITE_API_URL=http://localhost:3001/api
+      - VITE_WS_URL=ws://localhost:3001/ws
+    expose:
+      - "80"
+    restart: "no"
     networks:
-      - obsidian_e2e_network
+      - e2e_network
+    ports:
+      - "3002:80"  # Different port to avoid conflicts
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 10s
       timeout: 5s
-      retries: 6
+      retries: 5
       start_period: 10s
 
-  nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
+  nginx-e2e:
+    image: nginx:alpine
     ports:
-      - "80:80"
+      - "3001:80"  # E2E test port
     volumes:
       - ./nginx-e2e.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-      hocuspocus:
-        condition: service_healthy
-    restart: unless-stopped
+      - frontend-e2e
+      - backend-e2e
+      - hocuspocus-e2e
+    restart: "no"
     networks:
-      - obsidian_e2e_network
+      - e2e_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 10s
+      retries: 5
+      start_period: 15s
 
 volumes:
   postgres_e2e_data:
+    driver: local
   redis_e2e_data:
+    driver: local
 
 networks:
-  obsidian_e2e_network:
+  e2e_network:
     driver: bridge
+    name: obsidian_e2e_network

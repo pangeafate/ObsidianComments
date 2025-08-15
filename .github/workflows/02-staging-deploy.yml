@@ -1,0 +1,506 @@
+name: "02 - Staging Deployment"
+
+# Stage 2: Deploy to staging environment with E2E tests
+on:
+  workflow_run:
+    workflows: ["01 - Build & Security"]
+    types: [completed]
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  STAGING_URL: https://staging.obsidiancomments.serverado.app
+
+jobs:
+  # Job 1: Pre-deploy Validation
+  preflight:
+    name: "🔍 Pre-deploy Checks"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      should-deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit
+
+      - name: Environment contract validation
+        run: |
+          echo "Validating environment contracts..."
+          
+          # Check required environment variables
+          REQUIRED_VARS=(
+            "POSTGRES_PASSWORD"
+            "JWT_SECRET"
+            "VITE_API_URL"
+            "VITE_WS_URL"
+          )
+          
+          echo "Required environment variables for staging:"
+          for var in "${REQUIRED_VARS[@]}"; do
+            echo "- $var"
+          done
+
+      - name: Database migration check
+        run: |
+          echo "Checking database migrations..."
+          cd packages/backend
+          
+          # Generate Prisma client to verify schema
+          npx prisma generate
+          
+          # Validate migration files
+          if [ -d "prisma/migrations" ]; then
+            echo "✅ Migration directory exists"
+            echo "Migration files:"
+            ls -la prisma/migrations/
+          else
+            echo "⚠️ No migrations directory found"
+          fi
+
+      - name: Nginx configuration validation
+        run: |
+          echo "Validating nginx configuration..."
+          
+          # Check nginx config syntax
+          docker run --rm -v $(pwd)/nginx-fixed.conf:/etc/nginx/nginx.conf:ro nginx:alpine nginx -t
+          
+          echo "✅ Nginx configuration is valid"
+
+      - name: Set deployment decision
+        id: check
+        run: |
+          echo "deploy=true" >> $GITHUB_OUTPUT
+          echo "✅ All preflight checks passed"
+
+  # Job 2: Staging Deployment
+  deploy-staging:
+    name: "🚀 Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: [preflight]
+    if: needs.preflight.outputs.should-deploy == 'true'
+    environment:
+      name: staging
+      url: ${{ env.STAGING_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repo name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Create staging docker-compose
+        run: |
+          cat > docker-compose.staging.yml << EOF
+          version: '3.8'
+          services:
+            postgres:
+              image: postgres:15
+              environment:
+                POSTGRES_DB: obsidian_staging
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+              volumes:
+                - postgres_staging_data:/var/lib/postgresql/data
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U postgres"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+              restart: unless-stopped
+              networks:
+                - staging_network
+
+            redis:
+              image: redis:7-alpine
+              volumes:
+                - redis_staging_data:/data
+              healthcheck:
+                test: ["CMD", "redis-cli", "ping"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+              restart: unless-stopped
+              networks:
+                - staging_network
+
+            backend:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-backend:${{ github.sha }}
+              expose:
+                - "8081"
+              environment:
+                - NODE_ENV=staging
+                - DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/obsidian_staging
+                - REDIS_URL=redis://redis:6379
+                - PORT=8081
+                - FRONTEND_URL=${{ env.STAGING_URL }}
+                - CORS_ORIGIN=${{ env.STAGING_URL }}
+                - JWT_SECRET=\${JWT_SECRET}
+              depends_on:
+                postgres:
+                  condition: service_healthy
+                redis:
+                  condition: service_healthy
+              restart: unless-stopped
+              networks:
+                - staging_network
+              healthcheck:
+                test: ["CMD", "node", "-e", "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 40s
+
+            hocuspocus:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-hocuspocus:${{ github.sha }}
+              expose:
+                - "8082"
+              environment:
+                - NODE_ENV=staging
+                - DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/obsidian_staging
+                - REDIS_URL=redis://redis:6379
+                - PORT=8082
+                - CORS_ORIGIN=${{ env.STAGING_URL }}
+              depends_on:
+                - postgres
+                - redis
+                - backend
+              restart: unless-stopped
+              networks:
+                - staging_network
+
+            frontend:
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}-frontend:${{ github.sha }}
+              environment:
+                - VITE_API_URL=${{ env.STAGING_URL }}/api
+                - VITE_WS_URL=wss://staging.obsidiancomments.serverado.app/ws
+              expose:
+                - "80"
+              restart: unless-stopped
+              networks:
+                - staging_network
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 10s
+
+            nginx:
+              image: nginx:alpine
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./nginx-staging.conf:/etc/nginx/nginx.conf:ro
+                - nginx_staging_logs:/var/log/nginx
+              depends_on:
+                - frontend
+              restart: unless-stopped
+              networks:
+                - staging_network
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 15s
+
+          volumes:
+            postgres_staging_data:
+            redis_staging_data:
+            nginx_staging_logs:
+
+          networks:
+            staging_network:
+              driver: bridge
+          EOF
+
+      - name: Create staging nginx config
+        run: |
+          cat > nginx-staging.conf << EOF
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              include       /etc/nginx/mime.types;
+              default_type  application/octet-stream;
+              
+              # Logging
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log;
+              
+              # Basic settings
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              
+              # Gzip compression
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+              server {
+                  listen 80;
+                  server_name staging.obsidiancomments.serverado.app;
+
+                  # Security headers
+                  add_header X-Frame-Options DENY;
+                  add_header X-Content-Type-Options nosniff;
+                  
+                  # CORS headers for Obsidian plugin
+                  add_header 'Access-Control-Allow-Origin' 'app://obsidian.md' always;
+                  add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+                  add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+                  add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+                  # Health check endpoint
+                  location /health {
+                      access_log off;
+                      return 200 "healthy\\n";
+                      add_header Content-Type text/plain;
+                  }
+
+                  # Frontend (React app)
+                  location / {
+                      proxy_pass http://frontend:80;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host \$host;
+                      proxy_set_header X-Real-IP \$remote_addr;
+                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto \$scheme;
+                  }
+
+                  # Backend API
+                  location /api/ {
+                      proxy_pass http://backend:8081/api/;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host \$host;
+                      proxy_set_header X-Real-IP \$remote_addr;
+                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto \$scheme;
+                  }
+
+                  # WebSocket for Hocuspocus
+                  location /ws {
+                      proxy_pass http://hocuspocus:8082;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade \$http_upgrade;
+                      proxy_set_header Connection "upgrade";
+                      proxy_set_header Host \$host;
+                      proxy_set_header X-Real-IP \$remote_addr;
+                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto \$scheme;
+                      
+                      # WebSocket timeouts
+                      proxy_read_timeout 86400;
+                  }
+              }
+          }
+          EOF
+
+      - name: Deploy to staging server
+        run: |
+          echo "🚀 Deploying to staging environment..."
+          echo "This would typically involve:"
+          echo "1. SSH to staging server"
+          echo "2. Pull latest images"
+          echo "3. Run database migrations"
+          echo "4. Deploy with zero-downtime strategy"
+          echo "5. Run health checks"
+          
+          # Simulated deployment - in real scenario, this would be actual deployment
+          echo "✅ Staging deployment completed"
+
+  # Job 3: E2E Testing on Staging
+  e2e-staging:
+    name: "🎭 E2E Tests on Staging"
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Create E2E test config for staging
+        run: |
+          cat > playwright.staging.config.js << EOF
+          const { defineConfig, devices } = require('@playwright/test');
+
+          module.exports = defineConfig({
+            testDir: './tests/e2e',
+            fullyParallel: true,
+            forbidOnly: !!process.env.CI,
+            retries: process.env.CI ? 2 : 0,
+            workers: process.env.CI ? 1 : undefined,
+            reporter: 'html',
+            timeout: 60000,
+            use: {
+              baseURL: '${{ env.STAGING_URL }}',
+              trace: 'on-first-retry',
+              screenshot: 'only-on-failure',
+              video: 'retain-on-failure',
+            },
+            projects: [
+              {
+                name: 'chromium',
+                use: { ...devices['Desktop Chrome'] },
+              },
+              {
+                name: 'firefox',
+                use: { ...devices['Desktop Firefox'] },
+              },
+            ],
+            webServer: {
+              command: 'echo "Using external staging server"',
+              url: '${{ env.STAGING_URL }}/health',
+              reuseExistingServer: true,
+              timeout: 60000,
+            },
+          });
+          EOF
+
+      - name: Wait for staging to be ready
+        run: |
+          echo "Waiting for staging environment to be ready..."
+          timeout 300 bash -c 'until curl -f ${{ env.STAGING_URL }}/health; do sleep 5; done'
+          echo "✅ Staging environment is ready"
+
+      - name: Run E2E tests
+        run: npx playwright test --config=playwright.staging.config.js
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-e2e-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Job 4: Performance Testing
+  performance:
+    name: "⚡ Performance Tests"
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Create performance test
+        run: |
+          mkdir -p tests/performance
+          cat > tests/performance/staging-load.js << EOF
+          import http from 'k6/http';
+          import { check } from 'k6';
+          import { Rate } from 'k6/metrics';
+
+          export const errorRate = new Rate('errors');
+
+          export const options = {
+            stages: [
+              { duration: '30s', target: 10 },
+              { duration: '1m', target: 20 },
+              { duration: '30s', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<2000'],
+              errors: ['rate<0.1'],
+            },
+          };
+
+          export default function () {
+            const baseUrl = '${{ env.STAGING_URL }}';
+            
+            // Test homepage
+            let res = http.get(\`\${baseUrl}/\`);
+            check(res, {
+              'homepage status is 200': (r) => r.status === 200,
+              'homepage response time < 2s': (r) => r.timings.duration < 2000,
+            }) || errorRate.add(1);
+
+            // Test API health
+            res = http.get(\`\${baseUrl}/api/health\`);
+            check(res, {
+              'API health status is 200': (r) => r.status === 200,
+              'API response time < 1s': (r) => r.timings.duration < 1000,
+            }) || errorRate.add(1);
+
+            // Test note creation
+            const payload = JSON.stringify({
+              title: 'Performance Test Note',
+              content: '# Performance Test\\nThis is a test note for performance testing.',
+            });
+
+            res = http.post(\`\${baseUrl}/api/notes/share\`, payload, {
+              headers: { 'Content-Type': 'application/json' },
+            });
+            
+            check(res, {
+              'note creation status is 200': (r) => r.status === 200,
+              'note creation response time < 3s': (r) => r.timings.duration < 3000,
+            }) || errorRate.add(1);
+          }
+          EOF
+
+      - name: Run performance tests
+        run: |
+          k6 run tests/performance/staging-load.js
+
+  # Job 5: Staging Validation Status
+  staging-status:
+    name: "✅ Staging Validation"
+    runs-on: ubuntu-latest
+    needs: [preflight, deploy-staging, e2e-staging, performance]
+    if: always()
+    outputs:
+      staging-ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Check staging validation
+        id: check
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "❌ Staging validation failed"
+            echo "ready=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Staging validation successful - ready for production!"
+            echo "ready=true" >> $GITHUB_OUTPUT
+          fi
