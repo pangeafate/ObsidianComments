@@ -116,12 +116,12 @@ export function EnhancedCommentPanel({
   // Count total replies in a thread recursively
   const countRepliesInThread = (comment: Comment & { children: Comment[] }): number => {
     return comment.children.reduce((count, child) => {
-      return count + 1 + countRepliesInThread(child);
+      return count + 1 + countRepliesInThread(child as Comment & { children: Comment[] });
     }, 0);
   };
 
   // Check if a comment should be visible (not folded)
-  const isCommentVisible = (commentId: string, parentId: string | null): boolean => {
+  const isCommentVisible = (_commentId: string, parentId: string | null): boolean => {
     if (!parentId) return true; // Root comments are always visible
     
     // Check if any ancestor is folded
@@ -133,7 +133,7 @@ export function EnhancedCommentPanel({
       
       // Find parent of current parent
       const parentComment = comments.find(c => c.id === currentParentId);
-      currentParentId = parentComment?.threadId || null;
+      currentParentId = parentComment?.threadId ?? null;
     }
     
     return true;
@@ -412,7 +412,7 @@ export function EnhancedCommentPanel({
             {comment.children.map(child => (
               <ThreadedComment 
                 key={child.id} 
-                comment={child} 
+                comment={child as Comment & { children: Comment[]; depth: number }} 
                 depth={depth + 1} 
               />
             ))}

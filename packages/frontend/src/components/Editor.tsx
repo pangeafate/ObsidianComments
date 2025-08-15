@@ -218,7 +218,7 @@ export function Editor({ documentId }: EditorProps) {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
       },
-      handleTextInput: (_view, from, _to, text) => {
+      handleTextInput: (_view, _from, _to, _text) => {
         // Auto-apply track changes to new text input
         // Note: Removed editor self-reference to fix initialization error
         // Track changes will be handled by the extension automatically
@@ -259,7 +259,7 @@ export function Editor({ documentId }: EditorProps) {
         console.log('📝 Loading API content into editor (editor appears empty) via', chosen.type);
         if (chosen.type === 'html') {
           // Directly set HTML for TipTap, allowing its parser to ingest DOM
-          editor.commands.setContent(chosen.content, false, { parseOptions: { preserveWhitespace: 'full' } });
+          editor.commands.setContent(chosen.content, false);
           console.log('✅ HTML content initialization complete');
         } else {
           initializeContentSafely(
@@ -397,7 +397,7 @@ export function Editor({ documentId }: EditorProps) {
 
   // Debug functions for testing (development only)
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
       (window as any).editorFunctions = {
         stripTrackChangesMarkup,
         getEditorContent: () => editor?.getHTML() || '',

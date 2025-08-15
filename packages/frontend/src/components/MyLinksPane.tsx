@@ -14,7 +14,7 @@ export interface MyLinksPaneRef {
   refreshLinks: () => void;
 }
 
-export const MyLinksPane = forwardRef<MyLinksPaneRef>((props, ref) => {
+export const MyLinksPane = forwardRef<MyLinksPaneRef>((_props, ref) => {
   const [links, setLinks] = useState<Link[]>([]);
   const [copyMessage, setCopyMessage] = useState<string>('');
 

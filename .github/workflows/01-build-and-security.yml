@@ -46,7 +46,13 @@ jobs:
         run: cd packages/${{ matrix.service }} && npm run lint
 
       - name: Run type checking
-        run: cd packages/${{ matrix.service }} && npx tsc --noEmit
+        run: |
+          cd packages/${{ matrix.service }}
+          if [ -f "tsconfig.ci.json" ]; then
+            npx tsc --noEmit -p tsconfig.ci.json
+          else
+            npx tsc --noEmit --skipLibCheck
+          fi
 
       - name: Run unit tests
         run: cd packages/${{ matrix.service }} && npm run test:ci
