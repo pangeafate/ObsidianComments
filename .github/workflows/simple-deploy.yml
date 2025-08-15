@@ -2,8 +2,9 @@ name: "🚀 Simple Deploy"
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
+  # Disabled automatic push triggers to prevent conflicts with comprehensive CI/CD pipeline
+  # push:
+  #   branches: [ main ]
 
 jobs:
   deploy:
