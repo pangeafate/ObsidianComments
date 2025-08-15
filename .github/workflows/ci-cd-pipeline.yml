@@ -422,8 +422,9 @@ jobs:
           git fetch --all
           git reset --hard origin/main
           
-          # Pull TESTED images
+          # Pull TESTED images (with authentication)
           echo "📥 Pulling verified Docker images..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker pull ghcr.io/pangeafate/obsidiancomments-backend:latest
           docker pull ghcr.io/pangeafate/obsidiancomments-frontend:latest
           docker pull ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest
