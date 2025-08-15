@@ -337,9 +337,9 @@ jobs:
         run: |
           echo "🏗️ Building all services with comprehensive testing validation..."
           
-          # Build Backend
+          # Build Backend (single architecture for faster deployment)
           docker buildx build --push \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             --file ./packages/backend/Dockerfile.production \
             --tag ${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} \
             --tag ${{ env.IMAGE_NAME_BACKEND }}:latest \
@@ -347,9 +347,9 @@ jobs:
             --cache-to type=gha,mode=max \
             ./packages/backend
           
-          # Build Frontend
+          # Build Frontend (single architecture for faster deployment)
           docker buildx build --push \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             --file ./packages/frontend/Dockerfile.production \
             --tag ${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }} \
             --tag ${{ env.IMAGE_NAME_FRONTEND }}:latest \
@@ -359,9 +359,9 @@ jobs:
             --build-arg VITE_WS_URL=wss://obsidiancomments.serverado.app/ws \
             ./packages/frontend
           
-          # Build Hocuspocus
+          # Build Hocuspocus (single architecture for faster deployment)
           docker buildx build --push \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             --file ./packages/hocuspocus/Dockerfile.production \
             --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:${{ github.sha }} \
             --tag ${{ env.IMAGE_NAME_HOCUSPOCUS }}:latest \
