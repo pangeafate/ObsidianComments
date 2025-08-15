@@ -1,0 +1,208 @@
+name: "03 - Remote Production Deployment"
+
+# Deploy to actual production server via SSH
+on:
+  workflow_run:
+    workflows: ["02 - Staging Deployment"]
+    types: [completed]
+    branches: [main]
+
+env:
+  PRODUCTION_URL: https://obsidiancomments.serverado.app
+  PRODUCTION_HOST: obsidiancomments.serverado.app
+
+jobs:
+  deploy-to-remote:
+    name: "🚀 Deploy to Remote Server"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/main' }}
+    environment:
+      name: production
+      url: ${{ env.PRODUCTION_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test remote connectivity
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST || env.PRODUCTION_HOST }}
+        run: |
+          echo "🔍 Testing connectivity to production server..."
+          
+          # Test if the domain resolves
+          if nslookup $PRODUCTION_HOST; then
+            echo "✅ Domain resolves successfully"
+          else
+            echo "❌ Domain resolution failed"
+            exit 1
+          fi
+          
+          # Test HTTP connectivity
+          if curl -I -L --max-time 30 ${{ env.PRODUCTION_URL }} 2>/dev/null | head -1 | grep -E "(200|301|302|404)"; then
+            echo "✅ HTTP connectivity confirmed (server is reachable)"
+          else
+            echo "⚠️ HTTP connectivity test inconclusive"
+          fi
+
+      - name: Prepare deployment package
+        run: |
+          echo "📦 Preparing deployment package..."
+          
+          # Create deployment directory
+          mkdir -p deployment
+          
+          # Copy necessary files
+          cp docker-compose.production.yml deployment/
+          cp nginx-fixed.conf deployment/nginx.conf
+          cp -r packages deployment/
+          
+          # Create deployment script
+          cat > deployment/deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "🚀 Starting remote deployment..."
+          
+          # Set environment variables
+          export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-obsidian_prod_db_2025_secure}"
+          export JWT_SECRET="${JWT_SECRET:-obsidian_jwt_secret_2025_production}"
+          
+          # Stop existing containers
+          docker compose -f docker-compose.production.yml down --timeout 30 || true
+          
+          # Build and start new containers
+          docker compose -f docker-compose.production.yml up -d --build
+          
+          # Wait for services to start
+          sleep 30
+          
+          # Check container status
+          docker compose -f docker-compose.production.yml ps
+          
+          echo "✅ Remote deployment completed"
+          EOF
+          
+          chmod +x deployment/deploy.sh
+          
+          # Create tarball
+          tar -czf deployment.tar.gz deployment/
+          echo "✅ Deployment package created"
+
+      - name: Deploy via SSH (if configured)
+        if: ${{ secrets.SSH_PRIVATE_KEY != '' && secrets.PRODUCTION_HOST != '' }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          PRODUCTION_USER: ${{ secrets.PRODUCTION_USER || 'root' }}
+        run: |
+          echo "🔐 Setting up SSH connection..."
+          
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $PRODUCTION_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          echo "📤 Uploading deployment package..."
+          scp -o StrictHostKeyChecking=no deployment.tar.gz $PRODUCTION_USER@$PRODUCTION_HOST:/tmp/
+          
+          echo "🚀 Executing remote deployment..."
+          ssh -o StrictHostKeyChecking=no $PRODUCTION_USER@$PRODUCTION_HOST << 'ENDSSH'
+            cd /tmp
+            tar -xzf deployment.tar.gz
+            cd deployment
+            ./deploy.sh
+          ENDSSH
+          
+          echo "✅ Remote deployment executed"
+
+      - name: Alternative deployment instructions
+        if: ${{ secrets.SSH_PRIVATE_KEY == '' || secrets.PRODUCTION_HOST == '' }}
+        run: |
+          echo "⚠️ SSH credentials not configured in GitHub Secrets"
+          echo ""
+          echo "## Manual Deployment Required" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The deployment package has been prepared but cannot be automatically deployed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### To deploy manually:" >> $GITHUB_STEP_SUMMARY
+          echo "1. SSH into your production server: \`ssh user@${{ env.PRODUCTION_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Clone the repository: \`git clone https://github.com/${{ github.repository }}.git\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Navigate to the directory: \`cd ObsidianComments\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Set environment variables:" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`export POSTGRES_PASSWORD=your_secure_password\`" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`export JWT_SECRET=your_jwt_secret\`" >> $GITHUB_STEP_SUMMARY
+          echo "5. Run deployment: \`docker compose -f docker-compose.production.yml up -d --build\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### To enable automatic deployment:" >> $GITHUB_STEP_SUMMARY
+          echo "Add these secrets to your GitHub repository:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`SSH_PRIVATE_KEY\`: Your SSH private key for server access" >> $GITHUB_STEP_SUMMARY
+          echo "- \`PRODUCTION_HOST\`: Your production server hostname/IP" >> $GITHUB_STEP_SUMMARY
+          echo "- \`PRODUCTION_USER\`: SSH username (optional, defaults to 'root')" >> $GITHUB_STEP_SUMMARY
+          echo "- \`POSTGRES_PASSWORD\`: Production database password" >> $GITHUB_STEP_SUMMARY
+          echo "- \`JWT_SECRET\`: Production JWT secret" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+          
+          # Wait for deployment to stabilize
+          sleep 60
+          
+          # Test public accessibility
+          echo "Testing public URL: ${{ env.PRODUCTION_URL }}"
+          
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 30 ${{ env.PRODUCTION_URL }} || echo "000")
+          
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Site is accessible at ${{ env.PRODUCTION_URL }}"
+            echo "HTTP Status: $RESPONSE"
+          elif [ "$RESPONSE" = "000" ]; then
+            echo "❌ Site is not accessible - connection timeout"
+            echo "The deployment may not have reached the production server"
+            echo "Please check:"
+            echo "1. SSH credentials are configured correctly"
+            echo "2. The server has Docker and Docker Compose installed"
+            echo "3. Firewall allows traffic on port 80/443"
+            echo "4. DNS is configured correctly"
+            exit 1
+          else
+            echo "⚠️ Site returned HTTP status: $RESPONSE"
+            echo "The site may be partially accessible"
+          fi
+          
+          # Test API endpoint
+          API_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 30 ${{ env.PRODUCTION_URL }}/api/health || echo "000")
+          
+          if [ "$API_RESPONSE" = "200" ]; then
+            echo "✅ API is healthy"
+          else
+            echo "⚠️ API health check returned: $API_RESPONSE"
+          fi
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## 🎯 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** ${{ env.PRODUCTION_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Test current status
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 ${{ env.PRODUCTION_URL }} || echo "Unreachable")
+          echo "**Current Status:** $STATUS" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ **Result:** Site is live and accessible" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Result:** Site is not accessible" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Troubleshooting Steps:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Check if SSH deployment credentials are configured" >> $GITHUB_STEP_SUMMARY
+            echo "2. Verify server has Docker and Docker Compose installed" >> $GITHUB_STEP_SUMMARY
+            echo "3. Check server firewall settings" >> $GITHUB_STEP_SUMMARY
+            echo "4. Verify DNS configuration" >> $GITHUB_STEP_SUMMARY
+            echo "5. Review server logs: \`docker compose -f docker-compose.production.yml logs\`" >> $GITHUB_STEP_SUMMARY
+          fi

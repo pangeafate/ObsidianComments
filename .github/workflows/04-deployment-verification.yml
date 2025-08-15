@@ -1,0 +1,190 @@
+name: "04 - Deployment Verification"
+
+# Run comprehensive tests against production deployment
+on:
+  workflow_run:
+    workflows: ["03 - Remote Production Deployment"]
+    types: [completed]
+    branches: [main]
+  
+  # Allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'URL to test (defaults to production)'
+        required: false
+        default: 'https://obsidiancomments.serverado.app'
+
+env:
+  PRODUCTION_URL: ${{ github.event.inputs.target_url || 'https://obsidiancomments.serverado.app' }}
+
+jobs:
+  verify-deployment:
+    name: "🧪 Verify Deployment"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Wait for deployment to stabilize
+        run: |
+          echo "⏳ Waiting for deployment to stabilize..."
+          sleep 120
+
+      - name: Run comprehensive deployment tests
+        env:
+          PRODUCTION_URL: ${{ env.PRODUCTION_URL }}
+        run: |
+          echo "🧪 Running comprehensive deployment tests..."
+          
+          # Make test script executable
+          chmod +x tests/deployment/test-deployment.js
+          
+          # Run the test suite
+          node tests/deployment/test-deployment.js
+
+      - name: Test site accessibility
+        run: |
+          echo "🌐 Testing site accessibility..."
+          
+          # Test different endpoints
+          endpoints=(
+            "${{ env.PRODUCTION_URL }}"
+            "${{ env.PRODUCTION_URL }}/api/health"
+            "${{ env.PRODUCTION_URL }}/api/notes"
+          )
+          
+          for endpoint in "${endpoints[@]}"; do
+            echo "Testing: $endpoint"
+            
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 30 "$endpoint" || echo "000")
+            response_time=$(curl -s -o /dev/null -w "%{time_total}" -L --max-time 30 "$endpoint" || echo "timeout")
+            
+            echo "  Status: $status_code"
+            echo "  Response time: ${response_time}s"
+            
+            if [ "$status_code" = "200" ]; then
+              echo "  ✅ Endpoint accessible"
+            elif [ "$status_code" = "000" ]; then
+              echo "  ❌ Endpoint unreachable"
+            else
+              echo "  ⚠️ Endpoint returned: $status_code"
+            fi
+            echo ""
+          done
+
+      - name: Test WebSocket endpoint
+        run: |
+          echo "🔌 Testing WebSocket endpoint..."
+          
+          # Test WebSocket upgrade
+          ws_test=$(curl -s -I -H "Connection: Upgrade" -H "Upgrade: websocket" \
+            --max-time 10 "${{ env.PRODUCTION_URL }}/ws" || echo "failed")
+          
+          if echo "$ws_test" | grep -i "upgrade"; then
+            echo "✅ WebSocket endpoint responding"
+          else
+            echo "⚠️ WebSocket endpoint test inconclusive"
+          fi
+
+      - name: Performance benchmarking
+        run: |
+          echo "⚡ Running performance benchmarks..."
+          
+          # Test homepage performance
+          homepage_time=$(curl -s -o /dev/null -w "%{time_total}" -L --max-time 30 "${{ env.PRODUCTION_URL }}" || echo "0")
+          api_time=$(curl -s -o /dev/null -w "%{time_total}" -L --max-time 30 "${{ env.PRODUCTION_URL }}/api/health" || echo "0")
+          
+          echo "Homepage response time: ${homepage_time}s"
+          echo "API response time: ${api_time}s"
+          
+          # Convert to milliseconds for easier reading
+          homepage_ms=$(echo "$homepage_time * 1000" | bc -l 2>/dev/null || echo "N/A")
+          api_ms=$(echo "$api_time * 1000" | bc -l 2>/dev/null || echo "N/A")
+          
+          echo "Homepage: ${homepage_ms}ms"
+          echo "API: ${api_ms}ms"
+          
+          # Check if performance is acceptable
+          if (( $(echo "$homepage_time > 5" | bc -l 2>/dev/null || echo 0) )); then
+            echo "⚠️ Homepage response time is slow (>${homepage_time}s)"
+          else
+            echo "✅ Homepage performance acceptable"
+          fi
+
+      - name: Security headers check
+        run: |
+          echo "🔒 Checking security headers..."
+          
+          headers=$(curl -s -I -L --max-time 30 "${{ env.PRODUCTION_URL }}" || echo "failed")
+          
+          security_headers=(
+            "X-Content-Type-Options"
+            "X-Frame-Options"
+            "Strict-Transport-Security"
+          )
+          
+          for header in "${security_headers[@]}"; do
+            if echo "$headers" | grep -i "$header"; then
+              echo "✅ $header present"
+            else
+              echo "⚠️ $header missing"
+            fi
+          done
+
+      - name: Create deployment report
+        if: always()
+        run: |
+          echo "## 🧪 Deployment Verification Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target URL:** ${{ env.PRODUCTION_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Test current site status
+          status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "${{ env.PRODUCTION_URL }}" || echo "Unreachable")
+          api_status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "${{ env.PRODUCTION_URL }}/api/health" || echo "Unreachable")
+          
+          echo "### 📊 Current Status" >> $GITHUB_STEP_SUMMARY
+          echo "- **Homepage:** HTTP $status" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Health:** HTTP $api_status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$status" = "200" ] && [ "$api_status" = "200" ]; then
+            echo "### ✅ Overall Result: PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "The deployment appears to be working correctly." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Overall Result: ISSUES DETECTED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Issues found:**" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$status" != "200" ]; then
+              echo "- Homepage is not accessible (HTTP $status)" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "$api_status" != "200" ]; then
+              echo "- API health endpoint is not accessible (HTTP $api_status)" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Recommended actions:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Check if the deployment actually reached the production server" >> $GITHUB_STEP_SUMMARY
+            echo "2. Verify SSH credentials and server access" >> $GITHUB_STEP_SUMMARY
+            echo "3. Check Docker containers are running: \`docker compose ps\`" >> $GITHUB_STEP_SUMMARY
+            echo "4. Review server logs: \`docker compose logs\`" >> $GITHUB_STEP_SUMMARY
+            echo "5. Check firewall and DNS configuration" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Notify if deployment failed
+        if: failure()
+        run: |
+          echo "❌ Deployment verification failed!"
+          echo "The site at ${{ env.PRODUCTION_URL }} is not functioning correctly."
+          echo "Please check the deployment logs and server configuration."
+          exit 1
