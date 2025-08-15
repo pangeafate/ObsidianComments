@@ -239,7 +239,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker-compose -f docker-compose.integration.yml up -d
+          docker compose -f docker-compose.integration.yml up -d
           sleep 30
 
       - name: Wait for services
@@ -302,7 +302,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.integration.yml down -v
+          docker compose -f docker-compose.integration.yml down -v
           docker system prune -f
 
   # Job 4: Build Status

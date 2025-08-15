@@ -200,7 +200,7 @@ jobs:
       - name: "🐳 Start Test Environment"
         run: |
           echo "🐳 Starting full application stack for E2E tests..."
-          docker-compose -f docker-compose.test.yml up -d --build
+          docker compose -f docker-compose.test.yml up -d --build
       
       - name: "⏳ Wait for Services"
         run: |
@@ -231,7 +231,7 @@ jobs:
       - name: "🧹 Cleanup"
         if: always()
         run: |
-          docker-compose -f docker-compose.test.yml down -v
+          docker compose -f docker-compose.test.yml down -v
           docker system prune -f
 
   # Phase 5: Security Scan (parallel with other tests)
@@ -431,11 +431,11 @@ jobs:
           
           # Stop existing services gracefully
           echo "🛑 Gracefully stopping existing services..."
-          docker-compose -f docker-compose.production.yml down --timeout 30 || true
+          docker compose -f docker-compose.production.yml down --timeout 30 || true
           
           # Deploy new tested version
           echo "🚀 Deploying tested application..."
-          docker-compose -f docker-compose.production.yml up -d
+          docker compose -f docker-compose.production.yml up -d
           
           # Wait for services to be healthy
           echo "⏳ Waiting for services to be healthy..."
@@ -450,7 +450,7 @@ jobs:
             echo "📋 Container status:"
             docker ps -a | grep obsidian-comments
             echo "📋 Service logs:"
-            docker-compose -f docker-compose.production.yml logs --tail=50
+            docker compose -f docker-compose.production.yml logs --tail=50
             exit 1
           fi
           EOF
