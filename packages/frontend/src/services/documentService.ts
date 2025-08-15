@@ -21,7 +21,13 @@ class DocumentService {
     const fromVite = viteEnv?.VITE_API_URL as string | undefined;
     const fromProcess = typeof process !== 'undefined' ? (process.env?.VITE_API_URL as string | undefined) : undefined;
     const base = fromVite || fromProcess || '';
-    this.baseUrl = base ? base + '/api' : '/api';
+    
+    // Avoid double /api - check if base already ends with /api
+    if (base) {
+      this.baseUrl = base.endsWith('/api') ? base : base + '/api';
+    } else {
+      this.baseUrl = '/api';
+    }
   }
 
   async loadDocument(documentId: string): Promise<DocumentData> {

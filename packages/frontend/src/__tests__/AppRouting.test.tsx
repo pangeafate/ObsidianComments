@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Routes, Route } from 'react-router-dom';
@@ -86,7 +85,7 @@ describe('App Routing (Fixed)', () => {
   });
 
   it('should show nothing for unmatched routes', () => {
-    const { container } = render(
+    render(
       <MemoryRouter initialEntries={['/nonexistent-route']}>
         <TestAppRoutes />
       </MemoryRouter>

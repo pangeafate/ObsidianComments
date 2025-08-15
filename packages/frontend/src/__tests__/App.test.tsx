@@ -1,6 +1,5 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mock the Editor component to avoid complex dependencies
@@ -83,7 +82,7 @@ describe('App Routing', () => {
       // Mock EditorPage component that should exist
       const EditorPage = () => {
         const { useParams } = require('react-router-dom');
-        const { documentId } = useParams<{ documentId: string }>();
+        const { documentId } = useParams() as { documentId: string };
         if (!documentId) return <div>No document ID</div>;
         return <Editor documentId={documentId} />;
       };

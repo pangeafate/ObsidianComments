@@ -11,9 +11,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build arguments for production URLs
-ARG VITE_API_URL=http://obsidiancomments.serverado.app/api
-ARG VITE_WS_URL=ws://obsidiancomments.serverado.app/ws
+# Build arguments for production URLs (without /api - will be added by documentService)
+ARG VITE_API_URL=https://obsidiancomments.serverado.app
+ARG VITE_WS_URL=wss://obsidiancomments.serverado.app/ws
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL

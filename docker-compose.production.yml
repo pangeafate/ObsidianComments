@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-obsidian_comments}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-obsidian_prod_db_2025_secure}
     # No port exposure - only accessible within Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -34,7 +34,11 @@ services:
       - obsidian_prod_network
 
   backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile.production
     image: ghcr.io/pangeafate/obsidiancomments-backend:latest
+    container_name: obsidian-backend
     expose:
       - "8081"
     environment:
@@ -43,8 +47,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - PORT=8081
       - FRONTEND_URL=${FRONTEND_URL:-http://obsidiancomments.serverado.app}
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://obsidiancomments.serverado.app}
-      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
+      - JWT_SECRET=${JWT_SECRET:-obsidian_jwt_secret_2025_production}
       - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-900000}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
     depends_on:
@@ -63,7 +67,11 @@ services:
       start_period: 40s
 
   hocuspocus:
+    build:
+      context: ./packages/hocuspocus
+      dockerfile: Dockerfile.production
     image: ghcr.io/pangeafate/obsidiancomments-hocuspocus:latest
+    container_name: obsidian-hocuspocus
     expose:
       - "8082"
     environment:
@@ -71,7 +79,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-obsidian_comments}
       - REDIS_URL=redis://redis:6379
       - PORT=8082
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://obsidiancomments.serverado.app}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://obsidiancomments.serverado.app}
     depends_on:
       - postgres
       - redis
@@ -82,10 +90,14 @@ services:
     # Use built-in Docker health check from Dockerfile instead of overriding
 
   frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile.production
+      args:
+        VITE_API_URL: https://obsidiancomments.serverado.app
+        VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
     image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
-    environment:
-      - VITE_API_URL=http://obsidiancomments.serverado.app/api
-      - VITE_WS_URL=ws://obsidiancomments.serverado.app/ws
+    container_name: obsidian-frontend
     expose:
       - "80"
     restart: unless-stopped

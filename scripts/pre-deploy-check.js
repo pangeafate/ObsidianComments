@@ -94,12 +94,12 @@ const checks = {
     try {
       // Check if there's a type-check script
       const packageJson = JSON.parse(fs.readFileSync('packages/frontend/package.json', 'utf8'));
-      if (!packageJson.scripts || !packageJson.scripts['type-check']) {
-        console.log('⚠️  No type-check script found, skipping');
+      if (!packageJson.scripts || !packageJson.scripts['typecheck']) {
+        console.log('⚠️  No typecheck script found, skipping');
         return true;
       }
       
-      execSync('npm run type-check --prefix packages/frontend', { stdio: 'pipe' });
+      execSync('npm run typecheck --prefix packages/frontend', { stdio: 'pipe' });
       console.log('✅ TypeScript compilation clean');
       return true;
     } catch (e) {

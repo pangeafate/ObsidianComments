@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { NewNoteButton } from '../components/NewNoteButton';
@@ -77,7 +76,10 @@ describe('New Note Workflow End-to-End', () => {
     
     // Step 3: Verify that window.open was called with correct URL format
     expect(mockWindowOpen).toHaveBeenCalledTimes(1);
-    const [openedUrl, target] = mockWindowOpen.mock.calls[0];
+    const mockCall = mockWindowOpen.mock.calls[0];
+    expect(mockCall).toBeDefined();
+    expect(mockCall.length).toBeGreaterThan(0);
+    const [openedUrl, target] = mockCall;
     expect(target).toBe('_blank');
     expect(openedUrl).toMatch(/^\/editor\/.+/);
     
@@ -111,7 +113,9 @@ describe('New Note Workflow End-to-End', () => {
     render(<NewNoteButton />);
     fireEvent.click(screen.getByText('New Note'));
     
-    const [uuidUrl] = mockWindowOpen.mock.calls[0];
+    const mockCall = mockWindowOpen.mock.calls[0];
+    expect(mockCall).toBeDefined();
+    const [uuidUrl] = mockCall;
     expect(uuidUrl).toBe(`/editor/${mockUuid}`);
     
     // Test that the editor page works with UUID
@@ -143,7 +147,9 @@ describe('New Note Workflow End-to-End', () => {
     render(<NewNoteButton />);
     fireEvent.click(screen.getByText('New Note'));
     
-    const [timestampUrl] = mockWindowOpen.mock.calls[0]; // Use [0] since we cleared previous calls
+    const mockCall = mockWindowOpen.mock.calls[0]; // Use [0] since we cleared previous calls
+    expect(mockCall).toBeDefined();
+    const [timestampUrl] = mockCall;
     expect(timestampUrl).toBe('/editor/1642771200000-123456789');
     
     // Test that the editor page works with timestamp ID

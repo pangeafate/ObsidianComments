@@ -35,8 +35,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 
-# Regenerate Prisma client in production stage to ensure compatibility
-RUN npx prisma generate
+# Prisma client already generated in builder stage and copied with node_modules
 
 # Create non-root user
 RUN groupadd --gid 1001 nodejs
