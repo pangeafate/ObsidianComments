@@ -4,33 +4,36 @@
 import './env-setup';
 
 // Mock Prisma Client completely for CI tests
+const mockPrismaInstance = {
+  $connect: jest.fn().mockResolvedValue(undefined),
+  $disconnect: jest.fn().mockResolvedValue(undefined),
+  $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
+  $transaction: jest.fn((fn) => typeof fn === 'function' ? fn({}) : Promise.resolve()),
+  document: {
+    create: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
+    findUnique: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
+    findMany: jest.fn().mockResolvedValue([]),
+    update: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Updated Document' }),
+    delete: jest.fn().mockResolvedValue({ id: 'test-doc' }),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    count: jest.fn().mockResolvedValue(0)
+  },
+  comment: {
+    create: jest.fn().mockResolvedValue({ id: 'test-comment' }),
+    findMany: jest.fn().mockResolvedValue([]),
+    update: jest.fn().mockResolvedValue({ id: 'test-comment' }),
+    delete: jest.fn().mockResolvedValue({ id: 'test-comment' }),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+  },
+  version: {
+    create: jest.fn().mockResolvedValue({ id: 'test-version' }),
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+  }
+};
+
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => ({
-    $connect: jest.fn().mockResolvedValue(undefined),
-    $disconnect: jest.fn().mockResolvedValue(undefined),
-    $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
-    $transaction: jest.fn((fn) => typeof fn === 'function' ? fn({}) : Promise.resolve()),
-    document: {
-      create: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
-      findUnique: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
-      findMany: jest.fn().mockResolvedValue([]),
-      update: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Updated Document' }),
-      delete: jest.fn().mockResolvedValue({ id: 'test-doc' }),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 })
-    },
-    comment: {
-      create: jest.fn().mockResolvedValue({ id: 'test-comment' }),
-      findMany: jest.fn().mockResolvedValue([]),
-      update: jest.fn().mockResolvedValue({ id: 'test-comment' }),
-      delete: jest.fn().mockResolvedValue({ id: 'test-comment' }),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 })
-    },
-    version: {
-      create: jest.fn().mockResolvedValue({ id: 'test-version' }),
-      findMany: jest.fn().mockResolvedValue([]),
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 })
-    }
-  }))
+  PrismaClient: jest.fn(() => mockPrismaInstance)
 }));
 
 // Mock Redis

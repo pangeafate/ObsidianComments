@@ -10,6 +10,8 @@ const mockCreate = jest.fn();
 const mockFindUnique = jest.fn();
 const mockUpdate = jest.fn();
 const mockDelete = jest.fn();
+const mockFindMany = jest.fn();
+const mockCount = jest.fn();
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => ({
@@ -18,6 +20,8 @@ jest.mock('@prisma/client', () => ({
       findUnique: mockFindUnique,
       update: mockUpdate,
       delete: mockDelete,
+      findMany: mockFindMany,
+      count: mockCount,
     },
   })),
 }));

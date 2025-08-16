@@ -3,7 +3,14 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 import { sanitizeHtml, cleanMarkdownContent } from '../utils/html-sanitizer';
 import * as Y from 'yjs';
 
-const prisma = new PrismaClient();
+// Lazy initialization to allow for mocking in tests
+let prisma: PrismaClient;
+function getPrisma() {
+  if (!prisma) {
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
 // Simple ID generation fallback
 function generateId(): string {
@@ -112,7 +119,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     // FIXED: Use custom ID or generate a fallback if none provided
     // Prisma schema now allows arbitrary string IDs (removed CUID requirement)
     const documentId = customId || generateId(); // Use frontend ID or generate one
-    document = await prisma.document.create({
+    document = await getPrisma().document.create({
       data: {
         id: documentId, // Now works with any string format
         title: cleanTitle, // Use cleaned title
@@ -152,7 +159,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
 }
 
 export async function getSharedNote(shareId: string) {
-  const document = await prisma.document.findUnique({
+  const document = await getPrisma().document.findUnique({
     where: { id: shareId }
   });
 
@@ -176,7 +183,7 @@ export async function getSharedNote(shareId: string) {
 }
 
 export async function updateSharedNote(shareId: string, updates: NoteData) {
-  const document = await prisma.document.findUnique({
+  const document = await getPrisma().document.findUnique({
     where: { id: shareId }
   });
 
@@ -213,7 +220,7 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
     updateData.metadata = updates.metadata;
   }
 
-  const updated = await prisma.document.update({
+  const updated = await getPrisma().document.update({
     where: { id: shareId },
     data: updateData
   });
@@ -235,7 +242,7 @@ export async function updateSharedNote(shareId: string, updates: NoteData) {
 export async function deleteSharedNote(shareId: string) {
   try {
     // First check if the note exists to get its details before deletion
-    const existingNote = await prisma.document.findUnique({
+    const existingNote = await getPrisma().document.findUnique({
       where: { id: shareId },
       select: { id: true, title: true }
     });
@@ -245,7 +252,7 @@ export async function deleteSharedNote(shareId: string) {
     }
 
     // Delete the note
-    await prisma.document.delete({
+    await getPrisma().document.delete({
       where: { id: shareId }
     });
 
@@ -266,14 +273,14 @@ export async function deleteSharedNote(shareId: string) {
 }
 
 export async function listSharedNotes(limit?: number, offset?: number) {
-  const documents = await prisma.document.findMany({
+  const documents = await getPrisma().document.findMany({
     orderBy: { publishedAt: 'desc' },
     take: limit || 100, // Use provided limit or default to 100
     skip: offset || 0
   });
 
   // Get total count for pagination
-  const totalCount = await prisma.document.count();
+  const totalCount = await getPrisma().document.count();
 
   const shares = documents.map((doc: any) => ({
     shareId: doc.id, // Plugin expects shareId not id
