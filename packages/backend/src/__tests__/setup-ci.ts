@@ -10,10 +10,25 @@ const mockPrismaInstance = {
   $queryRaw: jest.fn().mockResolvedValue([{ count: 1 }]),
   $transaction: jest.fn((fn) => typeof fn === 'function' ? fn({}) : Promise.resolve()),
   document: {
-    create: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
-    findUnique: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Test Document' }),
+    create: jest.fn().mockResolvedValue({ 
+      id: 'test-doc', 
+      title: 'Test Document', 
+      publishedAt: new Date('2024-01-01T00:00:00Z'),
+      updatedAt: new Date('2024-01-01T00:00:00Z')
+    }),
+    findUnique: jest.fn().mockResolvedValue({ 
+      id: 'test-doc', 
+      title: 'Test Document', 
+      publishedAt: new Date('2024-01-01T00:00:00Z'),
+      updatedAt: new Date('2024-01-01T00:00:00Z')
+    }),
     findMany: jest.fn().mockResolvedValue([]),
-    update: jest.fn().mockResolvedValue({ id: 'test-doc', title: 'Updated Document' }),
+    update: jest.fn().mockResolvedValue({ 
+      id: 'test-doc', 
+      title: 'Updated Document', 
+      publishedAt: new Date('2024-01-01T00:00:00Z'),
+      updatedAt: new Date('2024-01-01T00:00:00Z')
+    }),
     delete: jest.fn().mockResolvedValue({ id: 'test-doc' }),
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     count: jest.fn().mockResolvedValue(0)
