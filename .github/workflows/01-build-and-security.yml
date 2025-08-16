@@ -52,9 +52,9 @@ jobs:
           # TODO: Fix TypeScript errors and re-enable strict checking
           echo "⚠️ TypeScript checking temporarily disabled to unblock deployment"
           if [ -f "tsconfig.ci.json" ]; then
-            npx tsc --noEmit -p tsconfig.ci.json || true
+            npx tsc --noEmit -p tsconfig.ci.json
           else
-            npx tsc --noEmit --skipLibCheck || true
+            npx tsc --noEmit --skipLibCheck
           fi
           echo "✅ TypeScript check completed (errors ignored for deployment)"
 

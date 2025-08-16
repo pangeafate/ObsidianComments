@@ -47,7 +47,7 @@ test.describe('Production Deployment Validation', () => {
     expect(healthData).toHaveProperty('timestamp');
   });
 
-  test.skip('Document creation and retrieval workflow', async ({ page, request }) => {
+  test('Document creation and retrieval workflow', async ({ page, request }) => {
     // SKIP: API endpoints need to be configured properly
     // Test the core functionality - creating and viewing a document
     const testNote = {
@@ -108,7 +108,7 @@ test.describe('Production Deployment Validation', () => {
     });
   });
 
-  test.skip('Security headers are properly configured', async ({ request }) => {
+  test('Security headers are properly configured', async ({ request }) => {
     // SKIP: Security headers need to be configured on the actual production server
     const response = await request.get(PRODUCTION_URL);
     const headers = response.headers();
@@ -150,7 +150,7 @@ test.describe('Production Deployment Validation', () => {
     expect(navigationTiming.domContentLoadedEventEnd - navigationTiming.fetchStart).toBeLessThan(3000); // 3 seconds
   });
 
-  test.skip('SSL/TLS certificate is valid and secure', async ({ request }) => {
+  test('SSL/TLS certificate is valid and secure', async ({ request }) => {
     // SKIP: SSL certificate validation needs specific setup
     // Verify HTTPS is enforced
     const httpResponse = await request.get(PRODUCTION_URL.replace('https://', 'http://'));
@@ -160,7 +160,7 @@ test.describe('Production Deployment Validation', () => {
     expect(httpsResponse.status()).toBe(200);
   });
 
-  test.skip('Database connectivity and basic operations', async ({ request }) => {
+  test('Database connectivity and basic operations', async ({ request }) => {
     // SKIP: Database tests need API authentication setup
     // Test database connectivity through API endpoints
     const testData = {
@@ -187,7 +187,7 @@ test.describe('Production Deployment Validation', () => {
     await request.delete(`${PRODUCTION_URL}/api/notes/${shareId}`);
   });
 
-  test.skip('Error handling and 404 pages work correctly', async ({ page }) => {
+  test('Error handling and 404 pages work correctly', async ({ page }) => {
     // SKIP: Custom 404 pages need to be configured
     // Test 404 error handling
     const response = await page.goto(`${PRODUCTION_URL}/nonexistent-page`);
@@ -230,7 +230,7 @@ test.describe('Production Mobile Responsiveness', () => {
     expect(parseInt(bodyStyles.fontSize)).toBeGreaterThan(14); // Readable font size
   });
 
-  test.skip('Touch interactions work on mobile', async ({ page }) => {
+  test('Touch interactions work on mobile', async ({ page }) => {
     // SKIP: Touch interaction tests need specific mobile emulation setup
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(PRODUCTION_URL);

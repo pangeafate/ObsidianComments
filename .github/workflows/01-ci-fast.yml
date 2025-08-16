@@ -103,7 +103,7 @@ jobs:
           else
             cd packages/${{ matrix.package }}
           fi
-          npm test -- --coverage --maxWorkers=2 --testPathPattern="\.test\." || true
+          npm test -- --coverage --maxWorkers=2 --testPathPattern="\.test\."
       
       - name: Upload coverage
         uses: codecov/codecov-action@v4

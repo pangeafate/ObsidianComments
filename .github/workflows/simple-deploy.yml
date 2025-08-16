@@ -21,7 +21,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 138.197.187.49 >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H 138.197.187.49 >> ~/.ssh/known_hosts 2>/dev/null
           
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 dev@138.197.187.49 << 'ENDSSH'
           set -e
@@ -33,7 +33,7 @@ jobs:
           fi
           
           # Fix any permission issues
-          sudo chown -R dev:dev /opt/obsidian-comments || true
+          sudo chown -R dev:dev /opt/obsidian-comments
           
           cd /opt/obsidian-comments
           
@@ -49,8 +49,8 @@ jobs:
           fi
           
           echo "Stopping existing services..."
-          docker stop $(docker ps -q) 2>/dev/null || true
-          docker rm $(docker ps -aq) 2>/dev/null || true
+          docker stop $(docker ps -q) 2>/dev/null
+          docker rm $(docker ps -aq) 2>/dev/null
           
           echo "Starting PostgreSQL and Redis..."
           docker run -d --name postgres --network obsidian-comments_obsidian_network \

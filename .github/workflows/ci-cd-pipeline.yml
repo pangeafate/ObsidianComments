@@ -434,17 +434,17 @@ jobs:
           # Check if docker-compose is working (not just existing)
           if docker-compose --version >/dev/null 2>&1; then
             echo "Using docker-compose V1"
-            docker-compose -f docker-compose.production.yml down --timeout 30 || true
+            docker-compose -f docker-compose.production.yml down --timeout 30
           elif docker compose version >/dev/null 2>&1; then
             echo "Using docker compose V2"
-            docker compose -f docker-compose.production.yml down --timeout 30 || true
+            docker compose -f docker-compose.production.yml down --timeout 30
           else
             echo "Docker Compose not available, stopping containers manually"
             # Stop containers regardless of port conflicts
-            docker stop obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
-            docker rm obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null || true
+            docker stop obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null
+            docker rm obsidian-backend obsidian-frontend obsidian-hocuspocus obsidian-postgres obsidian-redis 2>/dev/null
             # Also try to free up potentially conflicting ports
-            docker ps --filter "publish=8081" --filter "publish=8082" --filter "publish=80" --format "table {{.Names}}" | grep -v NAMES | xargs -r docker stop 2>/dev/null || true
+            docker ps --filter "publish=8081" --filter "publish=8082" --filter "publish=80" --format "table {{.Names}}" | grep -v NAMES | xargs -r docker stop 2>/dev/null
           fi
           
           # Deploy new tested version
@@ -460,7 +460,7 @@ jobs:
             echo "Docker Compose not available, deploying with docker run commands"
             
             # Create network
-            docker network create obsidian-network 2>/dev/null || true
+            docker network create obsidian-network 2>/dev/null
             
             # Start PostgreSQL
             docker run -d --name obsidian-postgres --network obsidian-network \

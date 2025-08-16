@@ -3,20 +3,20 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: [
-    '**/__tests__/**/ci-validation.test.ts',
-    '**/__tests__/**/health-tdd.test.ts',
-    '**/__tests__/**/validation.test.ts',
-    '**/__tests__/**/html-sanitizer.test.ts',
-    '**/__tests__/**/feature-flags.test.ts'
+    '**/__tests__/**/*.test.ts',
+    '!**/__tests__/setup*.ts',
+    '!**/__tests__/env-setup.ts',
+    '!**/__tests__/mocks/**'
   ],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/index.ts'
   ],
-  // Only use env setup, not database setup for CI validation
   setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
-  testTimeout: 10000,
-  // No setupFilesAfterEnv to avoid database connection
-  verbose: true
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  testTimeout: 30000,
+  verbose: true,
+  bail: true, // Stop on first test failure
+  maxWorkers: 1 // Run tests sequentially for consistency
 };

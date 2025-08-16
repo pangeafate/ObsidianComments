@@ -44,7 +44,7 @@ jobs:
           echo "🚀 Deploying to production using docker-compose..."
           
           # Stop existing containers
-          docker compose -f docker-compose.production.yml down --timeout 30 || true
+          docker compose -f docker-compose.production.yml down --timeout 30
           
           # Deploy with build
           docker compose -f docker-compose.production.yml up -d --build

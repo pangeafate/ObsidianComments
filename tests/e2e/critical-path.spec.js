@@ -181,7 +181,7 @@ test.describe('Critical User Paths - ObsidianComments', () => {
 
   test('Real-time collaboration works', async ({ browser }) => {
     // Skip this test if running in CI or if it's too resource intensive
-    test.skip(process.env.CI, 'Skipping collaboration test in CI');
+    test(process.env.CI, 'Skipping collaboration test in CI');
     
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();

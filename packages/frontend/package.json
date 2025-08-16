@@ -10,10 +10,10 @@
     "test": "jest --config jest.config.cjs",
     "test:watch": "jest --config jest.config.cjs --watch",
     "test:coverage": "jest --config jest.config.cjs --coverage",
-    "test:ci": "echo 'Frontend tests temporarily skipped in CI - focusing on backend functionality' && exit 0",
+    "test:ci": "jest --config jest.config.cjs --coverage --watchAll=false --bail",
     "test:e2e": "cypress run",
     "test:e2e:open": "cypress open",
-    "lint": "echo 'Linting skipped for frontend - TypeScript compilation handles syntax checking'",
+    "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

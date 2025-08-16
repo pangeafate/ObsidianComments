@@ -62,15 +62,15 @@ jobs:
         
       - name: Lint
         working-directory: packages/${{ matrix.service }}
-        run: npm run lint || true
+        run: npm run lint
         
       - name: Run tests
         working-directory: packages/${{ matrix.service }}
-        run: npm run test:ci || npm test || true
+        run: npm run test:ci
         
       - name: Build
         working-directory: packages/${{ matrix.service }}
-        run: npm run build || true
+        run: npm run build
         
       - name: Generate version
         id: version
@@ -152,7 +152,7 @@ jobs:
       - name: Smoke test
         run: |
           echo "🧪 Running smoke tests..."
-          curl -fS https://staging.obsidiancomments.serverado.app/api/health || true
+          curl -fS https://staging.obsidiancomments.serverado.app/api/health
           
       - name: Create GitHub Deployment
         uses: chrnorm/deployment-action@v2
@@ -187,7 +187,7 @@ jobs:
         
       - name: Run E2E tests
         run: |
-          npx playwright test --project=chromium || true
+          npx playwright test --project=chromium
         env:
           BASE_URL: https://staging.obsidiancomments.serverado.app
           
@@ -224,7 +224,7 @@ jobs:
             mkdir -p ~/.ssh
             echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
-            ssh-keyscan -H $PRODUCTION_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+            ssh-keyscan -H $PRODUCTION_HOST >> ~/.ssh/known_hosts 2>/dev/null
             
             ssh root@$PRODUCTION_HOST << 'ENDSSH'
               cd /root/obsidian-comments
@@ -247,7 +247,7 @@ jobs:
         run: |
           echo "🧪 Running production health checks..."
           sleep 30
-          curl -fS https://obsidiancomments.serverado.app/api/health || curl -fS http://138.197.187.49:8083/api/health || true
+          curl -fS https://obsidiancomments.serverado.app/api/health || curl -fS http://138.197.187.49:8083/api/health
           
       - name: Create GitHub Deployment
         uses: chrnorm/deployment-action@v2
@@ -279,7 +279,7 @@ jobs:
             mkdir -p ~/.ssh
             echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
-            ssh-keyscan -H $PRODUCTION_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+            ssh-keyscan -H $PRODUCTION_HOST >> ~/.ssh/known_hosts 2>/dev/null
             
             ssh root@$PRODUCTION_HOST << 'ENDSSH'
               cd /root/obsidian-comments

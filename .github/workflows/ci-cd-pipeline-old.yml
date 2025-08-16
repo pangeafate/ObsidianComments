@@ -336,7 +336,7 @@ jobs:
           
           # Stop existing services
           echo "🛑 Stopping existing services..."
-          docker-compose -f docker-compose.production.yml down || true
+          docker-compose -f docker-compose.production.yml down
           
           # Start new deployment
           echo "🚀 Starting new deployment..."

@@ -24,7 +24,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     test.setTimeout(30000);
   });
 
-  test.skip('should create note via API that displays in both editor and view modes', async ({ page }) => {
+  test('should create note via API that displays in both editor and view modes', async ({ page }) => {
     // SKIP: API endpoints need to be configured properly
     // Step 1: Create a note via API (simulating Obsidian plugin behavior)
     const noteContent = "This is test content from Obsidian plugin.\n\nIt should be visible in both editor and view modes.";
@@ -47,7 +47,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     } catch (e) {
       // If JSON parsing fails, skip this test
       console.log('API response is not JSON, skipping test');
-      test.skip();
+      test();
       return;
     }
     
@@ -115,7 +115,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     console.log('✅ Title display working');
   });
 
-  test.skip('should handle empty content gracefully', async ({ page }) => {
+  test('should handle empty content gracefully', async ({ page }) => {
     // SKIP: API endpoints need to be configured properly
     // Create note with empty content
     console.log('🔧 Testing empty content handling...');
@@ -153,7 +153,7 @@ test.describe('Obsidian Plugin Editor Visibility Fix', () => {
     console.log('✅ Empty content handled correctly');
   });
 
-  test.skip('should handle content updates via API', async ({ page }) => {
+  test('should handle content updates via API', async ({ page }) => {
     // SKIP: API endpoints need to be configured properly
     // Create initial note
     console.log('🔧 Testing content updates via API...');
