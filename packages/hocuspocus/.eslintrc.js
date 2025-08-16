@@ -1,5 +1,10 @@
 module.exports = {
-  extends: ['eslint:recommended'],
+  parser: '@typescript-eslint/parser',
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended'
+  ],
+  plugins: ['@typescript-eslint'],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module'
@@ -21,6 +26,7 @@ module.exports = {
     'dist/**',
     'node_modules/**',
     'coverage/**',
-    '*.js'
+    '*.config.js',
+    'jest.*.js'
   ]
 };

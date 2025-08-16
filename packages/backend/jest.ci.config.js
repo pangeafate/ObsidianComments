@@ -14,7 +14,7 @@ module.exports = {
     '!src/index.ts'
   ],
   setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup-ci.ts'],
   testTimeout: 30000,
   verbose: true,
   bail: true, // Stop on first test failure
