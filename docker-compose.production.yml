@@ -17,7 +17,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
+      - obsidian_network
 
   redis:
     image: redis:7-alpine
@@ -31,7 +31,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
+      - obsidian_network
 
   backend:
     build:
@@ -58,7 +58,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
+      - obsidian_network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8081/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
@@ -86,23 +86,28 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
-    # Use built-in Docker health check from Dockerfile instead of overriding
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
       context: ./packages/frontend
       dockerfile: Dockerfile.production
       args:
-        VITE_API_URL: http://obsidiancomments.serverado.app
-        VITE_WS_URL: ws://obsidiancomments.serverado.app/ws
+        VITE_API_URL: https://obsidiancomments.serverado.app
+        VITE_WS_URL: wss://obsidiancomments.serverado.app/ws
     image: ghcr.io/pangeafate/obsidiancomments-frontend:latest
     container_name: obsidian-frontend
     expose:
       - "80"
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
+      - obsidian_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 30s
@@ -114,20 +119,36 @@ services:
     image: nginx:alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx-fixed.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-ssl.conf:/etc/nginx/nginx.conf:ro
+      - ./data/certbot/conf:/etc/nginx/ssl:ro
+      - ./data/certbot/www:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - frontend
+      - backend
+      - hocuspocus
     restart: unless-stopped
     networks:
-      - obsidian_prod_network
+      - obsidian_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+    networks:
+      - obsidian_network
 
 volumes:
   postgres_data:
@@ -135,5 +156,5 @@ volumes:
   nginx_logs:
 
 networks:
-  obsidian_prod_network:
+  obsidian_network:
     driver: bridge

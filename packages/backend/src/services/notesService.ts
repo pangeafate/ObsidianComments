@@ -152,7 +152,7 @@ export async function createSharedNote(data: NoteData, customId?: string) {
     viewUrl: generateViewUrl(document.id),
     editUrl: generateEditUrl(document.id),
     title: document.title,
-    createdAt: document.publishedAt.toISOString(),
+    createdAt: document.publishedAt ? document.publishedAt.toISOString() : new Date().toISOString(),
     permissions: 'edit',
     version: 1 // TODO: Implement proper version tracking from database
   };

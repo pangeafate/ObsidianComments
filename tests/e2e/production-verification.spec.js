@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-const PRODUCTION_URL = 'https://obsidiancomments.serverado.app';
+const PRODUCTION_URL = 'http://obsidiancomments.serverado.app';
 
 // Configure to ignore SSL certificate errors for self-signed cert
 test.use({

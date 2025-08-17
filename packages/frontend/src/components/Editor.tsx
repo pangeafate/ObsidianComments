@@ -6,6 +6,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import { Markdown } from 'tiptap-markdown';
 import { useCollaboration } from '../hooks/useCollaboration';
 import { useComments } from '../hooks/useComments';
 import { useLinkTracking } from '../hooks/useLinkTracking';
@@ -22,7 +23,7 @@ import { CommentHighlight } from '../extensions/CommentHighlight';
 import { TrackChangesToolbar } from './TrackChangesToolbar';
 import { documentService, DocumentData } from '../services/documentService';
 import { extendedDocumentService } from '../services/documentServiceExtensions';
-import { markdownToProseMirror } from '../utils/markdownConverter';
+import { markdownToProseMirror, markdownToHtml } from '../utils/markdownConverter';
 import { stripTrackChangesMarkup } from '../utils/contentSanitizer';
 import { initializeContentSafely, deduplicateContent } from '../utils/contentDeduplication';
 import { pickInitialContent } from '../utils/contentSource';
@@ -191,6 +192,20 @@ export function Editor({ documentId }: EditorProps) {
       StarterKit.configure({
         history: false,
       }),
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      Markdown.configure({
+        html: true,                  // Enable HTML support
+        tightLists: true,           // Use tight list spacing
+        tightListClass: 'tight',    // CSS class for tight lists
+        bulletListMarker: '-',       // Use - for bullet lists
+        linkify: true,              // Convert URLs to links
+        breaks: true,               // Convert line breaks
+        transformPastedText: true,  // Enable markdown paste transformation
+        transformCopiedText: true,  // Enable markdown copy transformation
+      }),
       ...(ydoc ? [Collaboration.configure({
         document: ydoc,
         field: 'content',
@@ -202,10 +217,6 @@ export function Editor({ documentId }: EditorProps) {
           color: userColor || generateUserColor(currentUser),
         } : undefined,
       })] : []),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
       TrackChanges.configure({
         userId: currentUser,
         userName: currentUser,
@@ -217,6 +228,46 @@ export function Editor({ documentId }: EditorProps) {
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-screen p-4 bg-gray-100',
+      },
+      handlePaste: (view, event) => {
+        // Get the pasted text
+        const text = event.clipboardData?.getData('text/plain');
+        
+        if (text) {
+          // Check if text contains markdown patterns (check multiple lines)
+          const lines = text.split('\n');
+          const hasMarkdown = lines.some(line => 
+            /^#{1,6}\s|^\*\*|^\*|^-\s|^>\s|^\d+\.\s|^```/.test(line)
+          );
+          
+          if (hasMarkdown) {
+            try {
+              // Convert markdown to HTML
+              const html = markdownToHtml(text);
+              
+              // Parse HTML and create document fragment
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, 'text/html');
+              
+              // Insert at current position using view's dispatch
+              const { state, dispatch } = view;
+              const { schema } = state;
+              const fragment = DOMParser.fromSchema(schema).parse(doc.body);
+              
+              const tr = state.tr.replaceSelection(fragment);
+              dispatch(tr);
+              
+              // Prevent default paste behavior
+              event.preventDefault();
+              return true;
+            } catch (error) {
+              console.error('Error converting markdown:', error);
+            }
+          }
+        }
+        
+        // Let default paste handler run
+        return false;
       },
       handleTextInput: (_view, _from, _to, _text) => {
         // Auto-apply track changes to new text input
