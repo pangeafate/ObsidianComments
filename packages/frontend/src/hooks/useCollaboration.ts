@@ -38,6 +38,8 @@ export function useCollaboration(documentId: string): UseCollaborationReturn {
     newYdoc.getXmlFragment('content');
     // Initialize shared title as Y.Text for collaborative title editing
     newYdoc.getText('title');
+    // Initialize comments map for persistent comment storage
+    newYdoc.getMap('comments');
     setYdoc(newYdoc);
     
     // Use Vite env in browser, fallback to process.env, then window.host default

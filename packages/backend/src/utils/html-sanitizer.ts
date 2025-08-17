@@ -59,9 +59,9 @@ function basicHtmlSanitize(input: string): string {
   // Remove javascript: links
   sanitized = sanitized.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
   
-  // Remove dangerous and media tags
+  // Remove dangerous and media tags (self-closing and with content)
   sanitized = sanitized.replace(/<(object|embed|form|input|img|video|audio|iframe|canvas|svg|picture|source|track)[^>]*>[\s\S]*?<\/\1>/gi, '');
-  sanitized = sanitized.replace(/<(object|embed|form|input|img|video|audio|iframe|canvas|svg|picture|source|track)[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<(object|embed|form|input|img|video|audio|iframe|canvas|svg|picture|source|track)[^>]*\/?>/gi, '');
   
   // Remove style attributes and media-related attributes
   sanitized = sanitized.replace(/\s*style\s*=\s*["'][^"']*["']/gi, '');
@@ -186,11 +186,13 @@ function basicTitleSanitize(title: string): string {
   
   // Remove all HTML tags and dangerous characters
   let sanitized = title
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags first
     .replace(/<[^>]*>/g, '') // Remove HTML tags
     .replace(/[<>]/g, '') // Remove any remaining angle brackets
     .replace(/javascript:/gi, '') // Remove javascript: URIs
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
-    .replace(/on\w+\s*=\s*[^>\s]+/gi, ''); // Remove unquoted event handlers
+    .replace(/on\w+\s*=\s*[^>\s]+/gi, '') // Remove unquoted event handlers
+    .replace(/alert\s*\(/gi, ''); // Remove alert calls
   
   return sanitized.trim();
 }

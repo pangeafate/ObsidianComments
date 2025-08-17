@@ -32,11 +32,14 @@ module.exports = {
       tsconfig: 'tsconfig.json'
     }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(.*\\.mjs$))'
+  ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   testTimeout: 10000,
   
   // Test environment setup
-  setupFiles: ['<rootDir>/src/__tests__/env-setup.ts'],
+  setupFiles: ['<rootDir>/src/__tests__/env-setup.ts', '<rootDir>/src/__tests__/import-meta-mock.ts'],
   
   // Coverage configuration
   coverageDirectory: '<rootDir>/coverage',

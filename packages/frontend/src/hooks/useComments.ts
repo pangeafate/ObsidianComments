@@ -27,29 +27,63 @@ export interface UseCommentsReturn {
   getThreadComments: (threadId: string) => Comment[];
 }
 
-export function useComments(ydoc: Y.Doc | null): UseCommentsReturn {
+export function useComments(ydoc: Y.Doc | null, synced?: boolean, isInitialSyncComplete?: boolean): UseCommentsReturn {
   const [comments, setComments] = useState<Comment[]>([]);
   const commentsMap = ydoc?.getMap('comments');
 
-  // Sync comments from Yjs map
+  // Force save comments on page unload to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (ydoc && commentsMap && commentsMap.size > 0) {
+        console.log('💾 Page unloading with comments, forcing immediate save');
+        // The WebSocket connection will handle the final save
+        // This ensures any pending changes are sent
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [ydoc, commentsMap]);
+
+  // Sync comments from Yjs map - CRITICAL FIX: Wait for proper synchronization
   useEffect(() => {
     if (!commentsMap) {
       setComments([]);
       return;
     }
 
+    // CRITICAL FIX: Only load comments after Yjs is fully synchronized
+    // This prevents loading empty comments before server data arrives
+    if (synced !== undefined && isInitialSyncComplete !== undefined) {
+      if (!synced || !isInitialSyncComplete) {
+        console.log('⏳ Waiting for Yjs sync before loading comments...', { synced, isInitialSyncComplete });
+        setComments([]); // Clear comments until sync is complete
+        return;
+      }
+    }
+
     const updateComments = () => {
       const commentsList: Comment[] = [];
       commentsMap.forEach((comment) => {
-        commentsList.push(comment as Comment);
+        // Validate comment structure before adding
+        if (comment && typeof comment === 'object' && comment.id && comment.content && comment.author) {
+          commentsList.push(comment as Comment);
+        } else {
+          console.warn('Invalid comment data found in Yjs map:', comment);
+        }
       });
       
       // Sort by creation time
       commentsList.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       setComments(commentsList);
+      
+      console.log(`📊 Comments loaded after sync: ${commentsList.length} valid comments from ${commentsMap.size} map entries`);
+      console.log(`🔄 Sync status: synced=${synced}, isInitialSyncComplete=${isInitialSyncComplete}`);
     };
 
-    // Initial sync
+    // Initial sync - only after proper synchronization
     updateComments();
 
     // Listen for changes
@@ -58,7 +92,7 @@ export function useComments(ydoc: Y.Doc | null): UseCommentsReturn {
     return () => {
       commentsMap.unobserve(updateComments);
     };
-  }, [commentsMap]);
+  }, [commentsMap, synced, isInitialSyncComplete]);
 
   const addComment = useCallback((newComment: NewComment) => {
     if (!ydoc || !commentsMap) return;

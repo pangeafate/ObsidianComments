@@ -47,7 +47,7 @@ export function Editor({ documentId }: EditorProps) {
     setTitle, 
     onTitleChange 
   } = useCollaboration(documentId);
-  const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null);
+  const { comments, addComment, resolveComment, deleteComment } = useComments(ydoc || null, synced, isInitialSyncComplete);
   
   // Refs
   const myLinksPaneRef = useRef<MyLinksPaneRef>(null);

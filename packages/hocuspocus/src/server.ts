@@ -129,9 +129,9 @@ export function createServer() {
     // TEMPORARY: Use only Database extension for debugging
     extensions: [databaseExtension],
     
-    // Enable debug logging
-    debounce: 2000, // Save to database every 2 seconds instead of default 10
-    maxDebounce: 10000, // Maximum wait time
+    // Reduce debounce for better single-user comment persistence
+    debounce: 500, // Save to database every 500ms for better responsiveness
+    maxDebounce: 2000, // Shorter maximum wait time
     
     async onConnect(data: any) {
       console.log(`🔌 Client connected from ${data.socketId}, document: ${data.documentName}`);
@@ -158,6 +158,23 @@ export function createServer() {
 
     async onChange(data: any) {
       console.log(`📝 Document changed: ${data.documentName}, changes: ${data.update?.length || 0} bytes`);
+      
+      // Log comment activity for debugging
+      try {
+        if (data.document) {
+          const commentsMap = data.document.getMap('comments');
+          if (commentsMap && commentsMap.size > 0) {
+            console.log(`💬 Document ${data.documentName} has ${commentsMap.size} comments`);
+            
+            const userCount = data.document.awareness?.getStates().size || 0;
+            if (userCount <= 1) {
+              console.log(`👤 Single user scenario - relying on debounced save`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error in comment logging for ${data.documentName}:`, error);
+      }
     },
 
     async onStoreDocument(data: any) {

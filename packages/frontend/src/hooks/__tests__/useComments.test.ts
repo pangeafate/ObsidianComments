@@ -16,13 +16,13 @@ describe('useComments hook', () => {
   });
 
   it('should initialize with empty comments', () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     expect(result.current.comments).toEqual([]);
   });
 
   it('should add a new comment', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     act(() => {
       result.current.addComment({
@@ -47,7 +47,7 @@ describe('useComments hook', () => {
   });
 
   it('should reply to a comment', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     // Add initial comment
     act(() => {
@@ -83,7 +83,7 @@ describe('useComments hook', () => {
   });
 
   it('should resolve a comment', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     // Add comment
     act(() => {
@@ -107,7 +107,7 @@ describe('useComments hook', () => {
   });
 
   it('should delete a comment', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     // Add comment
     act(() => {
@@ -131,7 +131,7 @@ describe('useComments hook', () => {
   });
 
   it('should get comments for a thread', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     // Add parent comment
     act(() => {
@@ -175,7 +175,7 @@ describe('useComments hook', () => {
   });
 
   it('should sync with Yjs document changes', async () => {
-    const { result } = renderHook(() => useComments(ydoc));
+    const { result } = renderHook(() => useComments(ydoc, true, true));
 
     // Simulate external comment addition
     ydoc.transact(() => {
